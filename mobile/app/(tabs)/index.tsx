@@ -3,7 +3,6 @@ import { Activity, AlertTriangle, ChevronRight, Heart, Moon, Shield, Zap } from 
 import React, { useState } from 'react';
 import { SafeAreaView, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { Card } from '../../components/ui/card';
-import ModeSelector from '../../components/ui/mode-selector';
 import { useC1001Sensor } from '../../hooks/useC1001Sensor';
 import { useSensorConnection } from '../../hooks/useSensorMock';
 import { useModeStore } from '../../stores/mode.store';
@@ -243,10 +242,10 @@ const HomeScreen = () => {
       </ScrollView>
 
       {/* Mode Selector Bottom Sheet */}
-      <ModeSelector
+      {/* <ModeSelector
         isVisible={showModeSelector}
         onClose={() => setShowModeSelector(false)}
-      />
+      /> */}
     </SafeAreaView>
   );
 };

@@ -61,7 +61,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const signUp = async (data: { email: string; password: string; username: string; full_name: string }) => {
-    return await signup(data);
+    console.log('🔑 AuthContext.signUp called');
+    try {
+      const result = await signup(data);
+      console.log('🔑 AuthContext.signUp result:', result);
+      return result;
+    } catch (error) {
+      console.error('🔑 AuthContext.signUp error:', error);
+      throw error;
+    }
   };
 
   const signIn = async (data: { email: string; password: string }) => {

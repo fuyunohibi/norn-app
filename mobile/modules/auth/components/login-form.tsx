@@ -65,7 +65,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSwitchToSignup }) => {
             name="email"
             render={({ field: { onChange, onBlur, value } }) => (
               <View className="relative">
-                <View className="absolute left-4 top-1/2 transform -translate-y-1/2 z-10">
+                <View className="absolute left-4 top-6 z-10">
                   <Mail size={20} color="#9CA3AF" />
                 </View>
                 <Input
@@ -92,7 +92,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSwitchToSignup }) => {
             name="password"
             render={({ field: { onChange, onBlur, value } }) => (
               <View className="relative">
-                <View className="absolute left-4 top-1/2 transform -translate-y-1/2 z-10">
+                <View className="absolute left-4 top-6 z-10">
                   <Lock size={20} color="#9CA3AF" />
                 </View>
                 <Input
@@ -106,7 +106,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSwitchToSignup }) => {
                 />
                 <TouchableOpacity
                   onPress={() => setShowPassword(!showPassword)}
-                  className="absolute right-4 top-1/2 transform -translate-y-1/2 z-10"
+                  className="absolute right-4 top-6 z-10"
                 >
                   {showPassword ? (
                     <EyeOff size={20} color="#9CA3AF" />
