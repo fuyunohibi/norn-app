@@ -9,7 +9,9 @@ norn-app/
 ├── mobile/              # React Native app (Expo)
 ├── backend/             # Python FastAPI server
 ├── arduino/             # ESP32 firmware
-└── README.md           # This file
+├── README.md            # This file
+├── ESP32_WIFI_SETUP.md  # ESP32 Wi-Fi connection guide
+└── DATABASE_SETUP.md    # Database setup instructions
 ```
 
 ## 🚀 Quick Setup
@@ -65,7 +67,7 @@ Press `a` for Android or `i` for iOS simulator.
 cd backend
 
 # Create virtual environment
-python -m venv venv
+python3 -m venv venv
 
 # Activate (Windows)
 venv\Scripts\activate
@@ -125,10 +127,11 @@ GND     →  GND
 1. Open `arduino/norn_sensor/norn_sensor.ino`
 2. Update these lines:
    ```cpp
-   const char* ssid = "YOUR_WIFI_SSID";
+   const char* ssid = "YOUR_WIFI_SSID";        // ⚠️ Must be 2.4GHz network!
    const char* password = "YOUR_WIFI_PASSWORD";
    const char* backend_url = "http://192.168.1.100:8000/api/v1/sensor/data";
    ```
+   > **⚠️ Important:** ESP32 only supports 2.4GHz Wi-Fi. See [ESP32_WIFI_SETUP.md](ESP32_WIFI_SETUP.md) for details.
 3. **Tools → Board** → ESP32 Dev Module
 4. **Tools → Port** → Select your ESP32
 5. Click **Upload**
@@ -227,9 +230,11 @@ docker-compose down
 - Check ESP32 and backend are on same network
 
 ### ESP32 won't connect to Wi-Fi
+- **See detailed guide:** [ESP32_WIFI_SETUP.md](ESP32_WIFI_SETUP.md)
 - Check SSID and password are correct
-- Use 2.4GHz network (ESP32 doesn't support 5GHz)
+- **⚠️ Use 2.4GHz network** (ESP32 doesn't support 5GHz)
 - Check router allows IoT devices
+- Verify network is in range
 
 ### Supabase errors
 - Mobile uses **anon key**, backend uses **service_role key**

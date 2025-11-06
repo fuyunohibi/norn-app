@@ -40,11 +40,11 @@ const Header = ({
         )}
         
         <View className="flex-1">
-          <Text className="text-3xl font-bold text-gray-900 mb-2">
+          <Text className="text-2xl font-bold text-gray-900">
             {title}
           </Text>
           {subtitle && (
-            <Text className="text-lg text-gray-600">
+            <Text className="text-sm text-gray-600">
               {subtitle}
             </Text>
           )}

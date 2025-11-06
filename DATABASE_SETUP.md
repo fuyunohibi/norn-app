@@ -16,6 +16,25 @@ node scripts/migrate-database.js
 3. Copy the SQL schema from the migration script output
 4. Paste and run the schema
 
+### 2b. Apply Service Role Policies (Required for Backend)
+
+**Option A: Fresh Start (Recommended if you have RLS issues)**
+
+If you're experiencing RLS policy violations, the easiest solution is to recreate the tables with proper policies:
+
+1. Go to **SQL Editor** in Supabase
+2. Run the migration: `mobile/supabase/migrations/20250910_000005_recreate_tables_with_rls.sql`
+   - This will drop and recreate all sensor-related tables (keeps `users` and `user_preferences`)
+   - Sets up RLS with permissive INSERT policies for backend service_role
+   - All tables will be recreated with correct schema and indexes
+
+**Option B: Fix Existing Tables**
+
+If you want to keep existing data, run:
+- `mobile/supabase/migrations/20250910_000004_fix_rls_policies.sql`
+
+**Important:** The backend uses `service_role` key which should bypass RLS, but the permissive policies ensure inserts work even if RLS is enforced.
+
 ### 3. Verify Setup
 
 The migration will create:

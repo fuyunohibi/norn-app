@@ -1,22 +1,106 @@
 import { Activity, Heart, Moon, Shield, User, Zap } from 'lucide-react-native';
-import React from 'react';
-import { SafeAreaView, ScrollView, Text, View } from 'react-native';
+import React, { useMemo } from 'react';
+import { ActivityIndicator, SafeAreaView, ScrollView, Text, View } from 'react-native';
 import { Card } from '../../components/ui/card';
 import Header from '../../components/ui/header';
-import { useC1001Sensor } from '../../hooks/useC1001Sensor';
-import { useSensorReadings } from '../../hooks/useSensorMock';
+import { useLatestSensorReading } from '../../hooks/useSensorReadings';
 import { useModeStore } from '../../stores/mode.store';
 
 const HealthScreen = () => {
-  const { data: readings, isLoading: readingsLoading } = useSensorReadings();
-  const { data: sensorData, isLoading: sensorLoading } = useC1001Sensor();
   const { activeMode } = useModeStore();
+  // Use the default user_id that matches the backend
+  const userId = '0b8baf9c-dcfa-4d11-93d5-a08ce06a3d61';
+  const { reading, rawData, isLoading: readingsLoading, error, timestamp } = useLatestSensorReading(userId);
 
-  // Get specific readings
-  const heartRateReading = readings?.find(r => r.type === 'heart_rate');
-  const movementReading = readings?.find(r => r.type === 'movement');
-  const presenceReading = readings?.find(r => r.type === 'presence');
-  const respirationReading = readings?.find(r => r.type === 'respiration');
+  // Extract health metrics from real data
+  const healthMetrics = useMemo(() => {
+    if (!rawData) {
+      if (__DEV__) console.log('⚠️ No rawData available');
+      return {
+        heartRate: null,
+        respiration: null,
+        movement: null,
+        presence: null,
+      };
+    }
+
+    if (__DEV__) {
+      console.log('📊 Raw data structure:', {
+        mode: rawData.mode,
+        hasComprehensive: !!rawData.comprehensive,
+        hasStatistics: !!rawData.statistics,
+        comprehensiveKeys: rawData.comprehensive ? Object.keys(rawData.comprehensive) : [],
+        statisticsKeys: rawData.statistics ? Object.keys(rawData.statistics) : [],
+      });
+    }
+
+    // Extract based on mode
+    if (rawData.mode === 'sleep_detection') {
+      // Use direct sensor readings first (real-time), then fall back to averaged values
+      // Use nullish coalescing (??) instead of || to handle 0 values correctly
+      const heartRate = rawData.heart_rate ?? rawData.comprehensive?.avg_heartbeat ?? rawData.statistics?.avg_heartbeat ?? null;
+      const respiration = rawData.respiration_rate ?? rawData.comprehensive?.avg_respiration ?? rawData.statistics?.avg_respiration ?? null;
+      const movement = rawData.body_movement_range ?? rawData.comprehensive?.large_body_move ?? rawData.comprehensive?.minor_body_move ?? null;
+      const presence = rawData.comprehensive?.presence ?? rawData.in_bed ?? null;
+
+      if (__DEV__) {
+        console.log('💓 Extracted health metrics (sleep):', {
+          heartRate,
+          respiration,
+          movement,
+          presence,
+          comprehensive: rawData.comprehensive,
+          statistics: rawData.statistics,
+        });
+      }
+
+      return {
+        heartRate,
+        respiration,
+        movement,
+        presence,
+      };
+    } else if (rawData.mode === 'fall_detection') {
+      // Use direct sensor readings first (real-time), then fall back to other values
+      const heartRate = rawData.heart_rate ?? null;
+      const respiration = rawData.respiration_rate ?? null;
+      const movement = rawData.body_movement ?? rawData.motion ?? null;
+      const presence = rawData.presence ?? null;
+
+      if (__DEV__) {
+        console.log('💓 Extracted health metrics (fall):', {
+          movement,
+          presence,
+          body_movement: rawData.body_movement,
+          motion: rawData.motion,
+        });
+      }
+
+      return {
+        heartRate, // Now available in fall mode too
+        respiration, // Now available in fall mode too
+        movement,
+        presence,
+      };
+    }
+
+    return {
+      heartRate: null,
+      respiration: null,
+      movement: null,
+      presence: null,
+    };
+  }, [rawData]);
+
+  // Format timestamp for display
+  const lastUpdated = useMemo(() => {
+    if (!timestamp) return null;
+    try {
+      return new Date(timestamp);
+    } catch {
+      return null;
+    }
+  }, [timestamp]);
 
   const getReadingColor = (type: string, value: number | null) => {
     if (value === null) return 'text-gray-400';
@@ -63,16 +147,16 @@ const HealthScreen = () => {
                     Live Heart Rate
                   </Text>
                   <Text className="text-gray-500 text-xs">
-                    {heartRateReading?.lastUpdated ? 
-                      `Updated ${heartRateReading.lastUpdated.toLocaleTimeString()}` : 
+                    {lastUpdated ? 
+                      `Updated ${lastUpdated.toLocaleTimeString()}` : 
                       'No data available'
                     }
               </Text>
                 </View>
               </View>
               <View className="items-end">
-                <Text className={`text-2xl font-bold ${getReadingColor('heart_rate', heartRateReading?.value || null)}`}>
-                  {heartRateReading?.value ? `${heartRateReading.value} BPM` : '--'}
+                <Text className={`text-2xl font-bold ${getReadingColor('heart_rate', healthMetrics.heartRate)}`}>
+                  {healthMetrics.heartRate !== null ? `${healthMetrics.heartRate} BPM` : '--'}
               </Text>
               </View>
             </View>
@@ -90,32 +174,17 @@ const HealthScreen = () => {
               {[1, 2, 3].map((i) => (
                 <Card key={i} variant="outlined" className="flex-1">
                   <View className="p-4 items-center">
-                    <View className="w-10 h-10 bg-gray-200 rounded-xl mb-3 animate-pulse" />
-                    <View className="h-3 bg-gray-200 rounded mb-2 w-16 animate-pulse" />
-                    <View className="h-5 bg-gray-200 rounded w-12 animate-pulse" />
+                    <ActivityIndicator size="small" color="#9E9E9E" className="mb-3" />
+                    <View className="h-3 bg-gray-200 rounded mb-2 w-16" />
+                    <View className="h-5 bg-gray-200 rounded w-12" />
                   </View>
                 </Card>
               ))}
             </View>
           ) : (
-            <View className="flex-row gap-3">
-              {/* Movement Column */}
-              <Card variant="outlined" className="flex-1">
-                 <View className="items-center py-2">
-                  <View className="w-12 h-12 bg-primary-accent rounded-xl items-center justify-center mb-3">
-                    <Zap size={24} color="white" />
-                  </View>
-                  <Text className="text-xs font-medium text-gray-600 mb-2">
-                    Movement
-                  </Text>
-                  <Text className={`text-lg font-bold ${getReadingColor('movement', movementReading?.value || null)}`}>
-                    {movementReading?.value ? `${movementReading.value}%` : '--'}
-                  </Text>
-                </View>
-              </Card>
-
+            <View className="flex-row gap-3 flex-wrap">
               {/* Presence Column */}
-              <Card variant="outlined" className="flex-1">
+              <Card variant="outlined" className="flex-1 min-w-[100px]">
                 <View className="items-center py-2">
                   <View className="w-12 h-12 bg-primary-button rounded-xl items-center justify-center mb-3">
                     <User size={24} color="white" />
@@ -123,14 +192,14 @@ const HealthScreen = () => {
                   <Text className="text-xs font-medium text-gray-600 mb-2">
                     Presence
                   </Text>
-                  <Text className={`text-base font-bold ${getReadingColor('presence', presenceReading?.value || null)}`}>
-                    {presenceReading?.value === 1 ? 'Yes' : presenceReading?.value === 0 ? 'No' : '--'}
+                  <Text className={`text-base font-bold ${getReadingColor('presence', healthMetrics.presence)}`}>
+                    {healthMetrics.presence === 1 ? 'Yes' : healthMetrics.presence === 0 ? 'No' : '--'}
                   </Text>
                 </View>
               </Card>
 
               {/* Respiration Column */}
-              <Card variant="outlined" className="flex-1">
+              <Card variant="outlined" className="flex-1 min-w-[100px]">
                 <View className="items-center py-2">
                   <View className="w-12 h-12 bg-success rounded-xl items-center justify-center mb-3">
                     <Activity size={24} color="white" />
@@ -138,8 +207,43 @@ const HealthScreen = () => {
                   <Text className="text-xs font-medium text-gray-600 mb-2">
                     Respiration
                   </Text>
-                  <Text className={`text-lg font-bold ${getReadingColor('respiration', respirationReading?.value || null)}`}>
-                    {respirationReading?.value ? `${respirationReading.value}/min` : '--'}
+                  <Text className={`text-lg font-bold ${getReadingColor('respiration', healthMetrics.respiration)}`}>
+                    {healthMetrics.respiration !== null ? `${healthMetrics.respiration}/min` : '--'}
+                  </Text>
+                </View>
+              </Card>
+
+              {/* Movement Column */}
+              <Card variant="outlined" className="flex-1 min-w-[100px]">
+                 <View className="items-center py-2">
+                  <View className="w-12 h-12 bg-primary-accent rounded-xl items-center justify-center mb-3">
+                    <Zap size={24} color="white" />
+                  </View>
+                  <Text className="text-xs font-medium text-gray-600 mb-2">
+                    Movement
+                  </Text>
+                  <Text className={`text-lg font-bold ${getReadingColor('movement', healthMetrics.movement)}`}>
+                    {healthMetrics.movement !== null ? `${healthMetrics.movement}%` : '--'}
+                  </Text>
+                </View>
+              </Card>
+
+              {/* Movement Status Column */}
+              <Card variant="outlined" className="flex-1 min-w-[100px]">
+                <View className="items-center py-2">
+                  <View className="w-12 h-12 bg-warning rounded-xl items-center justify-center mb-3">
+                    <Activity size={24} color="white" />
+                  </View>
+                  <Text className="text-xs font-medium text-gray-600 mb-2">
+                    Status
+                  </Text>
+                  <Text className={`text-sm font-bold ${
+                    rawData?.movement_status === 'Active' ? 'text-primary-accent' :
+                    rawData?.movement_status === 'Still' ? 'text-success' :
+                    rawData?.movement_status === 'None' ? 'text-gray-400' :
+                    'text-gray-600'
+                  }`}>
+                    {rawData?.movement_status || '--'}
                   </Text>
                 </View>
               </Card>
@@ -147,15 +251,15 @@ const HealthScreen = () => {
           )}
         </View>
 
-        {/* C1001 Comprehensive Data */}
-        {sensorData && (
+        {/* Comprehensive Sensor Data */}
+        {rawData && (
           <View className="mb-8">
             <Text className="text-xl font-bold text-gray-900 mb-4">
-              C1001 Sensor Data
+              Sensor Data
             </Text>
             
             {/* Sleep Mode Comprehensive Data */}
-            {activeMode?.id === 'sleep' && sensorData.sleepComposite && (
+            {activeMode?.id === 'sleep' && rawData.mode === 'sleep_detection' && rawData.comprehensive && (
               <View className="gap-y-4">
                 {/* Sleep Composite Status */}
                 <Card variant="outlined">
@@ -163,35 +267,35 @@ const HealthScreen = () => {
                     <Text className="text-lg font-semibold text-gray-900 mb-3">
                       Comprehensive Sleep Status
                     </Text>
-                    <View className="grid grid-cols-2 gap-3">
+                    <View className="gap-3">
                       <View className="flex-row items-center">
                         <Moon size={20} color="#666" className="mr-2" />
                         <Text className="text-sm text-gray-600">Sleep State:</Text>
                         <Text className="text-sm font-semibold text-gray-900 ml-2">
-                          {sensorData.sleepComposite.sleepState === 0 ? 'Deep' :
-                           sensorData.sleepComposite.sleepState === 1 ? 'Light' :
-                           sensorData.sleepComposite.sleepState === 2 ? 'Awake' : 'None'}
+                          {rawData.comprehensive.sleep_state === 0 ? 'Deep' :
+                           rawData.comprehensive.sleep_state === 1 ? 'Light' :
+                           rawData.comprehensive.sleep_state === 2 ? 'Awake' : 'None'}
                         </Text>
                       </View>
                       <View className="flex-row items-center">
                         <Activity size={20} color="#666" className="mr-2" />
                         <Text className="text-sm text-gray-600">Turns:</Text>
                         <Text className="text-sm font-semibold text-gray-900 ml-2">
-                          {sensorData.sleepComposite.turnoverNumber}
+                          {rawData.comprehensive?.turns || rawData.statistics?.turn_over_count || 0}
                         </Text>
                       </View>
                       <View className="flex-row items-center">
                         <Heart size={20} color="#666" className="mr-2" />
                         <Text className="text-sm text-gray-600">Avg HR:</Text>
                         <Text className="text-sm font-semibold text-gray-900 ml-2">
-                          {sensorData.sleepComposite.averageHeartbeat} bpm
+                          {rawData.comprehensive.avg_heartbeat || 0} bpm
                         </Text>
                       </View>
                       <View className="flex-row items-center">
                         <Activity size={20} color="#666" className="mr-2" />
                         <Text className="text-sm text-gray-600">Avg Resp:</Text>
                         <Text className="text-sm font-semibold text-gray-900 ml-2">
-                          {sensorData.sleepComposite.averageRespiration}/min
+                          {rawData.comprehensive.avg_respiration || 0}/min
                         </Text>
                       </View>
                     </View>
@@ -199,47 +303,47 @@ const HealthScreen = () => {
                 </Card>
 
                 {/* Sleep Statistics */}
-                {sensorData.sleepStatistics && (
+                {rawData.statistics && (
                   <Card variant="outlined">
                     <View className="p-4">
                       <Text className="text-lg font-semibold text-gray-900 mb-3">
                         Sleep Statistics
                       </Text>
-                      <View className="grid grid-cols-2 gap-3">
-                        <View className="flex-row items-center">
+                      <View className="gap-3">
+                        <View className="flex-row items-center justify-between">
                           <Text className="text-sm text-gray-600">Quality Score:</Text>
-                          <Text className="text-sm font-semibold text-primary-accent ml-2">
-                            {sensorData.sleepStatistics.sleepQualityScore}%
+                          <Text className="text-sm font-semibold text-primary-accent">
+                            {rawData.statistics.sleep_quality_score || rawData.sleep_quality_score || 0}%
                           </Text>
                         </View>
-                        <View className="flex-row items-center">
+                        <View className="flex-row items-center justify-between">
                           <Text className="text-sm text-gray-600">Deep Sleep:</Text>
-                          <Text className="text-sm font-semibold text-gray-900 ml-2">
-                            {sensorData.sleepStatistics.deepSleepPercentage}%
+                          <Text className="text-sm font-semibold text-gray-900">
+                            {rawData.statistics.deep_sleep_pct || 0}%
                           </Text>
                         </View>
-                        <View className="flex-row items-center">
+                        <View className="flex-row items-center justify-between">
                           <Text className="text-sm text-gray-600">Light Sleep:</Text>
-                          <Text className="text-sm font-semibold text-gray-900 ml-2">
-                            {sensorData.sleepStatistics.shallowSleepPercentage}%
+                          <Text className="text-sm font-semibold text-gray-900">
+                            {rawData.statistics.light_sleep_pct || 0}%
                           </Text>
                         </View>
-                        <View className="flex-row items-center">
+                        <View className="flex-row items-center justify-between">
                           <Text className="text-sm text-gray-600">Awake:</Text>
-                          <Text className="text-sm font-semibold text-gray-900 ml-2">
-                            {sensorData.sleepStatistics.sleepTime}%
+                          <Text className="text-sm font-semibold text-gray-900">
+                            {rawData.statistics.awake_time_pct || 0}%
                           </Text>
                         </View>
-                        <View className="flex-row items-center">
+                        <View className="flex-row items-center justify-between">
                           <Text className="text-sm text-gray-600">Out of Bed:</Text>
-                          <Text className="text-sm font-semibold text-gray-900 ml-2">
-                            {sensorData.sleepStatistics.timeOutOfBed}min
+                          <Text className="text-sm font-semibold text-gray-900">
+                            {rawData.statistics.out_of_bed_duration || 0}min
                           </Text>
                         </View>
-                        <View className="flex-row items-center">
+                        <View className="flex-row items-center justify-between">
                           <Text className="text-sm text-gray-600">Exit Count:</Text>
-                          <Text className="text-sm font-semibold text-gray-900 ml-2">
-                            {sensorData.sleepStatistics.exitCount}
+                          <Text className="text-sm font-semibold text-gray-900">
+                            {rawData.statistics.exit_count || 0}
                           </Text>
                         </View>
                       </View>
@@ -248,7 +352,7 @@ const HealthScreen = () => {
                 )}
 
                 {/* Sleep Disturbances */}
-                {sensorData.sleepData && (
+                {rawData.comprehensive && (
                   <Card variant="outlined">
                     <View className="p-4">
                       <Text className="text-lg font-semibold text-gray-900 mb-3">
@@ -258,28 +362,28 @@ const HealthScreen = () => {
                         <View className="flex-row items-center justify-between">
                           <Text className="text-sm text-gray-600">Apnea Events:</Text>
                           <Text className="text-sm font-semibold text-gray-900">
-                            {sensorData.sleepComposite.apneaEvents}
+                            {rawData.comprehensive.apnea_events || 0}
                           </Text>
                         </View>
                         <View className="flex-row items-center justify-between">
                           <Text className="text-sm text-gray-600">Large Movements:</Text>
                           <Text className="text-sm font-semibold text-gray-900">
-                            {sensorData.sleepComposite.largeBodyMove}%
+                            {rawData.comprehensive.large_body_move || 0}%
                           </Text>
                         </View>
                         <View className="flex-row items-center justify-between">
                           <Text className="text-sm text-gray-600">Minor Movements:</Text>
                           <Text className="text-sm font-semibold text-gray-900">
-                            {sensorData.sleepComposite.minorBodyMove}%
+                            {rawData.comprehensive.minor_body_move || 0}%
                           </Text>
                         </View>
                         <View className="flex-row items-center justify-between">
                           <Text className="text-sm text-gray-600">Abnormal Struggle:</Text>
                           <Text className={`text-sm font-semibold ${
-                            sensorData.sleepData.abnormalStruggle === 2 ? 'text-red-500' : 'text-green-500'
+                            rawData.abnormal_struggle === 2 ? 'text-red-500' : 'text-green-500'
                           }`}>
-                            {sensorData.sleepData.abnormalStruggle === 0 ? 'None' :
-                             sensorData.sleepData.abnormalStruggle === 1 ? 'Normal' : 'Abnormal'}
+                            {rawData.abnormal_struggle === 0 ? 'None' :
+                             rawData.abnormal_struggle === 1 ? 'Normal' : 'Abnormal'}
                           </Text>
                         </View>
                       </View>
@@ -290,7 +394,7 @@ const HealthScreen = () => {
             )}
 
             {/* Fall Mode Comprehensive Data */}
-            {activeMode?.id === 'fall' && sensorData.fallData && (
+            {activeMode?.id === 'fall' && rawData.mode === 'fall_detection' && (
               <View className="gap-y-4">
                 {/* Fall Detection Status */}
                 <Card variant="outlined">
@@ -298,100 +402,44 @@ const HealthScreen = () => {
                     <Text className="text-lg font-semibold text-gray-900 mb-3">
                       Fall Detection Status
                     </Text>
-                    <View className="grid grid-cols-2 gap-3">
-                      <View className="flex-row items-center">
-                        <Shield size={20} color="#666" className="mr-2" />
-                        <Text className="text-sm text-gray-600">Fall Status:</Text>
-                        <Text className={`text-sm font-semibold ml-2 ${
-                          sensorData.fallData.fallState === 1 ? 'text-red-500' : 'text-green-500'
+                    <View className="gap-3">
+                      <View className="flex-row items-center justify-between">
+                        <View className="flex-row items-center">
+                          <Shield size={20} color="#666" className="mr-2" />
+                          <Text className="text-sm text-gray-600">Fall Status:</Text>
+                        </View>
+                        <Text className={`text-sm font-semibold ${
+                          rawData.fall_status === 1 ? 'text-red-500' : 'text-green-500'
                         }`}>
-                          {sensorData.fallData.fallState === 1 ? 'FALLEN' : 'Safe'}
-                        </Text>
-                      </View>
-                      <View className="flex-row items-center">
-                        <User size={20} color="#666" className="mr-2" />
-                        <Text className="text-sm text-gray-600">Presence:</Text>
-                        <Text className="text-sm font-semibold text-gray-900 ml-2">
-                          {sensorData.humanData.presence === 1 ? 'Present' : 'Absent'}
-                        </Text>
-                      </View>
-                      <View className="flex-row items-center">
-                        <Zap size={20} color="#666" className="mr-2" />
-                        <Text className="text-sm text-gray-600">Movement:</Text>
-                        <Text className="text-sm font-semibold text-gray-900 ml-2">
-                          {sensorData.humanData.movement === 0 ? 'None' :
-                           sensorData.humanData.movement === 1 ? 'Still' : 'Active'}
-                        </Text>
-                      </View>
-                      <View className="flex-row items-center">
-                        <Activity size={20} color="#666" className="mr-2" />
-                        <Text className="text-sm text-gray-600">Stationary:</Text>
-                        <Text className="text-sm font-semibold text-gray-900 ml-2">
-                          {sensorData.fallData.staticResidencyState === 1 ? 'Yes' : 'No'}
-                        </Text>
-                      </View>
-                    </View>
-                  </View>
-                </Card>
-
-                {/* Fall Detection Configuration */}
-                <Card variant="outlined">
-                  <View className="p-4">
-                    <Text className="text-lg font-semibold text-gray-900 mb-3">
-                      Detection Configuration
-                    </Text>
-                    <View className="grid grid-cols-2 gap-3">
-                      <View className="flex-row items-center">
-                        <Text className="text-sm text-gray-600">Install Height:</Text>
-                        <Text className="text-sm font-semibold text-gray-900 ml-2">
-                          {sensorData.fallData.installHeight}cm
-                        </Text>
-                      </View>
-                      <View className="flex-row items-center">
-                        <Text className="text-sm text-gray-600">Fall Time:</Text>
-                        <Text className="text-sm font-semibold text-gray-900 ml-2">
-                          {sensorData.fallData.fallTime}s
-                        </Text>
-                      </View>
-                      <View className="flex-row items-center">
-                        <Text className="text-sm text-gray-600">Unmanned Time:</Text>
-                        <Text className="text-sm font-semibold text-gray-900 ml-2">
-                          {sensorData.fallData.unmannedTime}s
-                        </Text>
-                      </View>
-                      <View className="flex-row items-center">
-                        <Text className="text-sm text-gray-600">Sensitivity:</Text>
-                        <Text className="text-sm font-semibold text-gray-900 ml-2">
-                          {sensorData.fallData.fallSensitivity}/3
-                        </Text>
-                      </View>
-                    </View>
-                  </View>
-                </Card>
-
-                {/* Movement Analysis */}
-                <Card variant="outlined">
-                  <View className="p-4">
-                    <Text className="text-lg font-semibold text-gray-900 mb-3">
-                      Movement Analysis
-                    </Text>
-                    <View className="gap-y-2">
-                      <View className="flex-row items-center justify-between">
-                        <Text className="text-sm text-gray-600">Movement Range:</Text>
-                        <Text className="text-sm font-semibold text-gray-900">
-                          {sensorData.humanData.movingRange}%
+                          {rawData.fall_status === 1 ? 'FALLEN' : 'Safe'}
                         </Text>
                       </View>
                       <View className="flex-row items-center justify-between">
-                        <Text className="text-sm text-gray-600">Heart Rate:</Text>
+                        <View className="flex-row items-center">
+                          <User size={20} color="#666" className="mr-2" />
+                          <Text className="text-sm text-gray-600">Presence:</Text>
+                        </View>
                         <Text className="text-sm font-semibold text-gray-900">
-                          {sensorData.heartRate} bpm
+                          {rawData.presence === 1 ? 'Present' : 'Absent'}
                         </Text>
                       </View>
                       <View className="flex-row items-center justify-between">
-                        <Text className="text-sm text-gray-600">Respiration Rate:</Text>
+                        <View className="flex-row items-center">
+                          <Zap size={20} color="#666" className="mr-2" />
+                          <Text className="text-sm text-gray-600">Movement:</Text>
+                        </View>
                         <Text className="text-sm font-semibold text-gray-900">
-                          {sensorData.respirationRate}/min
+                          {rawData.motion === 0 ? 'None' :
+                           rawData.motion === 1 ? 'Still' : 'Active'}
+                        </Text>
+                      </View>
+                      <View className="flex-row items-center justify-between">
+                        <View className="flex-row items-center">
+                          <Activity size={20} color="#666" className="mr-2" />
+                          <Text className="text-sm text-gray-600">Body Movement:</Text>
+                        </View>
+                        <Text className="text-sm font-semibold text-gray-900">
+                          {rawData.body_movement || 0}%
                         </Text>
                       </View>
                     </View>
@@ -400,6 +448,43 @@ const HealthScreen = () => {
             </View>
           )}
         </View>
+        )}
+
+        {/* Debug Info (Development Only) */}
+        {__DEV__ && rawData && (
+          <Card variant="outlined" className="mb-6 bg-gray-50">
+            <View className="p-4">
+              <Text className="text-xs font-semibold text-gray-700 mb-2">Debug Info:</Text>
+              <Text className="text-xs text-gray-600">
+                Mode: {rawData.mode || 'N/A'}
+              </Text>
+              <Text className="text-xs text-gray-600">
+                Has comprehensive: {rawData.comprehensive ? 'Yes' : 'No'}
+              </Text>
+              <Text className="text-xs text-gray-600">
+                Has statistics: {rawData.statistics ? 'Yes' : 'No'}
+              </Text>
+              <Text className="text-xs text-gray-600">
+                HR: {healthMetrics.heartRate ?? 'null'} | Resp: {healthMetrics.respiration ?? 'null'}
+              </Text>
+              <Text className="text-xs text-gray-600">
+                Movement: {healthMetrics.movement ?? 'null'} | Presence: {healthMetrics.presence ?? 'null'}
+              </Text>
+              <Text className="text-xs text-gray-600">
+                Movement Status: {rawData?.movement_status || 'N/A'}
+              </Text>
+            </View>
+          </Card>
+        )}
+
+        {/* Error State */}
+        {error && (
+          <Card variant="outlined" className="mb-6">
+            <View className="p-4">
+              <Text className="text-red-500 font-semibold">Error loading data</Text>
+              <Text className="text-gray-600 text-sm mt-2">{error.message || String(error)}</Text>
+            </View>
+          </Card>
         )}
       </ScrollView>
     </SafeAreaView>

@@ -1,6 +1,6 @@
-from fastapi import APIRouter, HTTPException
 from app.models.sensor import ModeChangeRequest, ModeChangeResponse
 from app.services.esp32_service import esp32_service
+from fastapi import APIRouter, HTTPException
 
 router = APIRouter()
 

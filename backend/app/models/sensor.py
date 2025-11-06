@@ -1,6 +1,7 @@
-from pydantic import BaseModel, Field
-from typing import Literal, Optional
 from datetime import datetime
+from typing import Literal, Optional
+
+from pydantic import BaseModel, Field
 
 
 class SleepComprehensive(BaseModel):
@@ -42,6 +43,12 @@ class SleepDetectionData(BaseModel):
     statistics: SleepStatistics
     quality_rating: int
     abnormal_struggle: int
+    # Direct sensor readings (real-time values)
+    heart_rate: Optional[int] = None
+    respiration_rate: Optional[int] = None
+    body_movement_range: Optional[int] = None
+    human_movement: Optional[int] = None
+    movement_status: Optional[str] = None
 
 
 class FallDetectionData(BaseModel):
@@ -53,6 +60,11 @@ class FallDetectionData(BaseModel):
     body_movement: int
     fall_status: int
     stationary_dwell: int
+    # Direct sensor readings (real-time values)
+    heart_rate: Optional[int] = None
+    respiration_rate: Optional[int] = None
+    human_movement: Optional[int] = None
+    movement_status: Optional[str] = None
 
 
 class ModeChangeRequest(BaseModel):
