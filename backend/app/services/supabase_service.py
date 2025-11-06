@@ -40,15 +40,15 @@ class SupabaseService:
             logger.error("   Please check your SUPABASE_URL and SUPABASE_SERVICE_KEY in .env file")
             raise
     
-    async def store_sensor_data(self, data: Dict[str, Any], user_id: Optional[str] = None, device_id: Optional[str] = None):
+    async def store_sensor_data(self, data: Dict[str, Any], user_id: Optional[str] = None):
         """
         Store sensor data in Supabase
         
         Args:
             data: Sensor data dictionary
             user_id: Optional user ID to associate with data
-            device_id: Optional device ID to associate with data
         """
+        device_id = None  # Single device, no device_id needed
         # Determine reading type from mode
         mode = data.get("mode", "")
         if "sleep" in mode.lower():
@@ -101,6 +101,12 @@ class SupabaseService:
             record["is_fall_detected"] = data.get("fall_status", 0) > 0
             record["is_person_detected"] = data.get("presence", 0) > 0
             record["is_movement_detected"] = data.get("motion", 0) > 0
+            
+            # Log ML detection if present
+            if data.get("ml_detected"):
+                logger.info(f"  💡 ML Detected: {record['is_fall_detected']}")
+                logger.info(f"     Confidence: {data.get('ml_confidence', 0):.2%}")
+                logger.info(f"     Pattern: {data.get('ml_analysis', {}).get('pattern', 'unknown')}")
         
         # Log the processed record before inserting
         logger.info("💾 Attempting to store sensor data in Supabase:")
@@ -164,6 +170,55 @@ class SupabaseService:
         
         result = query.execute()
         return result.data
+    
+    async def get_ml_validated_falls(self, user_id: Optional[str] = None, limit: int = 50):
+        """
+        Get fall detections that have been detected by ML
+        
+        Args:
+            user_id: Optional user ID filter
+            limit: Number of records to return
+            
+        Returns:
+            List of ML-detected falls with confidence scores
+        """
+        query = (
+            self.client.table("sensor_readings")
+            .select("*")
+            .eq("reading_type", "fall")
+            .eq("is_fall_detected", True)
+            .order("timestamp", desc=True)
+            .limit(limit)
+        )
+        
+        if user_id:
+            query = query.eq("user_id", user_id)
+        
+        result = query.execute()
+        
+        # Filter to only ML-detected falls and extract ML info
+        ml_detected_falls = []
+        for reading in result.data:
+            raw_data = reading.get("raw_data", {})
+            if raw_data.get("ml_detected"):
+                ml_detected_falls.append({
+                    "id": reading["id"],
+                    "timestamp": reading["timestamp"],
+                    "user_id": reading["user_id"],
+                    "device_id": reading["device_id"],
+                    "ml_confidence": raw_data.get("ml_confidence", 0),
+                    "ml_pattern": raw_data.get("ml_analysis", {}).get("pattern", "unknown"),
+                    "sensor_data": {
+                        "presence": raw_data.get("presence"),
+                        "motion": raw_data.get("motion"),
+                        "body_movement": raw_data.get("body_movement"),
+                        "stationary_dwell": raw_data.get("stationary_dwell")
+                    },
+                    "ml_analysis": raw_data.get("ml_analysis", {})
+                })
+        
+        logger.info(f"📊 Found {len(ml_detected_falls)} ML-detected falls out of {len(result.data)} total falls")
+        return ml_detected_falls
     
     async def check_alerts(self, data: Dict[str, Any]) -> List[Dict[str, Any]]:
         """
