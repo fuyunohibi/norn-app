@@ -129,10 +129,7 @@ class FallDetectionTrainer:
         Apply heuristic rules to label data
         
         This is used when manual labels are not available.
-        Real falls typically have:
-        1. Sensor fall_status = 1
-        2. High body_movement spike
-        3. Prolonged stationary_dwell (>5 seconds)
+        Uses ML analysis if available, otherwise uses heuristics.
         
         Args:
             raw_data: Raw sensor data
@@ -141,20 +138,42 @@ class FallDetectionTrainer:
         Returns:
             1 for real fall, 0 for false positive
         """
+        # First, check if ML already analyzed this (use ML prediction if available)
+        ml_detected = raw_data.get('ml_detected', False)
+        ml_confidence = raw_data.get('ml_confidence', 0.0)
+        ml_pattern = raw_data.get('ml_analysis', {}).get('pattern', '') if isinstance(raw_data.get('ml_analysis'), dict) else ''
+        
+        # If ML detected a fall with high confidence, trust it
+        if ml_detected and ml_confidence >= 0.7 and ml_pattern == 'real_fall_likely':
+            return 1
+        
+        # Check sensor fall_status
         fall_status = raw_data.get('fall_status', 0)
         body_movement = raw_data.get('body_movement', 0)
         stationary_dwell = raw_data.get('stationary_dwell', 0)
+        movement_max = raw_data.get('ml_analysis', {}).get('movement_max', body_movement) if isinstance(raw_data.get('ml_analysis'), dict) else body_movement
         
-        # If sensor didn't detect fall, it's definitely not a fall
-        if fall_status == 0:
-            return 0
+        # Use movement_max from ML analysis if available (more accurate)
+        effective_movement = max(body_movement, movement_max)
+        
+        # Very high movement (>=80) is almost certainly a fall
+        if effective_movement >= 80:
+            return 1
+        
+        # High movement (>=50) with stationary dwell is likely a fall
+        if effective_movement >= 50 and stationary_dwell >= 3:
+            return 1
+        
+        # Sensor detected fall + high movement
+        if fall_status > 0 and effective_movement >= 30:
+            return 1
         
         # Real falls have high movement + prolonged stationary time
-        if body_movement >= 8 and stationary_dwell >= 5:
+        if effective_movement >= 8 and stationary_dwell >= 5:
             return 1
         
         # Moderate movement + long stationary could be a fall
-        if body_movement >= 5 and stationary_dwell >= 10:
+        if effective_movement >= 5 and stationary_dwell >= 10:
             return 1
         
         # Otherwise, likely false positive (sitting down, adjusting, etc.)
@@ -210,13 +229,24 @@ class FallDetectionTrainer:
             logger.info(f"   Recall:    {recall:.2%} (of real falls, how many detected)")
             logger.info(f"   F1 Score:  {f1:.2%}")
             
-            # Confusion matrix
-            cm = confusion_matrix(y_test, y_pred)
+            # Confusion matrix (handle case where only one class exists)
+            cm = confusion_matrix(y_test, y_pred, labels=[0, 1])
             logger.info(f"\n🔢 Confusion Matrix:")
             logger.info(f"                  Predicted")
             logger.info(f"                  Negative  Positive")
-            logger.info(f"   Actual Negative    {cm[0][0]:4d}      {cm[0][1]:4d}")
-            logger.info(f"          Positive    {cm[1][0]:4d}      {cm[1][1]:4d}")
+            if cm.shape == (2, 2):
+                logger.info(f"   Actual Negative    {cm[0][0]:4d}      {cm[0][1]:4d}")
+                logger.info(f"          Positive    {cm[1][0]:4d}      {cm[1][1]:4d}")
+            elif cm.shape == (1, 2):
+                # Only one class in test set
+                if len(np.unique(y_test)) == 1 and y_test[0] == 0:
+                    logger.info(f"   Actual Negative    {cm[0][0]:4d}      {cm[0][1]:4d}")
+                    logger.info(f"          Positive        0          0")
+                else:
+                    logger.info(f"   Actual Negative        0          0")
+                    logger.info(f"          Positive    {cm[0][0]:4d}      {cm[0][1]:4d}")
+            else:
+                logger.info(f"   (Single class in test set - cannot display confusion matrix)")
             
             # Classification report
             logger.info(f"\n📋 Detailed Classification Report:")

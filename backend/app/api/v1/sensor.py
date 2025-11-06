@@ -83,7 +83,8 @@ async def receive_sensor_data(
         )
         
         # Check for alerts (now with ML-validated fall status)
-        alerts = await supabase_service.check_alerts(data_dict)
+        # Also check ML prediction directly for fall detection
+        alerts = await supabase_service.check_alerts(data_dict, user_id, ml_prediction)
         
         if alerts:
             logger.info(f"⚠️  {len(alerts)} alert(s) detected")

@@ -220,27 +220,42 @@ class SupabaseService:
         logger.info(f"📊 Found {len(ml_detected_falls)} ML-detected falls out of {len(result.data)} total falls")
         return ml_detected_falls
     
-    async def check_alerts(self, data: Dict[str, Any]) -> List[Dict[str, Any]]:
+    async def check_alerts(self, data: Dict[str, Any], user_id: Optional[str] = None, ml_prediction: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
         """
         Check sensor data for alert conditions
         
         Args:
             data: Sensor data to check
+            user_id: User ID for storing alerts
+            ml_prediction: ML prediction result (for fall detection)
             
         Returns:
             List of alert objects if any conditions are met
         """
         alerts = []
         
-        # Fall detection alert
-        if data["mode"] == "fall_detection" and data.get("fall_status", 0) > 0:
-            if settings.FALL_ALERT_ENABLED:
-                alerts.append({
-                    "type": "fall_detected",
-                    "severity": "critical",
-                    "message": "Fall detected! Immediate attention required.",
-                    "data": data
-                })
+        # Fall detection alert - ONLY trigger when ML confirms a real fall
+        if data["mode"] == "fall_detection":
+            # Check ML prediction - ONLY trigger if ML confirms it's a real fall
+            ml_detected_fall = ml_prediction and ml_prediction.get("is_real_fall", False) is True
+            
+            # Only create alert if ML explicitly detected a fall (not insufficient_data or false)
+            if ml_detected_fall and settings.FALL_ALERT_ENABLED:
+                confidence = ml_prediction.get("confidence", 0.0) if ml_prediction else 0.0
+                pattern = ml_prediction.get("analysis", {}).get("pattern", "unknown") if ml_prediction else "unknown"
+                analysis_reason = ml_prediction.get("analysis", {}).get("reason")
+                
+                # Double-check: don't alert on insufficient_data or other non-fall patterns
+                if analysis_reason != "insufficient_data" and pattern in ["real_fall_likely"]:
+                    alerts.append({
+                        "type": "fall_detected",
+                        "severity": "critical",
+                        "message": f"Fall detected! (Confidence: {confidence:.0%})",
+                        "title": "🚨 Fall Detected",
+                        "data": data,
+                        "ml_confidence": confidence,
+                        "ml_pattern": pattern
+                    })
         
         # Sleep quality alert
         if data["mode"] == "sleep_detection":
@@ -275,17 +290,25 @@ class SupabaseService:
                     }
                     alert_type = alert_type_map.get(alert["type"], "no_movement")
                     
+                    # Prepare alert data with ML info if available
+                    alert_data = alert["data"].copy()
+                    if alert.get("ml_confidence"):
+                        alert_data["ml_confidence"] = alert["ml_confidence"]
+                    if alert.get("ml_pattern"):
+                        alert_data["ml_pattern"] = alert["ml_pattern"]
+                    
                     self.client.table("alerts").insert({
-                        "user_id": None,  # Will be set if user_id is available
-                        "device_id": None,  # Will be set if device_id is available
+                        "user_id": user_id,  # Use provided user_id
+                        "device_id": data.get("device_id"),  # Use device_id from data if available
                         "alert_type": alert_type,
                         "severity": alert["severity"],
                         "title": alert.get("title", alert["type"].replace("_", " ").title()),
                         "message": alert["message"],
-                        "alert_data": alert["data"]  # Use alert_data, not sensor_data
+                        "alert_data": alert_data  # Include ML info in alert_data
                     }).execute()
+                    logger.info(f"✅ Alert stored in database: {alert['type']} for user {user_id}")
                 except Exception as e:
-                    print(f"Error storing alert: {str(e)}")
+                    logger.error(f"❌ Error storing alert: {str(e)}")
         
         return alerts
 

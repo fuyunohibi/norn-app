@@ -6,14 +6,14 @@ from pydantic import BaseModel, Field
 
 class SleepComprehensive(BaseModel):
     """Sleep comprehensive data from sensor"""
-    presence: int
-    sleep_state: int
-    avg_respiration: int
-    avg_heartbeat: int
-    turns: int
-    large_body_move: int
-    minor_body_move: int
-    apnea_events: int
+    presence: Optional[int] = 0
+    sleep_state: Optional[int] = 0
+    avg_respiration: Optional[int] = 0
+    avg_heartbeat: Optional[int] = 0
+    turns: Optional[int] = 0
+    large_body_move: Optional[int] = 0
+    minor_body_move: Optional[int] = 0
+    apnea_events: Optional[int] = 0
 
 
 class SleepStatistics(BaseModel):
@@ -35,14 +35,15 @@ class SleepDetectionData(BaseModel):
     timestamp: int
     in_bed: int
     sleep_status: int
-    awake_duration: int
-    deep_sleep_duration: int
-    sleep_quality_score: int
-    comprehensive: SleepComprehensive
-    abnormalities: int
-    statistics: SleepStatistics
-    quality_rating: int
-    abnormal_struggle: int
+    # Optional fields - may not be present in simplified data
+    awake_duration: Optional[int] = 0
+    deep_sleep_duration: Optional[int] = 0
+    sleep_quality_score: Optional[int] = 100
+    comprehensive: Optional[SleepComprehensive] = None
+    abnormalities: Optional[int] = 0
+    statistics: Optional[SleepStatistics] = None
+    quality_rating: Optional[int] = 0
+    abnormal_struggle: Optional[int] = 0
     # Direct sensor readings (real-time values)
     heart_rate: Optional[int] = None
     respiration_rate: Optional[int] = None

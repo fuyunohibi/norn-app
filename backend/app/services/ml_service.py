@@ -1,13 +1,46 @@
 import logging
 import pickle
+import warnings
 from collections import deque
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.preprocessing import StandardScaler
+
+# Suppress sklearn version mismatch warnings (models may still work)
+# These warnings occur when models were pickled with a different sklearn version
+# They appear in sklearn.base module during unpickling
+warnings.filterwarnings('ignore', message='.*Trying to unpickle.*', module='sklearn')
+warnings.filterwarnings('ignore', message='.*InconsistentVersionWarning.*', module='sklearn')
+
+
+def convert_numpy_types(obj: Any) -> Any:
+    """
+    Recursively convert numpy types to native Python types for JSON serialization
+    
+    Args:
+        obj: Object that may contain numpy types
+        
+    Returns:
+        Object with all numpy types converted to native Python types
+    """
+    if isinstance(obj, np.integer):
+        return int(obj)
+    elif isinstance(obj, np.floating):
+        return float(obj)
+    elif isinstance(obj, np.bool_):
+        return bool(obj)
+    elif isinstance(obj, np.ndarray):
+        return obj.tolist()
+    elif isinstance(obj, dict):
+        return {key: convert_numpy_types(value) for key, value in obj.items()}
+    elif isinstance(obj, (list, tuple)):
+        return [convert_numpy_types(item) for item in obj]
+    else:
+        return obj
 
 # Set up logger
 logger = logging.getLogger(__name__)
@@ -48,13 +81,22 @@ class FallDetectionML:
         
         if model_file.exists() and scaler_file.exists():
             try:
-                with open(model_file, 'rb') as f:
-                    self.model = pickle.load(f)
-                with open(scaler_file, 'rb') as f:
-                    self.scaler = pickle.load(f)
+                # Suppress sklearn version warnings during loading
+                with warnings.catch_warnings():
+                    warnings.filterwarnings('ignore', message='.*Trying to unpickle.*', module='sklearn')
+                    warnings.filterwarnings('ignore', message='.*InconsistentVersionWarning.*', module='sklearn')
+                    with open(model_file, 'rb') as f:
+                        self.model = pickle.load(f)
+                    with open(scaler_file, 'rb') as f:
+                        self.scaler = pickle.load(f)
                 logger.info(f"✅ Loaded existing fall detection model from {self.model_path}")
+                # Verify model is usable
+                if not hasattr(self.model, 'predict'):
+                    raise ValueError("Loaded model is not usable (missing predict method)")
             except Exception as e:
                 logger.warning(f"⚠️  Failed to load model: {e}. Creating new model.")
+                logger.info("💡 Tip: If models were created with a different sklearn version, "
+                           "they will be recreated automatically.")
                 self._create_default_model()
         else:
             logger.info("📦 No existing model found. Creating default model.")
@@ -241,6 +283,9 @@ class FallDetectionML:
             logger.info(f"🤖 ML Prediction: {'REAL FALL' if is_real_fall else 'FALSE POSITIVE'} "
                        f"(confidence: {confidence:.2%})")
             
+            # Convert numpy types in analysis to native Python types for JSON serialization
+            analysis = convert_numpy_types(analysis)
+            
             return is_real_fall, confidence, analysis
             
         except Exception as e:
@@ -274,48 +319,123 @@ class FallDetectionML:
             'motion_state': int(motion[-1])
         }
         
-        # Check for body movement spike
-        recent_max = np.max(body_movement[-3:])
+        # Check for body movement spike (high movement indicates fall impact)
+        # Check both recent readings and current reading from data
+        recent_max = np.max(body_movement[-3:]) if len(body_movement) > 0 else 0
+        current_movement = data.get('body_movement', 0)  # Current reading's body_movement
+        max_movement = max(recent_max, current_movement)  # Use the higher of recent or current
+        
         avg_movement = np.mean(body_movement[:-3]) if len(body_movement) > 3 else 0
-        analysis['body_movement_spike'] = recent_max > (avg_movement + 5) or recent_max > 10
         
-        # Check for rapid transition to stationary
-        if len(motion) >= 3:
+        # For close range (15-20cm above head), movement values may be different
+        # Lower thresholds for close range detection
+        # More sensitive: any spike OR high absolute movement
+        # Reduced thresholds: >= 30 for high movement (was 50), >= 60 for very high (was 80)
+        analysis['body_movement_spike'] = bool(max_movement > (avg_movement + 3) or max_movement >= 30)
+        analysis['high_movement'] = bool(max_movement >= 30)  # Lower threshold for close range
+        
+        # Check for rapid transition to stationary (person was moving, then stopped)
+        if len(motion) >= 2:
+            recent_motion = motion[-2:]  # Check last 2 readings (more sensitive)
+            analysis['rapid_to_stationary'] = bool(recent_motion[0] > 0 and recent_motion[-1] == 0)
+        elif len(motion) >= 3:
             recent_motion = motion[-3:]
-            analysis['rapid_to_stationary'] = (recent_motion[0] > 0 and recent_motion[-1] == 0)
+            analysis['rapid_to_stationary'] = bool(recent_motion[0] > 0 and recent_motion[-1] == 0)
         
-        # Check for prolonged stillness (key indicator of real fall)
-        analysis['prolonged_stillness'] = stationary_dwell[-1] >= 5
+        # Check for prolonged stillness (reduced threshold for faster detection)
+        # Also check if stationary_dwell is increasing (person is becoming still)
+        analysis['prolonged_stillness'] = bool(stationary_dwell[-1] >= 3)  # Reduced from 5 to 3
+        analysis['becoming_still'] = bool(len(stationary_dwell) >= 2 and stationary_dwell[-1] > stationary_dwell[-2])
         
-        # Classify pattern
-        if analysis['body_movement_spike'] and analysis['prolonged_stillness']:
+        # Check sensor's native fall_status (trust the sensor more)
+        sensor_fall_status = data.get('fall_status', 0)
+        analysis['sensor_detected_fall'] = bool(sensor_fall_status > 0)
+        
+        # Check for very high movement - extremely strong fall indicator
+        # For close range (15-20cm above head), use lower threshold: >= 60 (was 80)
+        # Use max_movement which includes current reading
+        very_high_movement = bool(max_movement >= 60)  # Lower threshold for close range
+        analysis['very_high_movement'] = very_high_movement
+        
+        # Improved pattern classification - more sensitive to real falls (optimized for close range)
+        # Priority 1: Very high movement (>=60 for close range) = almost certainly a fall
+        if very_high_movement:
             analysis['pattern'] = 'real_fall_likely'
-        elif analysis['body_movement_spike'] and not analysis['prolonged_stillness']:
+        # Priority 2: Sensor detected fall + body movement spike = real fall
+        elif analysis['sensor_detected_fall'] and analysis['body_movement_spike']:
+            analysis['pattern'] = 'real_fall_likely'
+        # Priority 3: High movement (>=30 for close range) + rapid to stationary = real fall
+        elif analysis['high_movement'] and analysis['rapid_to_stationary']:
+            analysis['pattern'] = 'real_fall_likely'
+        # Priority 4: Body movement spike + prolonged stillness = real fall
+        elif analysis['body_movement_spike'] and analysis['prolonged_stillness']:
+            analysis['pattern'] = 'real_fall_likely'
+        # Priority 5: Body movement spike + becoming still (even if not prolonged yet) = real fall
+        elif analysis['body_movement_spike'] and analysis['becoming_still']:
+            analysis['pattern'] = 'real_fall_likely'
+        # Priority 6: High movement (>=30 for close range) alone - likely a fall impact
+        elif analysis['high_movement']:
+            analysis['pattern'] = 'real_fall_likely'
+        # Priority 7: Sensor detected fall (trust sensor even without other indicators)
+        elif analysis['sensor_detected_fall']:
+            analysis['pattern'] = 'real_fall_likely'
+        # Intentional sitting: body movement spike but person is still active (and movement not very high)
+        elif analysis['body_movement_spike'] and not analysis['rapid_to_stationary'] and motion[-1] > 0 and not analysis['high_movement']:
             analysis['pattern'] = 'intentional_sitting'
-        elif not analysis['body_movement_spike'] and data.get('fall_status', 0) > 0:
+        # Sensor false positive: sensor says fall but no movement spike
+        elif analysis['sensor_detected_fall'] and not analysis['body_movement_spike']:
             analysis['pattern'] = 'sensor_false_positive'
         else:
             analysis['pattern'] = 'normal_activity'
         
-        return analysis
+        # Convert numpy types to native Python types for JSON serialization
+        return convert_numpy_types(analysis)
     
     def _rule_based_prediction(self, analysis: Dict) -> Tuple[bool, float, Dict]:
         """
         Rule-based fall detection fallback
         
         Used when ML model is not available or not trained
+        More sensitive to detect real falls while reducing false positives
         """
         pattern = analysis.get('pattern', 'unknown')
+        sensor_detected = analysis.get('sensor_detected_fall', False)
+        high_movement = analysis.get('high_movement', False)
+        very_high_movement = analysis.get('very_high_movement', False)
         
+        # Convert numpy types in analysis to native Python types for JSON serialization
+        analysis = convert_numpy_types(analysis)
+        
+        # More aggressive fall detection - prioritize catching real falls
         if pattern == 'real_fall_likely':
-            return True, 0.85, analysis
+            # Very high confidence for very high movement (>=80)
+            if very_high_movement:
+                confidence = 0.95
+            # Higher confidence if sensor also detected it
+            elif sensor_detected:
+                confidence = 0.90
+            else:
+                confidence = 0.85
+            return True, confidence, analysis
         elif pattern == 'sensor_false_positive':
+            # Only reject if we're very sure it's a false positive
             return False, 0.75, analysis
         elif pattern == 'intentional_sitting':
+            # Be cautious - might still be a fall if movement was very high
+            if high_movement:
+                # High movement suggests it might be a fall, not intentional
+                return True, 0.70, analysis
             return False, 0.70, analysis
         elif pattern == 'insufficient_data':
+            # Conservative: if we're not sure, check sensor status
+            if sensor_detected:
+                return True, 0.65, analysis
             return True, 0.50, analysis  # Conservative: report fall if uncertain
         else:
+            # Normal activity, but check sensor just in case
+            if sensor_detected and high_movement:
+                # Sensor says fall + high movement = likely real fall
+                return True, 0.75, analysis
             return False, 0.60, analysis
     
     def train_model(self, X: np.ndarray, y: np.ndarray):
