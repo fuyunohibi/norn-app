@@ -1,10 +1,12 @@
+import { useQuery } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { Activity, AlertTriangle, ChevronRight, Heart, Moon, Shield, Zap } from 'lucide-react-native';
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Modal, SafeAreaView, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { Card } from '../../components/ui/card';
 import { useLatestSensorReading } from '../../hooks/useSensorReadings';
 import { backendAPIService } from '../../services/backend-api.service';
+import { getUnreadAlerts } from '../../services/monitoring.service';
 import { useModeStore } from '../../stores/mode.store';
 
 // Memoize the mode icon component to prevent re-renders
@@ -65,6 +67,78 @@ const HomeScreen = () => {
     const interval = setInterval(checkHealth, 60000);
     return () => clearInterval(interval);
   }, []);
+
+  // Monitor for fall detection alerts
+  const { data: unreadAlerts = [] } = useQuery({
+    queryKey: ['unread-alerts', userId],
+    queryFn: async () => {
+      if (!userId) return [];
+      return await getUnreadAlerts(userId);
+    },
+    enabled: !!userId,
+    refetchInterval: 3000, // Check every 3 seconds for new alerts
+  });
+
+  // Track shown alerts to prevent duplicate notifications
+  const shownAlertIds = useRef<Set<string>>(new Set());
+
+  // Show alert when fall is detected (only in fall detection mode)
+  useEffect(() => {
+    if (!unreadAlerts || unreadAlerts.length === 0) return;
+    
+    // Only show fall alerts when in fall detection mode
+    if (activeMode?.id !== 'fall') return;
+
+    // Find critical fall alerts that haven't been shown yet
+    // Also verify they're recent (within last 2 minutes) and actually detected as falls
+    const now = new Date().getTime();
+    const twoMinutesAgo = now - 2 * 60 * 1000;
+
+    const fallAlerts = unreadAlerts.filter((alert) => {
+      // Check basic criteria
+      if (alert.alert_type !== 'fall' || alert.severity !== 'critical') return false;
+      if (shownAlertIds.current.has(alert.id)) return false;
+      
+      // Check if alert is recent (within last 2 minutes)
+      const alertTime = new Date(alert.created_at).getTime();
+      if (alertTime < twoMinutesAgo) return false;
+      
+      // Verify ML actually detected a fall (check alert_data for ml_detected or ml_pattern)
+      const alertData = alert.alert_data || {};
+      const mlPattern = alertData.ml_pattern || alertData.ml_analysis?.pattern;
+      const isRealFall = mlPattern === 'real_fall_likely' || alertData.ml_detected === true;
+      
+      return isRealFall;
+    });
+
+    if (fallAlerts.length > 0) {
+      const latestFall = fallAlerts[0]; // Most recent fall alert
+      shownAlertIds.current.add(latestFall.id);
+
+      const confidence = latestFall.alert_data?.ml_confidence
+        ? `${Math.round(latestFall.alert_data.ml_confidence * 100)}%`
+        : 'High';
+
+      Alert.alert(
+        '🚨 Fall Detected',
+        `A fall has been detected with ${confidence} confidence. Immediate attention may be required.`,
+        [
+          {
+            text: 'View Details',
+            onPress: () => {
+              router.push('/notifications');
+            },
+            style: 'default',
+          },
+          {
+            text: 'Dismiss',
+            style: 'cancel',
+          },
+        ],
+        { cancelable: false }
+      );
+    }
+  }, [unreadAlerts, userId, activeMode?.id]);
 
   return (
     <SafeAreaView className="flex-1 bg-white">

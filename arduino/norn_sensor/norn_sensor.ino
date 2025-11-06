@@ -19,16 +19,15 @@ WebServer server(80);
 
 // Mode definitions
 enum Mode { SLEEP, FALL };
-Mode currentMode = SLEEP;
+Mode currentMode = FALL; // Default to fall detection
 
 // Sensor object
 DFRobot_HumanDetection hu(&Serial1);
 
 // Function declarations
 void handleSetMode();
-void sendSleepDetectionData();
-void sendFallDetectionData();
 void initSensor(Mode mode);
+void sendToBackend(String json);
 
 void setup() {
   Serial.begin(115200);
@@ -63,27 +62,216 @@ void setup() {
   }
 
   // Sensor initialization
+  Serial.println("Start initialization");
+  int initAttempts = 0;
+  while (hu.begin() != 0) {
+    Serial.println("init error!!!");
+    delay(1000);
+    initAttempts++;
+    if (initAttempts > 10) {
+      Serial.println("CRITICAL: Sensor initialization failed after 10 attempts!");
+      return;
+    }
+  }
+  Serial.println("Initialization successful");
+
+  // Initialize sensor mode
   initSensor(currentMode);
 
   // HTTP server endpoint
   server.on("/set-mode", HTTP_GET, handleSetMode);
   server.begin();
   Serial.println("HTTP server started");
+  Serial.println();
 }
 
 void loop() {
   server.handleClient();
 
-  // Send data to backend every second
-  static unsigned long lastSend = 0;
-  if (millis() - lastSend > 1000) {
-    if (currentMode == SLEEP) {
-      sendSleepDetectionData();
-    } else if (currentMode == FALL) {
-      sendFallDetectionData();
+  if (currentMode == FALL) {
+    // Fall detection mode - read and display data every second (like sample code)
+    Serial.print("Existing information:");
+    int presence = hu.smHumanData(hu.eHumanPresence);
+    switch (presence) {
+      case 0:
+        Serial.println("No one is present");
+        break;
+      case 1:
+        Serial.println("Someone is present");
+        break;
+      default:
+        Serial.println("Read error");
     }
-    lastSend = millis();
+
+    Serial.print("Motion information:");
+    int motion = hu.smHumanData(hu.eHumanMovement);
+    switch (motion) {
+      case 0:
+        Serial.println("None");
+        break;
+      case 1:
+        Serial.println("Still");
+        break;
+      case 2:
+        Serial.println("Active");
+        break;
+      default:
+        Serial.println("Read error");
+    }
+
+    int body_movement = hu.smHumanData(hu.eHumanMovingRange);
+    Serial.printf("Body movement parameters:%d\n", body_movement);
+
+    Serial.print("Fall status:");
+    int fall_status = hu.getFallData(hu.eFallState);
+    switch (fall_status) {
+      case 0:
+        Serial.println("Not fallen");
+        break;
+      case 1:
+        Serial.println("Fallen");
+        break;
+      default:
+        Serial.println("Read error");
+    }
+
+    Serial.print("Stationary dwell status:");
+    int stationary_dwell = hu.getFallData(hu.estaticResidencyState);
+    switch (stationary_dwell) {
+      case 0:
+        Serial.println("No stationary dwell");
+        break;
+      case 1:
+        Serial.println("Stationary dwell present");
+        break;
+      default:
+        Serial.println("Read error");
+    }
+
+    // Direct sensor readings (real-time values)
+    int direct_heart_rate = hu.getHeartRate();
+    int direct_respiration = hu.getBreatheValue();
+    int human_movement = hu.smHumanData(hu.eHumanMovement);
+    
+    // Interpret movement status
+    String movement_status = "Unknown";
+    switch (human_movement) {
+      case 0:
+        movement_status = "None";
+        break;
+      case 1:
+        movement_status = "Still";
+        break;
+      case 2:
+        movement_status = "Active";
+        break;
+      default:
+        movement_status = "Read error";
+    }
+
+    Serial.printf("Respiration rate:%d\n", direct_respiration);
+    Serial.printf("Heart rate:%d\n", direct_heart_rate);
+    Serial.println();
+
+    // Real-time fall detection alert
+    static int last_fall_status = 0;
+    if (fall_status > 0 && last_fall_status == 0) {
+      Serial.println("🚨🚨🚨 FALL DETECTED! 🚨🚨🚨");
+    }
+    last_fall_status = fall_status;
+
+    // Send data to backend
+    String json = "{";
+    json += "\"mode\":\"fall_detection\",";
+    json += "\"timestamp\":" + String(millis()/1000) + ",";
+    json += "\"presence\":" + String(presence) + ",";
+    json += "\"motion\":" + String(motion) + ",";
+    json += "\"body_movement\":" + String(body_movement) + ",";
+    json += "\"fall_status\":" + String(fall_status) + ",";
+    json += "\"stationary_dwell\":" + String(stationary_dwell) + ",";
+    json += "\"heart_rate\":" + String(direct_heart_rate) + ",";
+    json += "\"respiration_rate\":" + String(direct_respiration) + ",";
+    json += "\"human_movement\":" + String(human_movement) + ",";
+    json += "\"movement_status\":\"" + movement_status + "\"";
+    json += "}";
+    sendToBackend(json);
+
+  } else if (currentMode == SLEEP) {
+    // Sleep detection mode
+    int in_bed = hu.smSleepData(hu.eInOrNotInBed);
+    int sleep_status = hu.smSleepData(hu.eSleepState);
+    sSleepComposite comp = hu.getSleepComposite();
+    
+    // Direct sensor readings
+    int direct_heart_rate = hu.getHeartRate();
+    int direct_respiration = hu.getBreatheValue();
+    int body_movement_range = hu.smHumanData(hu.eHumanMovingRange);
+    int human_movement = hu.smHumanData(hu.eHumanMovement);
+    
+    // Interpret movement status
+    String movement_status = "Unknown";
+    switch (human_movement) {
+      case 0:
+        movement_status = "None";
+        break;
+      case 1:
+        movement_status = "Still";
+        break;
+      case 2:
+        movement_status = "Active";
+        break;
+      default:
+        movement_status = "Read error";
+    }
+
+    Serial.print("Existing information:");
+    if (comp.presence == 1 || in_bed == 1) {
+      Serial.println("Someone is present");
+    } else {
+      Serial.println("No one is present");
+    }
+
+    Serial.print("Motion information:");
+    switch (human_movement) {
+      case 0:
+        Serial.println("None");
+        break;
+      case 1:
+        Serial.println("Still");
+        break;
+      case 2:
+        Serial.println("Active");
+        break;
+      default:
+        Serial.println("Read error");
+    }
+
+    Serial.printf("Body movement parameters:%d\n", body_movement_range);
+    Serial.printf("Respiration rate:%d\n", direct_respiration);
+    Serial.printf("Heart rate:%d\n", direct_heart_rate);
+    Serial.println();
+
+    // Send data to backend
+    String json = "{";
+    json += "\"mode\":\"sleep_detection\",";
+    json += "\"timestamp\":" + String(millis()/1000) + ",";
+    json += "\"in_bed\":" + String(in_bed) + ",";
+    json += "\"sleep_status\":" + String(sleep_status) + ",";
+    json += "\"heart_rate\":" + String(direct_heart_rate) + ",";
+    json += "\"respiration_rate\":" + String(direct_respiration) + ",";
+    json += "\"body_movement_range\":" + String(body_movement_range) + ",";
+    json += "\"human_movement\":" + String(human_movement) + ",";
+    json += "\"movement_status\":\"" + movement_status + "\",";
+    json += "\"comprehensive\":{";
+    json += "\"presence\":" + String(comp.presence) + ",";
+    json += "\"sleep_state\":" + String(comp.sleepState) + ",";
+    json += "\"avg_respiration\":" + String(comp.averageRespiration) + ",";
+    json += "\"avg_heartbeat\":" + String(comp.averageHeartbeat) + "}";
+    json += "}";
+    sendToBackend(json);
   }
+
+  delay(1000); // Wait 1 second before next reading (like sample code)
 }
 
 // --- HTTP Handler ---
@@ -116,280 +304,56 @@ void handleSetMode() {
 
 // --- Sensor Initialization ---
 void initSensor(Mode mode) {
-  Serial.println("Initializing sensor...");
-  int initAttempts = 0;
-  while (hu.begin() != 0) {
-    Serial.println("Sensor init error!");
-    delay(1000);
-    initAttempts++;
-    if (initAttempts > 10) {
-      Serial.println("CRITICAL: Sensor initialization failed after 10 attempts!");
-      Serial.println("Check:");
-      Serial.println("1. Sensor is properly connected to ESP32");
-      Serial.println("2. UART pins are correct (RXD2=23, TXD2=22)");
-      Serial.println("3. Sensor has power");
-      return;
-    }
-  }
-  Serial.println("✓ Sensor hardware initialized");
-
+  Serial.println("Start switching work mode");
+  
   if (mode == SLEEP) {
-    Serial.println("Configuring sleep detection mode...");
     while (hu.configWorkMode(hu.eSleepMode) != 0) {
-      Serial.println("Error switching to sleep mode!");
+      Serial.println("error!!!");
       delay(1000);
     }
+    Serial.println("Work mode switch successful");
     hu.configLEDLight(hu.eHPLed, 1);
     Serial.println("✓ Sleep mode configured");
   } else if (mode == FALL) {
-    Serial.println("Configuring fall detection mode...");
     while (hu.configWorkMode(hu.eFallingMode) != 0) {
-      Serial.println("Error switching to fall mode!");
+      Serial.println("error!!!");
       delay(1000);
     }
+    Serial.println("Work mode switch successful");
+    
     hu.configLEDLight(hu.eFALLLed, 1);
     hu.configLEDLight(hu.eHPLed, 1);
     
-    // Fall detection configuration - MAXIMUM SENSITIVITY
-    // Based on DFRobot C1001 documentation: sensitivity range is 0-3 (3 = maximum)
-    hu.dmInstallHeight(270); // Installation height in cm (2.7m) - adjust to your actual height
+    // Fall detection configuration - OPTIMIZED FOR CLOSE RANGE (15-20cm above head)
+    // Based on DFRobot C1001 documentation: https://wiki.dfrobot.com/SKU_SEN0623_C1001_mmWave_Human_Detection_Sensor
+    // If sensor is 15-20cm above head, typical height is ~180-200cm (1.8-2.0m)
+    // Adjust this value to match your ACTUAL installation height from floor to sensor
+    int install_height_cm = 190; // CHANGE THIS to your actual height in cm (floor to sensor)
+    hu.dmInstallHeight(install_height_cm);
+    
+    // For close range detection, use faster response times
     hu.dmFallTime(1); // Minimum fall time (1 second) for fastest detection
     hu.dmUnmannedTime(1); // Minimum time before considering area unmanned
-    hu.dmFallConfig(hu.eResidenceTime, 100); // Reduced residence time for faster response
+    hu.dmFallConfig(hu.eResidenceTime, 50); // Even faster response for close range
     hu.dmFallConfig(hu.eFallSensitivityC, 3); // Maximum sensitivity (range 0-3, 3 = highest)
     
-    // Verify configuration by reading back values
-    Serial.println("✓ Fall detection mode configured - MAXIMUM SENSITIVITY");
-    Serial.printf("  - Install height: %d cm (%.1fm)\n", hu.dmGetInstallHeight(), hu.dmGetInstallHeight() / 100.0);
-    Serial.printf("  - Fall time: %d seconds (minimum for fastest detection)\n", hu.getFallTime());
-    Serial.printf("  - Unmanned time: %d seconds\n", hu.getUnmannedTime());
-    Serial.printf("  - Residence time: %d seconds\n", hu.getStaticResidencyTime());
-    Serial.printf("  - Fall sensitivity: %d (MAXIMUM - range 0-3)\n", hu.getFallData(hu.eFallSensitivity));
-    Serial.println("  - For fall detection to work:");
-    Serial.println("    1. Person must be standing/moving first");
-    Serial.println("    2. Then suddenly drop to lying position");
-    Serial.println("    3. Sensor mounted at optimal height (2-3m)");
-    Serial.println("  ⚠️  WARNING: Maximum sensitivity may cause false positives");
+    Serial.println("✓ Fall detection mode configured");
+    Serial.printf("Radar installation height: %d cm\n", hu.dmGetInstallHeight());
+    Serial.printf("Fall duration: %d seconds\n", hu.getFallTime());
+    Serial.printf("Unattended duration: %d seconds\n", hu.getUnmannedTime());
+    Serial.printf("Dwell duration: %d seconds\n", hu.getStaticResidencyTime());
+    Serial.printf("Fall sensitivity: %d\n", hu.getFallData(hu.eFallSensitivity));
   }
 
-  hu.sensorRet(); // Reset after config
-  Serial.println("Sensor reset complete. Waiting 5 seconds for calibration...");
-  delay(5000); // Give sensor time to calibrate and stabilize
-  Serial.println("✓ Sensor ready. Starting data collection...");
+  hu.sensorRet(); // Module reset, must perform sensorRet after setting data
+  Serial.println();
+  Serial.println();
 }
 
-// --- Data Sending Functions ---
-void sendSleepDetectionData() {
-  int in_bed = hu.smSleepData(hu.eInOrNotInBed);
-  int sleep_status = hu.smSleepData(hu.eSleepState);
-  int awake_duration = hu.smSleepData(hu.eWakeDuration);
-  int deep_sleep_duration = hu.smSleepData(hu.eDeepSleepDuration);
-  int sleep_quality_score = hu.smSleepData(hu.eSleepQuality);
-
-  sSleepComposite comp = hu.getSleepComposite();
-  int abnormalities = hu.smSleepData(hu.eSleepDisturbances);
-  sSleepStatistics stats = hu.getSleepStatistics();
-  int quality_rating = hu.smSleepData(hu.eSleepQualityRating);
-  int abnormal_struggle = hu.smSleepData(hu.eAbnormalStruggle);
-
-  // Direct sensor readings (real-time values)
-  int direct_heart_rate = hu.getHeartRate();
-  int direct_respiration = hu.getBreatheValue();
-  int body_movement_range = hu.smHumanData(hu.eHumanMovingRange);
-  int human_movement = hu.smHumanData(hu.eHumanMovement);
-  
-  // Interpret movement status
-  String movement_status = "Unknown";
-  switch (human_movement) {
-    case 0:
-      movement_status = "None";
-      break;
-    case 1:
-      movement_status = "Still";
-      break;
-    case 2:
-      movement_status = "Active";
-      break;
-    default:
-      movement_status = "Read error";
-  }
-
-  // Diagnostic output every 10 seconds
-  static unsigned long lastDiagnostic = 0;
-  static unsigned long sensorStartTime = 0;
-  if (sensorStartTime == 0) {
-    sensorStartTime = millis();
-  }
-  
-  if (millis() - lastDiagnostic > 10000) {
-    unsigned long runtime = (millis() - sensorStartTime) / 1000;
-    Serial.println("=== SENSOR DIAGNOSTICS ===");
-    Serial.printf("Runtime: %lu seconds\n", runtime);
-    Serial.printf("In bed: %d | Sleep status: %d | Presence: %d\n", in_bed, sleep_status, comp.presence);
-    Serial.printf("Sleep quality: %d | Quality rating: %d\n", sleep_quality_score, quality_rating);
-    Serial.printf("Abnormalities: %d | Abnormal struggle: %d\n", abnormalities, abnormal_struggle);
-    Serial.printf("Sleep state: %d | Avg respiration: %d | Avg heartbeat: %d\n", 
-                  comp.sleepState, comp.averageRespiration, comp.averageHeartbeat);
-    Serial.printf("Direct HR: %d | Direct Resp: %d | Body movement: %d\n",
-                  direct_heart_rate, direct_respiration, body_movement_range);
-    Serial.printf("Movement status: %s (raw: %d)\n", movement_status.c_str(), human_movement);
-    
-    // Status interpretation
-    if (comp.presence == 0 && in_bed == 0) {
-      Serial.println("⚠️  NO PERSON DETECTED");
-      Serial.println("   - Make sure someone is in the detection area");
-      Serial.println("   - Sensor range: 2-5 meters");
-      Serial.println("   - May need 30-60 seconds to detect after movement");
-    } else if (comp.presence > 0 || in_bed > 0) {
-      Serial.println("✓ Person detected!");
-    }
-    
-    Serial.println("==========================");
-    lastDiagnostic = millis();
-  }
-
-  String json = "{";
-  json += "\"mode\":\"sleep_detection\",";
-  json += "\"timestamp\":" + String(millis()/1000) + ",";
-  json += "\"in_bed\":" + String(in_bed) + ",";
-  json += "\"sleep_status\":" + String(sleep_status) + ",";
-  json += "\"awake_duration\":" + String(awake_duration) + ",";
-  json += "\"deep_sleep_duration\":" + String(deep_sleep_duration) + ",";
-  json += "\"sleep_quality_score\":" + String(sleep_quality_score) + ",";
-  // Direct sensor readings (real-time values)
-  json += "\"heart_rate\":" + String(direct_heart_rate) + ",";
-  json += "\"respiration_rate\":" + String(direct_respiration) + ",";
-  json += "\"body_movement_range\":" + String(body_movement_range) + ",";
-  json += "\"human_movement\":" + String(human_movement) + ",";
-  json += "\"movement_status\":\"" + movement_status + "\",";
-  json += "\"comprehensive\":{";
-  json += "\"presence\":" + String(comp.presence) + ",";
-  json += "\"sleep_state\":" + String(comp.sleepState) + ",";
-  json += "\"avg_respiration\":" + String(comp.averageRespiration) + ",";
-  json += "\"avg_heartbeat\":" + String(comp.averageHeartbeat) + ",";
-  json += "\"turns\":" + String(comp.turnoverNumber) + ",";
-  json += "\"large_body_move\":" + String(comp.largeBodyMove) + ",";
-  json += "\"minor_body_move\":" + String(comp.minorBodyMove) + ",";
-  json += "\"apnea_events\":" + String(comp.apneaEvents) + "},";
-  json += "\"abnormalities\":" + String(abnormalities) + ",";
-  json += "\"statistics\":{";
-  json += "\"sleep_quality_score\":" + String(stats.sleepQualityScore) + ",";
-  json += "\"awake_time_pct\":" + String(stats.sleepTime) + ",";
-  json += "\"light_sleep_pct\":" + String(stats.shallowSleepPercentage) + ",";
-  json += "\"deep_sleep_pct\":" + String(stats.deepSleepPercentage) + ",";
-  json += "\"out_of_bed_duration\":" + String(stats.timeOutOfBed) + ",";
-  json += "\"exit_count\":" + String(stats.exitCount) + ",";
-  json += "\"turn_over_count\":" + String(stats.turnOverCount) + ",";
-  json += "\"avg_respiration\":" + String(stats.averageRespiration) + ",";
-  json += "\"avg_heartbeat\":" + String(stats.averageHeartbeat) + "},";
-  json += "\"quality_rating\":" + String(quality_rating) + ",";
-  json += "\"abnormal_struggle\":" + String(abnormal_struggle);
-  json += "}";
-
-  sendToBackend(json);
-}
-
-void sendFallDetectionData() {
-  int presence = hu.smHumanData(hu.eHumanPresence);
-  int motion = hu.smHumanData(hu.eHumanMovement);
-  int body_movement = hu.smHumanData(hu.eHumanMovingRange);
-  int fall_status = hu.getFallData(hu.eFallState);
-  int stationary_dwell = hu.getFallData(hu.estaticResidencyState);
-
-  // Direct sensor readings (real-time values)
-  int direct_heart_rate = hu.getHeartRate();
-  int direct_respiration = hu.getBreatheValue();
-  int human_movement = hu.smHumanData(hu.eHumanMovement);
-  
-  // Interpret movement status
-  String movement_status = "Unknown";
-  switch (human_movement) {
-    case 0:
-      movement_status = "None";
-      break;
-    case 1:
-      movement_status = "Still";
-      break;
-    case 2:
-      movement_status = "Active";
-      break;
-    default:
-      movement_status = "Read error";
-  }
-
-  // Real-time fall detection alert (check every second)
-  static int last_fall_status = 0;
-  if (fall_status > 0 && last_fall_status == 0) {
-    Serial.println("🚨🚨🚨 FALL DETECTED! 🚨🚨🚨");
-    Serial.printf("   Fall status: %d\n", fall_status);
-    Serial.printf("   Presence: %d | Motion: %d | Body movement: %d\n", presence, motion, body_movement);
-    Serial.println("   Alert sent to backend!");
-  }
-  last_fall_status = fall_status;
-
-  // Diagnostic output every 10 seconds
-  static unsigned long lastDiagnostic = 0;
-  static unsigned long sensorStartTime = 0;
-  if (sensorStartTime == 0) {
-    sensorStartTime = millis();
-  }
-  
-  if (millis() - lastDiagnostic > 10000) {
-    unsigned long runtime = (millis() - sensorStartTime) / 1000;
-    Serial.println("=== FALL DETECTION DIAGNOSTICS ===");
-    Serial.printf("Runtime: %lu seconds\n", runtime);
-    Serial.printf("Presence: %d | Motion: %d | Body movement: %d\n", presence, motion, body_movement);
-    Serial.printf("Fall status: %d | Stationary dwell: %d\n", fall_status, stationary_dwell);
-    Serial.printf("Direct HR: %d | Direct Resp: %d\n", direct_heart_rate, direct_respiration);
-    Serial.printf("Movement status: %s (raw: %d)\n", movement_status.c_str(), human_movement);
-    
-    // Status interpretation
-    if (presence == 0) {
-      Serial.println("⚠️  NO PERSON DETECTED");
-      Serial.println("   - Make sure someone is in the detection area");
-      Serial.println("   - Sensor range: 2-5 meters");
-    } else {
-      Serial.println("✓ Person detected!");
-      if (motion > 0) {
-        Serial.printf("   - Motion detected (level: %d)\n", motion);
-      }
-      if (body_movement > 0) {
-        Serial.printf("   - Body movement detected (range: %d)\n", body_movement);
-      }
-      if (fall_status > 0) {
-        Serial.println("   🚨 FALL DETECTED!");
-      } else {
-        Serial.println("   - No fall detected (stand up, then fall down to test)");
-      }
-    }
-    
-    Serial.println("===================================");
-    lastDiagnostic = millis();
-  }
-
-  String json = "{";
-  json += "\"mode\":\"fall_detection\",";
-  json += "\"timestamp\":" + String(millis()/1000) + ",";
-  json += "\"presence\":" + String(presence) + ",";
-  json += "\"motion\":" + String(motion) + ",";
-  json += "\"body_movement\":" + String(body_movement) + ",";
-  json += "\"fall_status\":" + String(fall_status) + ",";
-  json += "\"stationary_dwell\":" + String(stationary_dwell) + ",";
-  // Direct sensor readings (real-time values)
-  json += "\"heart_rate\":" + String(direct_heart_rate) + ",";
-  json += "\"respiration_rate\":" + String(direct_respiration) + ",";
-  json += "\"human_movement\":" + String(human_movement) + ",";
-  json += "\"movement_status\":\"" + movement_status + "\"";
-  json += "}";
-
-  sendToBackend(json);
-}
-
+// --- Backend Communication ---
 void sendToBackend(String json) {
   if (WiFi.status() == WL_CONNECTED) {
     HTTPClient http;
-    
-    // Set timeout (10 seconds)
     http.setTimeout(10000);
     
     if (!http.begin(backend_url)) {
@@ -398,7 +362,6 @@ void sendToBackend(String json) {
     }
     
     http.addHeader("Content-Type", "application/json");
-
     int httpResponseCode = http.POST(json);
 
     if (httpResponseCode > 0) {
@@ -409,11 +372,6 @@ void sendToBackend(String json) {
       }
     } else {
       Serial.printf("✗ Error sending data: HTTP %d\n", httpResponseCode);
-      Serial.printf("Backend URL: %s\n", backend_url);
-      Serial.println("Check:");
-      Serial.println("1. Backend server is running");
-      Serial.println("2. Backend IP address is correct");
-      Serial.println("3. Both devices are on same network");
     }
 
     http.end();
@@ -421,4 +379,3 @@ void sendToBackend(String json) {
     Serial.println("Wi-Fi not connected!");
   }
 }
-

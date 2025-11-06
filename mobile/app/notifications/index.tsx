@@ -1,12 +1,12 @@
-import { AlertCircle, Bell, CheckCircle, Shield, XCircle } from 'lucide-react-native';
-import React, { useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { AlertCircle, Bell, Shield } from 'lucide-react-native';
+import React from 'react';
 import { ActivityIndicator, Alert, SafeAreaView, ScrollView, Switch, Text, TouchableOpacity, View } from 'react-native';
 import { Card } from '../../components/ui/card';
 import Header from '../../components/ui/header';
 import { useAuth } from '../../contexts/auth-context';
 import { getAlerts, markAlertAsRead, markAllAlertsAsRead } from '../../services/monitoring.service';
 import { getPreferences, updatePreferences } from '../../services/user.service';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 const NotificationsScreen = () => {
   const { user } = useAuth();
