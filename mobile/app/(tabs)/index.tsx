@@ -85,9 +85,9 @@ const HomeScreen = () => {
                 <Text className="text-gray-600 text-sm">
                   {readingLoading ? 'Loading sensor data...' : reading ? 'Receiving data' : 'No data yet'}
                 </Text>
-                {modeError && (
+                {/* {modeError && (
                   <Text className="text-red-500 text-xs mt-1">{modeError}</Text>
-                )}
+                )} */}
                 {backendError && (
                   <Text className="text-orange-500 text-xs mt-1">{backendError}</Text>
                 )}

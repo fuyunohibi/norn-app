@@ -150,22 +150,26 @@ void initSensor(Mode mode) {
     hu.configLEDLight(hu.eFALLLed, 1);
     hu.configLEDLight(hu.eHPLed, 1);
     
-    // Fall detection configuration
-    // Adjust these values based on your installation:
+    // Fall detection configuration - MAXIMUM SENSITIVITY
+    // Based on DFRobot C1001 documentation: sensitivity range is 0-3 (3 = maximum)
     hu.dmInstallHeight(270); // Installation height in cm (2.7m) - adjust to your actual height
-    hu.dmFallTime(3); // Reduced from 5 to 3 seconds for faster detection
-    hu.dmUnmannedTime(1); // Time before considering area unmanned
-    hu.dmFallConfig(hu.eResidenceTime, 200); // Residence time
-    hu.dmFallConfig(hu.eFallSensitivityC, 5); // Increased sensitivity from 3 to 5 (max sensitivity)
+    hu.dmFallTime(1); // Minimum fall time (1 second) for fastest detection
+    hu.dmUnmannedTime(1); // Minimum time before considering area unmanned
+    hu.dmFallConfig(hu.eResidenceTime, 100); // Reduced residence time for faster response
+    hu.dmFallConfig(hu.eFallSensitivityC, 3); // Maximum sensitivity (range 0-3, 3 = highest)
     
-    Serial.println("✓ Fall detection mode configured");
-    Serial.println("  - Install height: 2.7m (270cm)");
-    Serial.println("  - Fall time: 3 seconds");
-    Serial.println("  - Sensitivity: 5 (maximum)");
+    // Verify configuration by reading back values
+    Serial.println("✓ Fall detection mode configured - MAXIMUM SENSITIVITY");
+    Serial.printf("  - Install height: %d cm (%.1fm)\n", hu.dmGetInstallHeight(), hu.dmGetInstallHeight() / 100.0);
+    Serial.printf("  - Fall time: %d seconds (minimum for fastest detection)\n", hu.getFallTime());
+    Serial.printf("  - Unmanned time: %d seconds\n", hu.getUnmannedTime());
+    Serial.printf("  - Residence time: %d seconds\n", hu.getStaticResidencyTime());
+    Serial.printf("  - Fall sensitivity: %d (MAXIMUM - range 0-3)\n", hu.getFallData(hu.eFallSensitivity));
     Serial.println("  - For fall detection to work:");
     Serial.println("    1. Person must be standing/moving first");
     Serial.println("    2. Then suddenly drop to lying position");
     Serial.println("    3. Sensor mounted at optimal height (2-3m)");
+    Serial.println("  ⚠️  WARNING: Maximum sensitivity may cause false positives");
   }
 
   hu.sensorRet(); // Reset after config
