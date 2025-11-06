@@ -7,3 +7,9 @@ httpx==0.27.2
 supabase==2.9.1
 python-multipart==0.0.17
 
+# Machine Learning dependencies
+scikit-learn==1.5.2
+numpy==2.1.3
+
+# Testing (optional - for test_ml_fall_detection.py)
+# httpx is already included above for production use
