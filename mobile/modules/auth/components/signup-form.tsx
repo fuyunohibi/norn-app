@@ -151,7 +151,7 @@ export const SignupForm: React.FC<SignupFormProps> = ({ onSwitchToLogin }) => {
           Create Account
         </Text>
       </View>
-      
+
       <View className="gap-y-6">
         <View>
           <Text className="text-lg font-hell-round-bold text-gray-900 mb-3 ">
@@ -163,20 +163,20 @@ export const SignupForm: React.FC<SignupFormProps> = ({ onSwitchToLogin }) => {
             render={({ field: { onChange, onBlur, value } }) => (
               <View className="relative">
                 <View className="absolute left-4 top-6 z-10">
-                  <Mail size={20} color="#9CA3AF" />
+                  <Mail size={20} color="#9CA3AF" strokeWidth={2.5} />
                 </View>
                 <Input
                   placeholder="Enter your email address"
-                  value={value || ''}
+                  value={value || ""}
                   onChangeText={(text) => {
-                    console.log('📧 Email onChange:', text);
+                    console.log("📧 Email onChange:", text);
                     onChange(text);
                   }}
                   onBlur={onBlur}
                   keyboardType="email-address"
                   autoCapitalize="none"
                   error={errors.email?.message}
-                  className="pl-12 h-16 text-lg font-hell"
+                  className="pl-12 h-16 text-lg font-hell rounded-[18px]"
                 />
               </View>
             )}
@@ -193,19 +193,19 @@ export const SignupForm: React.FC<SignupFormProps> = ({ onSwitchToLogin }) => {
             render={({ field: { onChange, onBlur, value } }) => (
               <View className="relative">
                 <View className="absolute left-4 top-6 z-10">
-                  <Lock size={20} color="#9CA3AF" />
+                  <Lock size={20} color="#9CA3AF" strokeWidth={2.5} />
                 </View>
                 <Input
                   placeholder="Create a strong password"
-                  value={value || ''}
+                  value={value || ""}
                   onChangeText={(text) => {
-                    console.log('🔒 Password onChange:', text ? '***' : '');
+                    console.log("🔒 Password onChange:", text ? "***" : "");
                     onChange(text);
                   }}
                   onBlur={onBlur}
                   secureTextEntry={!showPassword}
                   error={errors.password?.message}
-                  className="pl-12 pr-12 h-16 text-lg font-hell"
+                  className="pl-12 pr-12 h-16 text-lg font-hell rounded-[18px]"
                 />
                 <TouchableOpacity
                   onPress={() => setShowPassword(!showPassword)}
@@ -232,7 +232,7 @@ export const SignupForm: React.FC<SignupFormProps> = ({ onSwitchToLogin }) => {
             render={({ field: { onChange, onBlur, value } }) => (
               <View className="relative">
                 <View className="absolute left-4 top-6 z-10">
-                  <Lock size={20} color="#9CA3AF" />
+                  <Lock size={20} color="#9CA3AF" strokeWidth={2.5} />
                 </View>
                 <Input
                   placeholder="Confirm your password"
@@ -241,7 +241,7 @@ export const SignupForm: React.FC<SignupFormProps> = ({ onSwitchToLogin }) => {
                   onBlur={onBlur}
                   secureTextEntry={!showConfirmPassword}
                   error={errors.confirmPassword?.message}
-                  className="pl-12 pr-12 h-16 text-lg font-hell"
+                  className="pl-12 pr-12 h-16 text-lg font-hell rounded-[18px]"
                 />
                 <TouchableOpacity
                   onPress={() => setShowConfirmPassword(!showConfirmPassword)}
@@ -268,7 +268,9 @@ export const SignupForm: React.FC<SignupFormProps> = ({ onSwitchToLogin }) => {
         />
 
         <View className="flex-row justify-center mt-6">
-          <Text className="text-gray-600 text-lg font-hell">Already have an account? </Text>
+          <Text className="text-gray-600 text-lg font-hell">
+            Already have an account?{" "}
+          </Text>
           <Text
             className="text-primary-accent font-hell-round-bold text-lg "
             onPress={onSwitchToLogin}

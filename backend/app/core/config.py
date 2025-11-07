@@ -26,7 +26,7 @@ class Settings(BaseSettings):
     SUPABASE_SERVICE_KEY: str
     
     # ESP32 Configuration
-    ESP32_IP: str = "10.0.1.70"  # Default IP, can be overridden in .env.local
+    ESP32_IP: str = "192.168.1.36"  # Default IP, can be overridden in .env.local
     ESP32_PORT: int = 80  # HTTP server port on ESP32
     
     # CORS Origins - stored as string to avoid JSON parsing issues with Pydantic Settings

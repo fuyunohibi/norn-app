@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 import httpx
 from app.core.config import settings
@@ -12,12 +12,30 @@ class ESP32Service:
     
     def __init__(self):
         self.base_url = settings.esp32_url
+        self._ip = settings.ESP32_IP
         self.timeout = 10.0
         logger.info(f"ESP32 Service initialized")
         logger.info(f"  Base URL: {self.base_url}")
         logger.info(f"  ESP32 IP: {settings.ESP32_IP}")
         logger.info(f"  ESP32 Port: {settings.ESP32_PORT}")
     
+    def update_base_url(self, ip: str, port: Optional[int] = None) -> None:
+        """Update the base URL when the device IP changes dynamically."""
+        normalized_ip = (ip or "").strip()
+        if not normalized_ip:
+            return
+
+        if port is None:
+            port = settings.ESP32_PORT
+
+        if normalized_ip == self._ip and self.base_url.endswith(f":{port}"):
+            return
+
+        new_url = f"http://{normalized_ip}:{port}"
+        logger.info(f"🔄 Updating ESP32 endpoint: {self.base_url} -> {new_url}")
+        self._ip = normalized_ip
+        self.base_url = new_url
+
     async def set_mode(self, mode: str) -> Dict[str, Any]:
         """
         Send mode change command to ESP32

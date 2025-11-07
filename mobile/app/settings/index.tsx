@@ -191,7 +191,7 @@ const SettingsScreen = () => {
         </Card>
 
         {/* Emergency Settings */}
-        <Card variant="outlined" className="mb-6">
+        {/* <Card variant="outlined" className="mb-6">
           <Text className="text-lg font-hell-round-bold text-gray-900 mb-4 ">
             Emergency Settings
           </Text>
@@ -217,7 +217,7 @@ const SettingsScreen = () => {
               />
             )}
           />
-        </Card>
+        </Card> */}
 
         {/* Action Buttons */}
         <View className="gap-y-3 mb-8">

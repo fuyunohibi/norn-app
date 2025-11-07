@@ -54,7 +54,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSwitchToSignup }) => {
           Sign in to your NORN account
         </Text>
       </View>
-      
+
       <View className="gap-y-6">
         <View>
           <Text className="text-lg font-hell-round-bold text-gray-900 mb-3 ">
@@ -66,7 +66,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSwitchToSignup }) => {
             render={({ field: { onChange, onBlur, value } }) => (
               <View className="relative">
                 <View className="absolute left-4 top-6 z-10">
-                  <Mail size={20} color="#9CA3AF" />
+                  <Mail size={20} color="#9CA3AF" strokeWidth={2.5} />
                 </View>
                 <Input
                   placeholder="Enter your email address"
@@ -93,7 +93,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSwitchToSignup }) => {
             render={({ field: { onChange, onBlur, value } }) => (
               <View className="relative">
                 <View className="absolute left-4 top-6 z-10">
-                  <Lock size={20} color="#9CA3AF" />
+                  <Lock size={20} color="#9CA3AF" strokeWidth={2.5} />
                 </View>
                 <Input
                   placeholder="Enter your password"
@@ -102,7 +102,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSwitchToSignup }) => {
                   onBlur={onBlur}
                   secureTextEntry={!showPassword}
                   error={errors.password?.message}
-                  className="pl-12 pr-12 h-16 text-lg font-hell"
+                  className="pl-12 pr-12 h-16 text-lg font-hell rounded-[18px]"
                 />
                 <TouchableOpacity
                   onPress={() => setShowPassword(!showPassword)}
@@ -129,7 +129,9 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSwitchToSignup }) => {
         />
 
         <View className="flex-row justify-center mt-6">
-          <Text className="text-gray-600 text-lg font-hell">Don't have an account? </Text>
+          <Text className="text-gray-600 text-lg font-hell">
+            Don't have an account?{" "}
+          </Text>
           <Text
             className="text-primary-accent font-hell-round-bold text-lg "
             onPress={onSwitchToSignup}

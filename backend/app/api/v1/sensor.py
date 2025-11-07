@@ -3,9 +3,10 @@ import logging
 from typing import Optional, Union
 
 from app.models.sensor import FallDetectionData, SleepDetectionData
+from app.services.esp32_service import esp32_service
 from app.services.sleep_ml_service import sleep_ml_service
 from app.services.supabase_service import supabase_service
-from fastapi import APIRouter, BackgroundTasks, HTTPException
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
 
 # Set up logger
 logger = logging.getLogger(__name__)
@@ -19,6 +20,7 @@ router = APIRouter()
 
 @router.post("/data")
 async def receive_sensor_data(
+    request: Request,
     data: Union[SleepDetectionData, FallDetectionData],
     background_tasks: BackgroundTasks,
     user_id: Optional[str] = "0b8baf9c-dcfa-4d11-93d5-a08ce06a3d61"
@@ -31,6 +33,11 @@ async def receive_sensor_data(
     For fall detection, ML validation is performed before raising alerts.
     """
     try:
+        # Update ESP32 endpoint if the device IP has changed
+        client_host = request.client.host if request.client else None
+        if client_host:
+            esp32_service.update_base_url(client_host)
+
         # Convert to dict and log the received data
         data_dict = data.model_dump()
         

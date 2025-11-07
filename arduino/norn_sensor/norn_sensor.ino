@@ -4,11 +4,11 @@
 #include "DFRobot_HumanDetection.h"
 
 // Wi-Fi credentials
-const char* ssid = "NapLab404";
-const char* password = "NapLab759";
+const char* ssid = "MONGKHOLTHAM";
+const char* password = "0890025005";
 
 // Backend endpoint (where to POST sensor data)
-const char* backend_url = "http://10.0.1.67:8000/api/v1/sensor/data";
+const char* backend_url = "http://192.168.1.46:8000/api/v1/sensor/data";
 
 // Sensor UART pins
 #define RXD2 23
@@ -19,7 +19,7 @@ WebServer server(80);
 
 // Mode definitions
 enum Mode { SLEEP, FALL };
-Mode currentMode = FALL; // Default to fall detection
+Mode currentMode = SLEEP; // Default to sleep detection
 
 // Sensor object
 DFRobot_HumanDetection hu(&Serial1);
@@ -284,27 +284,40 @@ void handleSetMode() {
   String modeArg = server.arg("mode");
   modeArg.toLowerCase();
 
-  String response;
-  if (modeArg == "sleep" && currentMode != SLEEP) {
-    currentMode = SLEEP;
-    initSensor(currentMode);
-    response = "{\"status\":\"ok\",\"mode\":\"sleep\"}";
-    Serial.println("Switched to SLEEP mode via HTTP");
-  } else if (modeArg == "fall" && currentMode != FALL) {
-    currentMode = FALL;
-    initSensor(currentMode);
-    response = "{\"status\":\"ok\",\"mode\":\"fall\"}";
-    Serial.println("Switched to FALL mode via HTTP");
+  Mode requestedMode;
+  if (modeArg == "sleep" || modeArg == "sleep_detection") {
+    requestedMode = SLEEP;
+  } else if (modeArg == "fall" || modeArg == "fall_detection") {
+    requestedMode = FALL;
   } else {
-    response = "{\"status\":\"ok\",\"mode\":\"" + modeArg + "\"}";
+    server.send(400, "application/json", "{\"error\":\"Invalid mode\"}");
+    Serial.printf("Received unknown mode request: %s\n", modeArg.c_str());
+    return;
   }
 
-  server.send(200, "application/json", response);
+  if (requestedMode != currentMode) {
+    currentMode = requestedMode;
+    initSensor(currentMode);
+    if (currentMode == SLEEP) {
+      Serial.println("Switched to SLEEP mode via HTTP");
+    } else {
+      Serial.println("Switched to FALL mode via HTTP");
+    }
+  } else {
+    Serial.println("Mode change requested, but sensor is already in the requested mode");
+  }
+
+  const char* responseMode = currentMode == SLEEP ? "sleep" : "fall";
+  server.send(200, "application/json", String("{\"status\":\"ok\",\"mode\":\"") + responseMode + "\"}");
 }
 
 // --- Sensor Initialization ---
 void initSensor(Mode mode) {
   Serial.println("Start switching work mode");
+  if (hu.sensorRet() != 0) {
+    Serial.println("Sensor reset failed");
+  }
+  delay(500);
   
   if (mode == SLEEP) {
     while (hu.configWorkMode(hu.eSleepMode) != 0) {
@@ -344,8 +357,6 @@ void initSensor(Mode mode) {
     Serial.printf("Dwell duration: %d seconds\n", hu.getStaticResidencyTime());
     Serial.printf("Fall sensitivity: %d\n", hu.getFallData(hu.eFallSensitivity));
   }
-
-  hu.sensorRet(); // Module reset, must perform sensorRet after setting data
   Serial.println();
   Serial.println();
 }

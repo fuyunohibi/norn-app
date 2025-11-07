@@ -299,7 +299,7 @@ const HomeScreen = () => {
 
         {reading && rawData && (
           <View className="mb-6">
-            <Text className="text-xl font-hell-round-bold text-gray-900 mb-4 ">
+            <Text className="text-xl font-hell-round-bold text-gray-900 mb-2">
               {activeMode?.name} Status
             </Text>
             {timestamp && (
