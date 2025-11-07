@@ -1,48 +1,67 @@
-import { Tabs } from 'expo-router';
-import { Heart, Home, User } from 'lucide-react-native';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { Icon, Label, NativeTabs, VectorIcon } from 'expo-router/unstable-native-tabs';
+import { Platform } from 'react-native';
 
 export default function TabLayout() {
   return (
-    <Tabs
-      screenOptions={{
-        tabBarActiveTintColor: '#FF7300',
-        tabBarInactiveTintColor: '#9E9E9E',
-        tabBarStyle: {
-          backgroundColor: 'white',
-          borderTopColor: '#E0E0E0',
-          borderTopWidth: 1,
-          paddingBottom: 8,
-          paddingTop: 8,
-          height: 100,
-        },
-        tabBarLabelStyle: {
-          fontSize: 12,
-          fontWeight: '500',
-        },
-        headerShown: false,
+    <NativeTabs
+      tintColor="#FF7300"
+      labelStyle={{
+        fontSize: 10,
+        fontWeight: '600',
       }}
     >
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: 'Home',
-          tabBarIcon: ({ color, size }) => <Home size={size} color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="health"
-        options={{
-          title: 'Health',
-          tabBarIcon: ({ color, size }) => <Heart size={size} color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="profile"
-        options={{
-          title: 'Profile',
-          tabBarIcon: ({ color, size }) => <User size={size} color={color} />,
-        }}
-      />
-    </Tabs>
+      <NativeTabs.Trigger name="index">
+        <Label>Home</Label>
+        {Platform.select({
+          // Use outline for inactive, filled for active
+          ios: <Icon sf={{ default: 'house', selected: 'house.fill' }} />,
+          android: (
+            <Icon
+              src={
+                <VectorIcon 
+                  family={MaterialIcons} 
+                  name="home"
+                />
+              }
+            />
+          ),
+        })}
+      </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="health">
+        <Label>Health</Label>
+        {Platform.select({
+          // Use outline for inactive, filled for active
+          ios: <Icon sf={{ default: 'heart', selected: 'heart.fill' }} />,
+          android: (
+            <Icon
+              src={
+                <VectorIcon 
+                  family={MaterialIcons} 
+                  name="favorite-border"
+                />
+              }
+            />
+          ),
+        })}
+      </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="profile">
+        <Label>Profile</Label>
+        {Platform.select({
+          // Use outline for inactive, filled for active
+          ios: <Icon sf={{ default: 'person', selected: 'person.fill' }} />,
+          android: (
+            <Icon
+              src={
+                <VectorIcon 
+                  family={MaterialIcons} 
+                  name="person-outline"
+                />
+              }
+            />
+          ),
+        })}
+      </NativeTabs.Trigger>
+    </NativeTabs>
   );
 }

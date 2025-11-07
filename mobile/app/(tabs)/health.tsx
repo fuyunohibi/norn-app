@@ -129,10 +129,7 @@ const HealthScreen = () => {
     <SafeAreaView className="flex-1 bg-white">
       <ScrollView className="flex-1 px-6">
         {/* Header */}
-        <Header 
-          title="Health" 
-          subtitle="Real-time monitoring"
-        />
+        <Header title="Health" subtitle="Real-time monitoring" />
 
         {/* Live Heart Rate - First Row */}
         <View className="mb-6">
@@ -142,22 +139,28 @@ const HealthScreen = () => {
                 <View className="w-14 h-14 bg-red-500 rounded-xl items-center justify-center mr-3">
                   <Heart size={24} color="white" fill="white" />
                 </View>
-                <View className='gap-y-1'>
-                  <Text className="text-base font-semibold text-gray-900">
+                <View className="gap-y-1">
+                  <Text className="text-base font-hell-round-bold text-gray-900 ">
                     Live Heart Rate
                   </Text>
-                  <Text className="text-gray-500 text-xs">
-                    {lastUpdated ? 
-                      `Updated ${lastUpdated.toLocaleTimeString()}` : 
-                      'No data available'
-                    }
-              </Text>
+                  <Text className="text-gray-500 text-xs font-hell">
+                    {lastUpdated
+                      ? `Updated ${lastUpdated.toLocaleTimeString()}`
+                      : "No data available"}
+                  </Text>
                 </View>
               </View>
               <View className="items-end">
-                <Text className={`text-2xl font-bold ${getReadingColor('heart_rate', healthMetrics.heartRate)}`}>
-                  {healthMetrics.heartRate !== null ? `${healthMetrics.heartRate} BPM` : '--'}
-              </Text>
+                <Text
+                  className={`text-2xl font-hell-round-bold ${getReadingColor(
+                    "heart_rate",
+                    healthMetrics.heartRate
+                  )}`}
+                >
+                  {healthMetrics.heartRate !== null
+                    ? `${healthMetrics.heartRate} BPM`
+                    : "--"}
+                </Text>
               </View>
             </View>
           </Card>
@@ -165,16 +168,20 @@ const HealthScreen = () => {
 
         {/* Health Monitor - Three Columns */}
         <View className="mb-8">
-          <Text className="text-xl font-bold text-gray-900 mb-4">
+          <Text className="text-xl font-hell-round-bold text-gray-900 mb-4 ">
             Health Monitor
           </Text>
-          
+
           {readingsLoading ? (
             <View className="flex-row gap-3">
               {[1, 2, 3].map((i) => (
                 <Card key={i} variant="outlined" className="flex-1">
                   <View className="p-4 items-center">
-                    <ActivityIndicator size="small" color="#9E9E9E" className="mb-3" />
+                    <ActivityIndicator
+                      size="small"
+                      color="#9E9E9E"
+                      className="mb-3"
+                    />
                     <View className="h-3 bg-gray-200 rounded mb-2 w-16" />
                     <View className="h-5 bg-gray-200 rounded w-12" />
                   </View>
@@ -189,11 +196,20 @@ const HealthScreen = () => {
                   <View className="w-12 h-12 bg-primary-button rounded-xl items-center justify-center mb-3">
                     <User size={24} color="white" />
                   </View>
-                  <Text className="text-xs font-medium text-gray-600 mb-2">
+                  <Text className="text-xs font-hell font-medium text-gray-600 mb-2 font-hell">
                     Presence
                   </Text>
-                  <Text className={`text-base font-bold ${getReadingColor('presence', healthMetrics.presence)}`}>
-                    {healthMetrics.presence === 1 ? 'Yes' : healthMetrics.presence === 0 ? 'No' : '--'}
+                  <Text
+                    className={`text-base font-hell-round-bold ${getReadingColor(
+                      "presence",
+                      healthMetrics.presence
+                    )}`}
+                  >
+                    {healthMetrics.presence === 1
+                      ? "Yes"
+                      : healthMetrics.presence === 0
+                      ? "No"
+                      : "--"}
                   </Text>
                 </View>
               </Card>
@@ -204,26 +220,40 @@ const HealthScreen = () => {
                   <View className="w-12 h-12 bg-success rounded-xl items-center justify-center mb-3">
                     <Activity size={24} color="white" />
                   </View>
-                  <Text className="text-xs font-medium text-gray-600 mb-2">
+                  <Text className="text-xs font-hell font-medium text-gray-600 mb-2 font-hell">
                     Respiration
                   </Text>
-                  <Text className={`text-lg font-bold ${getReadingColor('respiration', healthMetrics.respiration)}`}>
-                    {healthMetrics.respiration !== null ? `${healthMetrics.respiration}/min` : '--'}
+                  <Text
+                    className={`text-lg font-hell-round-bold ${getReadingColor(
+                      "respiration",
+                      healthMetrics.respiration
+                    )}`}
+                  >
+                    {healthMetrics.respiration !== null
+                      ? `${healthMetrics.respiration}/min`
+                      : "--"}
                   </Text>
                 </View>
               </Card>
 
               {/* Movement Column */}
               <Card variant="outlined" className="flex-1 min-w-[100px]">
-                 <View className="items-center py-2">
+                <View className="items-center py-2">
                   <View className="w-12 h-12 bg-primary-accent rounded-xl items-center justify-center mb-3">
                     <Zap size={24} color="white" />
                   </View>
-                  <Text className="text-xs font-medium text-gray-600 mb-2">
+                  <Text className="text-xs font-hell font-medium text-gray-600 mb-2">
                     Movement
                   </Text>
-                  <Text className={`text-lg font-bold ${getReadingColor('movement', healthMetrics.movement)}`}>
-                    {healthMetrics.movement !== null ? `${healthMetrics.movement}%` : '--'}
+                  <Text
+                    className={`text-lg font-hell-round-bold ${getReadingColor(
+                      "movement",
+                      healthMetrics.movement
+                    )}`}
+                  >
+                    {healthMetrics.movement !== null
+                      ? `${healthMetrics.movement}%`
+                      : "--"}
                   </Text>
                 </View>
               </Card>
@@ -234,16 +264,21 @@ const HealthScreen = () => {
                   <View className="w-12 h-12 bg-warning rounded-xl items-center justify-center mb-3">
                     <Activity size={24} color="white" />
                   </View>
-                  <Text className="text-xs font-medium text-gray-600 mb-2">
+                  <Text className="text-xs font-hell font-medium text-gray-600 mb-2">
                     Status
                   </Text>
-                  <Text className={`text-sm font-bold ${
-                    rawData?.movement_status === 'Active' ? 'text-primary-accent' :
-                    rawData?.movement_status === 'Still' ? 'text-success' :
-                    rawData?.movement_status === 'None' ? 'text-gray-400' :
-                    'text-gray-600'
-                  }`}>
-                    {rawData?.movement_status || '--'}
+                  <Text
+                    className={`text-sm font-hell-round-bold ${
+                      rawData?.movement_status === "Active"
+                        ? "text-primary-accent"
+                        : rawData?.movement_status === "Still"
+                        ? "text-success"
+                        : rawData?.movement_status === "None"
+                        ? "text-gray-400"
+                        : "text-gray-600"
+                    }`}
+                  >
+                    {rawData?.movement_status || "--"}
                   </Text>
                 </View>
               </Card>
@@ -254,224 +289,294 @@ const HealthScreen = () => {
         {/* Comprehensive Sensor Data */}
         {rawData && (
           <View className="mb-8">
-            <Text className="text-xl font-bold text-gray-900 mb-4">
+            <Text className="text-xl font-hell-round-bold text-gray-900 mb-4 ">
               Sensor Data
             </Text>
-            
-            {/* Sleep Mode Comprehensive Data */}
-            {activeMode?.id === 'sleep' && rawData.mode === 'sleep_detection' && rawData.comprehensive && (
-              <View className="gap-y-4">
-                {/* Sleep Composite Status */}
-                <Card variant="outlined">
-                  <View className="p-4">
-                    <Text className="text-lg font-semibold text-gray-900 mb-3">
-                      Comprehensive Sleep Status
-                    </Text>
-                    <View className="gap-3">
-                      <View className="flex-row items-center">
-                        <Moon size={20} color="#666" className="mr-2" />
-                        <Text className="text-sm text-gray-600">Sleep State:</Text>
-                        <Text className="text-sm font-semibold text-gray-900 ml-2">
-                          {rawData.comprehensive.sleep_state === 0 ? 'Deep' :
-                           rawData.comprehensive.sleep_state === 1 ? 'Light' :
-                           rawData.comprehensive.sleep_state === 2 ? 'Awake' : 'None'}
-                        </Text>
-                      </View>
-                      <View className="flex-row items-center">
-                        <Activity size={20} color="#666" className="mr-2" />
-                        <Text className="text-sm text-gray-600">Turns:</Text>
-                        <Text className="text-sm font-semibold text-gray-900 ml-2">
-                          {rawData.comprehensive?.turns || rawData.statistics?.turn_over_count || 0}
-                        </Text>
-                      </View>
-                      <View className="flex-row items-center">
-                        <Heart size={20} color="#666" className="mr-2" />
-                        <Text className="text-sm text-gray-600">Avg HR:</Text>
-                        <Text className="text-sm font-semibold text-gray-900 ml-2">
-                          {rawData.comprehensive.avg_heartbeat || 0} bpm
-                        </Text>
-                      </View>
-                      <View className="flex-row items-center">
-                        <Activity size={20} color="#666" className="mr-2" />
-                        <Text className="text-sm text-gray-600">Avg Resp:</Text>
-                        <Text className="text-sm font-semibold text-gray-900 ml-2">
-                          {rawData.comprehensive.avg_respiration || 0}/min
-                        </Text>
-                      </View>
-                    </View>
-                  </View>
-                </Card>
 
-                {/* Sleep Statistics */}
-                {rawData.statistics && (
+            {/* Sleep Mode Comprehensive Data */}
+            {activeMode?.id === "sleep" &&
+              rawData.mode === "sleep_detection" &&
+              rawData.comprehensive && (
+                <View className="gap-y-4">
+                  {/* Sleep Composite Status */}
                   <Card variant="outlined">
                     <View className="p-4">
-                      <Text className="text-lg font-semibold text-gray-900 mb-3">
-                        Sleep Statistics
+                      <Text className="text-lg font-hell-round-bold text-gray-900 mb-3 ">
+                        Comprehensive Sleep Status
                       </Text>
                       <View className="gap-3">
-                        <View className="flex-row items-center justify-between">
-                          <Text className="text-sm text-gray-600">Quality Score:</Text>
-                          <Text className="text-sm font-semibold text-primary-accent">
-                            {rawData.statistics.sleep_quality_score || rawData.sleep_quality_score || 0}%
+                        <View className="flex-row items-center">
+                          <Moon
+                            size={20}
+                            color="#666"
+                            fill="#666"
+                            className="mr-2"
+                          />
+                          <Text className="text-sm text-gray-600 font-hell">
+                            Sleep State:
+                          </Text>
+                          <Text className="text-sm font-hell-round-bold text-gray-900 ml-2 ">
+                            {rawData.comprehensive.sleep_state === 0
+                              ? "Deep"
+                              : rawData.comprehensive.sleep_state === 1
+                              ? "Light"
+                              : rawData.comprehensive.sleep_state === 2
+                              ? "Awake"
+                              : "None"}
                           </Text>
                         </View>
-                        <View className="flex-row items-center justify-between">
-                          <Text className="text-sm text-gray-600">Deep Sleep:</Text>
-                          <Text className="text-sm font-semibold text-gray-900">
-                            {rawData.statistics.deep_sleep_pct || 0}%
+                        <View className="flex-row items-center">
+                          <Activity size={20} color="#666" className="mr-2" />
+                          <Text className="text-sm text-gray-600 font-hell">
+                            Turns:
+                          </Text>
+                          <Text className="text-sm font-hell-round-bold text-gray-900 ml-2 ">
+                            {rawData.comprehensive?.turns ||
+                              rawData.statistics?.turn_over_count ||
+                              0}
                           </Text>
                         </View>
-                        <View className="flex-row items-center justify-between">
-                          <Text className="text-sm text-gray-600">Light Sleep:</Text>
-                          <Text className="text-sm font-semibold text-gray-900">
-                            {rawData.statistics.light_sleep_pct || 0}%
+                        <View className="flex-row items-center">
+                          <Heart size={20} color="#666" className="mr-2" />
+                          <Text className="text-sm text-gray-600 font-hell">
+                            Avg HR:
+                          </Text>
+                          <Text className="text-sm font-hell-round-bold text-gray-900 ml-2 ">
+                            {rawData.comprehensive.avg_heartbeat || 0} bpm
                           </Text>
                         </View>
-                        <View className="flex-row items-center justify-between">
-                          <Text className="text-sm text-gray-600">Awake:</Text>
-                          <Text className="text-sm font-semibold text-gray-900">
-                            {rawData.statistics.awake_time_pct || 0}%
+                        <View className="flex-row items-center">
+                          <Activity size={20} color="#666" className="mr-2" />
+                          <Text className="text-sm text-gray-600 font-hell">
+                            Avg Resp:
                           </Text>
-                        </View>
-                        <View className="flex-row items-center justify-between">
-                          <Text className="text-sm text-gray-600">Out of Bed:</Text>
-                          <Text className="text-sm font-semibold text-gray-900">
-                            {rawData.statistics.out_of_bed_duration || 0}min
-                          </Text>
-                        </View>
-                        <View className="flex-row items-center justify-between">
-                          <Text className="text-sm text-gray-600">Exit Count:</Text>
-                          <Text className="text-sm font-semibold text-gray-900">
-                            {rawData.statistics.exit_count || 0}
+                          <Text className="text-sm font-hell-round-bold text-gray-900 ml-2 ">
+                            {rawData.comprehensive.avg_respiration || 0}/min
                           </Text>
                         </View>
                       </View>
                     </View>
                   </Card>
-                )}
 
-                {/* Sleep Disturbances */}
-                {rawData.comprehensive && (
-                  <Card variant="outlined">
-                    <View className="p-4">
-                      <Text className="text-lg font-semibold text-gray-900 mb-3">
-                        Sleep Analysis
-                      </Text>
-                      <View className="gap-y-2">
-                        <View className="flex-row items-center justify-between">
-                          <Text className="text-sm text-gray-600">Apnea Events:</Text>
-                          <Text className="text-sm font-semibold text-gray-900">
-                            {rawData.comprehensive.apnea_events || 0}
-                          </Text>
-                        </View>
-                        <View className="flex-row items-center justify-between">
-                          <Text className="text-sm text-gray-600">Large Movements:</Text>
-                          <Text className="text-sm font-semibold text-gray-900">
-                            {rawData.comprehensive.large_body_move || 0}%
-                          </Text>
-                        </View>
-                        <View className="flex-row items-center justify-between">
-                          <Text className="text-sm text-gray-600">Minor Movements:</Text>
-                          <Text className="text-sm font-semibold text-gray-900">
-                            {rawData.comprehensive.minor_body_move || 0}%
-                          </Text>
-                        </View>
-                        <View className="flex-row items-center justify-between">
-                          <Text className="text-sm text-gray-600">Abnormal Struggle:</Text>
-                          <Text className={`text-sm font-semibold ${
-                            rawData.abnormal_struggle === 2 ? 'text-red-500' : 'text-green-500'
-                          }`}>
-                            {rawData.abnormal_struggle === 0 ? 'None' :
-                             rawData.abnormal_struggle === 1 ? 'Normal' : 'Abnormal'}
-                          </Text>
+                  {/* Sleep Statistics */}
+                  {rawData.statistics && (
+                    <Card variant="outlined">
+                      <View className="p-4">
+                        <Text className="text-lg font-hell-round-bold text-gray-900 mb-3 ">
+                          Sleep Statistics
+                        </Text>
+                        <View className="gap-3">
+                          <View className="flex-row items-center justify-between">
+                            <Text className="text-sm text-gray-600 font-hell">
+                              Quality Score:
+                            </Text>
+                            <Text className="text-sm font-hell-round-bold text-primary-accent ">
+                              {rawData.statistics.sleep_quality_score ||
+                                rawData.sleep_quality_score ||
+                                0}
+                              %
+                            </Text>
+                          </View>
+                          <View className="flex-row items-center justify-between">
+                            <Text className="text-sm text-gray-600 font-hell">
+                              Deep Sleep:
+                            </Text>
+                            <Text className="text-sm font-hell-round-bold text-gray-900 ">
+                              {rawData.statistics.deep_sleep_pct || 0}%
+                            </Text>
+                          </View>
+                          <View className="flex-row items-center justify-between">
+                            <Text className="text-sm text-gray-600 font-hell">
+                              Light Sleep:
+                            </Text>
+                            <Text className="text-sm font-hell-round-bold text-gray-900 ">
+                              {rawData.statistics.light_sleep_pct || 0}%
+                            </Text>
+                          </View>
+                          <View className="flex-row items-center justify-between">
+                            <Text className="text-sm text-gray-600 font-hell">
+                              Awake:
+                            </Text>
+                            <Text className="text-sm font-hell-round-bold text-gray-900 ">
+                              {rawData.statistics.awake_time_pct || 0}%
+                            </Text>
+                          </View>
+                          <View className="flex-row items-center justify-between">
+                            <Text className="text-sm text-gray-600 font-hell">
+                              Out of Bed:
+                            </Text>
+                            <Text className="text-sm font-hell-round-bold text-gray-900 ">
+                              {rawData.statistics.out_of_bed_duration || 0}min
+                            </Text>
+                          </View>
+                          <View className="flex-row items-center justify-between">
+                            <Text className="text-sm text-gray-600 font-hell">
+                              Exit Count:
+                            </Text>
+                            <Text className="text-sm font-hell-round-bold text-gray-900 ">
+                              {rawData.statistics.exit_count || 0}
+                            </Text>
+                          </View>
                         </View>
                       </View>
-                    </View>
-                  </Card>
-                )}
-              </View>
-            )}
+                    </Card>
+                  )}
+
+                  {/* Sleep Disturbances */}
+                  {rawData.comprehensive && (
+                    <Card variant="outlined">
+                      <View className="p-4">
+                        <Text className="text-lg font-hell-round-bold text-gray-900 mb-3 ">
+                          Sleep Analysis
+                        </Text>
+                        <View className="gap-y-2">
+                          <View className="flex-row items-center justify-between">
+                            <Text className="text-sm text-gray-600 font-hell">
+                              Apnea Events:
+                            </Text>
+                            <Text className="text-sm font-hell-round-bold text-gray-900 ">
+                              {rawData.comprehensive.apnea_events || 0}
+                            </Text>
+                          </View>
+                          <View className="flex-row items-center justify-between">
+                            <Text className="text-sm text-gray-600 font-hell">
+                              Large Movements:
+                            </Text>
+                            <Text className="text-sm font-hell-round-bold text-gray-900 ">
+                              {rawData.comprehensive.large_body_move || 0}%
+                            </Text>
+                          </View>
+                          <View className="flex-row items-center justify-between">
+                            <Text className="text-sm text-gray-600 font-hell">
+                              Minor Movements:
+                            </Text>
+                            <Text className="text-sm font-hell-round-bold text-gray-900 ">
+                              {rawData.comprehensive.minor_body_move || 0}%
+                            </Text>
+                          </View>
+                          <View className="flex-row items-center justify-between">
+                            <Text className="text-sm text-gray-600 font-hell">
+                              Abnormal Struggle:
+                            </Text>
+                            <Text
+                              className={`text-sm font-hell-round-bold ${
+                                rawData.abnormal_struggle === 2
+                                  ? "text-red-500"
+                                  : "text-green-500"
+                              }`}
+                            >
+                              {rawData.abnormal_struggle === 0
+                                ? "None"
+                                : rawData.abnormal_struggle === 1
+                                ? "Normal"
+                                : "Abnormal"}
+                            </Text>
+                          </View>
+                        </View>
+                      </View>
+                    </Card>
+                  )}
+                </View>
+              )}
 
             {/* Fall Mode Comprehensive Data */}
-            {activeMode?.id === 'fall' && rawData.mode === 'fall_detection' && (
+            {activeMode?.id === "fall" && rawData.mode === "fall_detection" && (
               <View className="gap-y-4">
                 {/* Fall Detection Status */}
                 <Card variant="outlined">
                   <View className="p-4">
-                    <Text className="text-lg font-semibold text-gray-900 mb-3">
+                    <Text className="text-lg font-hell-round-bold text-gray-900 mb-3 ">
                       Fall Detection Status
                     </Text>
                     <View className="gap-3">
                       <View className="flex-row items-center justify-between">
                         <View className="flex-row items-center">
                           <Shield size={20} color="#666" className="mr-2" />
-                          <Text className="text-sm text-gray-600">Fall Status:</Text>
+                          <Text className="text-sm text-gray-600 font-hell">
+                            Fall Status:
+                          </Text>
                         </View>
-                        <Text className={`text-sm font-semibold ${
-                          rawData.fall_status === 1 ? 'text-red-500' : 'text-green-500'
-                        }`}>
-                          {rawData.fall_status === 1 ? 'FALLEN' : 'Safe'}
+                        <Text
+                          className={`text-sm font-hell-round-bold ${
+                            rawData.fall_status === 1
+                              ? "text-red-500"
+                              : "text-green-500"
+                          }`}
+                        >
+                          {rawData.fall_status === 1 ? "FALLEN" : "Safe"}
                         </Text>
                       </View>
                       <View className="flex-row items-center justify-between">
                         <View className="flex-row items-center">
                           <User size={20} color="#666" className="mr-2" />
-                          <Text className="text-sm text-gray-600">Presence:</Text>
+                          <Text className="text-sm text-gray-600 font-hell">
+                            Presence:
+                          </Text>
                         </View>
-                        <Text className="text-sm font-semibold text-gray-900">
-                          {rawData.presence === 1 ? 'Present' : 'Absent'}
+                        <Text className="text-sm font-hell-round-bold text-gray-900 ">
+                          {rawData.presence === 1 ? "Present" : "Absent"}
                         </Text>
                       </View>
                       <View className="flex-row items-center justify-between">
                         <View className="flex-row items-center">
                           <Zap size={20} color="#666" className="mr-2" />
-                          <Text className="text-sm text-gray-600">Movement:</Text>
+                          <Text className="text-sm text-gray-600 font-hell">
+                            Movement:
+                          </Text>
                         </View>
-                        <Text className="text-sm font-semibold text-gray-900">
-                          {rawData.motion === 0 ? 'None' :
-                           rawData.motion === 1 ? 'Still' : 'Active'}
+                        <Text className="text-sm font-hell-round-bold text-gray-900 ">
+                          {rawData.motion === 0
+                            ? "None"
+                            : rawData.motion === 1
+                            ? "Still"
+                            : "Active"}
                         </Text>
                       </View>
                       <View className="flex-row items-center justify-between">
                         <View className="flex-row items-center">
                           <Activity size={20} color="#666" className="mr-2" />
-                          <Text className="text-sm text-gray-600">Body Movement:</Text>
+                          <Text className="text-sm text-gray-600 font-hell">
+                            Body Movement:
+                          </Text>
                         </View>
-                        <Text className="text-sm font-semibold text-gray-900">
+                        <Text className="text-sm font-hell-round-bold text-gray-900 ">
                           {rawData.body_movement || 0}%
                         </Text>
                       </View>
                     </View>
                   </View>
                 </Card>
-            </View>
-          )}
-        </View>
+              </View>
+            )}
+          </View>
         )}
 
         {/* Debug Info (Development Only) */}
         {__DEV__ && rawData && (
           <Card variant="outlined" className="mb-6 bg-gray-50">
             <View className="p-4">
-              <Text className="text-xs font-semibold text-gray-700 mb-2">Debug Info:</Text>
-              <Text className="text-xs text-gray-600">
-                Mode: {rawData.mode || 'N/A'}
+              <Text className="text-xs font-hell-round-bold text-gray-700 mb-2 ">
+                Debug Info:
               </Text>
-              <Text className="text-xs text-gray-600">
-                Has comprehensive: {rawData.comprehensive ? 'Yes' : 'No'}
+              <Text className="text-xs text-gray-600 font-hell">
+                Mode: {rawData.mode || "N/A"}
               </Text>
-              <Text className="text-xs text-gray-600">
-                Has statistics: {rawData.statistics ? 'Yes' : 'No'}
+              <Text className="text-xs text-gray-600 font-hell">
+                Has comprehensive: {rawData.comprehensive ? "Yes" : "No"}
               </Text>
-              <Text className="text-xs text-gray-600">
-                HR: {healthMetrics.heartRate ?? 'null'} | Resp: {healthMetrics.respiration ?? 'null'}
+              <Text className="text-xs text-gray-600 font-hell">
+                Has statistics: {rawData.statistics ? "Yes" : "No"}
               </Text>
-              <Text className="text-xs text-gray-600">
-                Movement: {healthMetrics.movement ?? 'null'} | Presence: {healthMetrics.presence ?? 'null'}
+              <Text className="text-xs text-gray-600 font-hell">
+                HR: {healthMetrics.heartRate ?? "null"} | Resp:{" "}
+                {healthMetrics.respiration ?? "null"}
               </Text>
-              <Text className="text-xs text-gray-600">
-                Movement Status: {rawData?.movement_status || 'N/A'}
+              <Text className="text-xs text-gray-600 font-hell">
+                Movement: {healthMetrics.movement ?? "null"} | Presence:{" "}
+                {healthMetrics.presence ?? "null"}
+              </Text>
+              <Text className="text-xs text-gray-600 font-hell">
+                Movement Status: {rawData?.movement_status || "N/A"}
               </Text>
             </View>
           </Card>
@@ -481,8 +586,12 @@ const HealthScreen = () => {
         {error && (
           <Card variant="outlined" className="mb-6">
             <View className="p-4">
-              <Text className="text-red-500 font-semibold">Error loading data</Text>
-              <Text className="text-gray-600 text-sm mt-2">{error.message || String(error)}</Text>
+              <Text className="text-red-500 font-hell-round-bold">
+                Error loading data
+              </Text>
+              <Text className="text-gray-600 text-sm mt-2 font-hell">
+                {error.message || String(error)}
+              </Text>
             </View>
           </Card>
         )}

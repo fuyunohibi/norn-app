@@ -44,6 +44,8 @@ function RootLayoutNav() {
 export default function RootLayout() {
   const [loaded] = useFonts({
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
+    'Helvetica': require('../assets/fonts/Helvetica.ttf'),
+    'HelveticaRoundedBold': require('../assets/fonts/helvetica-rounded-bold.otf'),
   });
 
   if (!loaded) {

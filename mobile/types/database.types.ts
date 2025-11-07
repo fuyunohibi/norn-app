@@ -320,8 +320,10 @@ export type Database = {
           backup_frequency: string | null
           created_at: string | null
           email_notifications: boolean | null
+          fall_alerts_enabled: boolean | null
           id: string
           push_notifications: boolean | null
+          sleep_alerts_enabled: boolean | null
           sms_notifications: boolean | null
           updated_at: string | null
           user_id: string | null
@@ -331,8 +333,10 @@ export type Database = {
           backup_frequency?: string | null
           created_at?: string | null
           email_notifications?: boolean | null
+          fall_alerts_enabled?: boolean | null
           id?: string
           push_notifications?: boolean | null
+          sleep_alerts_enabled?: boolean | null
           sms_notifications?: boolean | null
           updated_at?: string | null
           user_id?: string | null
@@ -342,8 +346,10 @@ export type Database = {
           backup_frequency?: string | null
           created_at?: string | null
           email_notifications?: boolean | null
+          fall_alerts_enabled?: boolean | null
           id?: string
           push_notifications?: boolean | null
+          sleep_alerts_enabled?: boolean | null
           sms_notifications?: boolean | null
           updated_at?: string | null
           user_id?: string | null
