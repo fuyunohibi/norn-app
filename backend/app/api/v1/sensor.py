@@ -3,7 +3,6 @@ import logging
 from typing import Optional, Union
 
 from app.models.sensor import FallDetectionData, SleepDetectionData
-from app.services.ml_service import ml_service
 from app.services.sleep_ml_service import sleep_ml_service
 from app.services.supabase_service import supabase_service
 from fastapi import APIRouter, BackgroundTasks, HTTPException
@@ -49,32 +48,18 @@ async def receive_sensor_data(
         # Initialize ML prediction result
         ml_prediction = None
         
-        # For fall detection mode, ALWAYS use ML to detect falls
-        # (sensor fall_status is unreliable, so we use ML as primary detector)
+        # For fall detection mode, use sensor's native fall detection (NO ML)
+        # Trust the sensor's fall_status field directly
         if data_dict.get("mode") == "fall_detection":
-            logger.info("🔍 Analyzing fall detection data with ML model...")
+            fall_status = data_dict.get("fall_status", 0)
+            if fall_status == 1:
+                logger.warning(f"⚠️  FALL DETECTED by sensor!")
+                logger.info(f"   Presence: {data_dict.get('presence')}")
+                logger.info(f"   Motion: {data_dict.get('motion')}")
+                logger.info(f"   Body Movement: {data_dict.get('body_movement')}")
+                logger.info(f"   Stationary Dwell: {data_dict.get('stationary_dwell')}")
             
-            # Run ML prediction on every data point
-            is_real_fall, confidence, analysis = ml_service.predict_fall(data_dict)
-            
-            ml_prediction = {
-                "is_real_fall": is_real_fall,
-                "confidence": confidence,
-                "analysis": analysis
-            }
-            
-            logger.info(f"🤖 ML Detection Result:")
-            logger.info(f"   Fall Detected: {is_real_fall}")
-            logger.info(f"   Confidence: {confidence:.2%}")
-            logger.info(f"   Pattern: {analysis.get('pattern', 'unknown')}")
-            logger.info(f"   Body Movement: {analysis.get('movement_max', 'N/A')}")
-            logger.info(f"   Dwell Time: {analysis.get('current_dwell_time', 'N/A')}s")
-            
-            # Set fall_status based on ML prediction (ML is the primary detector)
-            data_dict["fall_status"] = 1 if is_real_fall else 0
-            data_dict["ml_detected"] = True
-            data_dict["ml_confidence"] = confidence
-            data_dict["ml_analysis"] = analysis
+            # No ML processing - use sensor data directly
         
         # For sleep detection mode, just store data (NO real-time ML processing)
         # ML analysis happens later when user requests sleep summary
@@ -143,36 +128,6 @@ async def get_readings(mode: str, user_id: Optional[str] = None, limit: int = 10
         raise HTTPException(status_code=500, detail=f"Error retrieving readings: {str(e)}")
 
 
-@router.post("/train-model")
-async def train_fall_detection_model(
-    background_tasks: BackgroundTasks,
-    limit: int = 1000
-):
-    """
-    Train the fall detection ML model using historical data from Supabase
-    
-    This endpoint fetches historical fall detection readings and trains the model.
-    Training is performed in the background to avoid timeout.
-    
-    Args:
-        limit: Maximum number of readings to use for training (default: 1000)
-    """
-    from app.services.model_trainer import trainer
-    
-    logger.info(f"🎓 Model training requested with limit={limit}")
-    
-    # Run training in background
-    background_tasks.add_task(
-        trainer.train_from_database,
-        limit=limit,
-        labeled_data=None
-    )
-    
-    return {
-        "status": "success",
-        "message": f"Model training started in background with up to {limit} samples",
-        "note": "Training may take several minutes. Check server logs for progress."
-    }
 
 
 @router.post("/train-sleep-model")
@@ -211,19 +166,17 @@ async def get_ml_status():
     """
     Get the current ML model status and statistics
     
-    ML is always active for both fall detection and sleep monitoring.
+    ML is only used for sleep monitoring (batch processing).
+    Fall detection uses sensor's native detection.
     """
-    fall_model_trained = hasattr(ml_service.model, 'classes_') if ml_service.model else False
     sleep_quality_trained = hasattr(sleep_ml_service.quality_model, 'n_features_in_') if sleep_ml_service.quality_model else False
     sleep_stage_trained = hasattr(sleep_ml_service.stage_model, 'classes_') if sleep_ml_service.stage_model else False
     
     return {
         "status": "success",
         "fall_detection": {
-            "model_trained": fall_model_trained,
-            "model_path": ml_service.model_path,
-            "window_size": ml_service.window_size,
-            "buffer_size": len(ml_service.data_buffer),
+            "type": "sensor_native",
+            "note": "Uses sensor's built-in fall detection (no ML)"
         },
         "sleep_monitoring": {
             "quality_model_trained": sleep_quality_trained,
@@ -232,35 +185,10 @@ async def get_ml_status():
             "window_size": sleep_ml_service.window_size,
             "buffer_size": len(sleep_ml_service.data_buffer),
         },
-        "note": "ML is active for both fall detection and sleep monitoring."
+        "note": "ML is used only for sleep analysis (batch processing). Fall detection uses sensor's native detection."
     }
 
 
-@router.get("/ml-validated-falls")
-async def get_ml_validated_falls(
-    user_id: Optional[str] = None,
-    limit: int = 50
-):
-    """
-    Get fall detections that have been validated by the ML model
-    
-    This returns only the falls that went through ML validation,
-    along with confidence scores and pattern analysis.
-    
-    Args:
-        user_id: Optional user ID to filter results
-        limit: Maximum number of results to return (default: 50)
-    """
-    try:
-        falls = await supabase_service.get_ml_validated_falls(user_id, limit)
-        return {
-            "status": "success",
-            "count": len(falls),
-            "falls": falls
-        }
-    except Exception as e:
-        logger.error(f"❌ Error retrieving ML-validated falls: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Error retrieving data: {str(e)}")
 
 
 @router.get("/sleep-summary/{user_id}")

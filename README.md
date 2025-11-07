@@ -338,10 +338,33 @@ uvicorn app.main:app --reload             # Start server
 - Monitor backend logs for errors
 - Check ESP32 Serial Monitor for connection status
 
-## 🤖 Machine Learning Features
+## 🤖 Detection Systems
 
-### Sleep Analysis (NEW!)
-The system now includes ML-powered sleep analysis trained on WHOOP data:
+### Fall Detection (Sensor-Based)
+Uses the C1001 sensor's built-in fall detection algorithm:
+
+**Features:**
+- Real-time fall detection (<1 second latency)
+- Hardware-optimized algorithm
+- Adjustable sensitivity (0-3)
+- Configurable thresholds
+- Instant alerts to caregivers
+
+**How It Works:**
+The sensor continuously monitors movement patterns and detects sudden changes indicative of falls. When a fall is detected, `fall_status` is set to 1 and an immediate alert is triggered.
+
+**Configuration** (in Arduino code):
+```cpp
+hu.dmInstallHeight(270);                   // Installation height (cm)
+hu.dmFallTime(5);                          // Detection delay (seconds)
+hu.dmFallConfig(hu.eFallSensitivityC, 3); // Sensitivity: 0-3
+```
+
+**Documentation:**
+- `/backend/FALL_DETECTION_UPDATE.md` - Configuration & tuning guide
+
+### Sleep Analysis (ML-Powered) 🆕
+The system includes ML-powered sleep analysis trained on WHOOP data:
 
 **Features:**
 - Sleep quality scoring (0-100)
@@ -375,6 +398,16 @@ The system now includes ML-powered sleep analysis trained on WHOOP data:
 cd backend
 python train_sleep_model.py
 ```
+
+### System Comparison
+
+| Feature | Fall Detection | Sleep Monitoring |
+|---------|---------------|------------------|
+| **Method** | Sensor hardware | ML (trained on WHOOP data) |
+| **Processing** | Real-time | Batch (on-demand) |
+| **Latency** | <1 second | 2-5 seconds (on request) |
+| **Accuracy** | Hardware-optimized | R² = 0.686 |
+| **CPU Usage** | Minimal | Low (only when requested) |
 
 ## 📖 Additional Resources
 

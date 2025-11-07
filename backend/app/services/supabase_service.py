@@ -278,28 +278,23 @@ class SupabaseService:
         """
         alerts = []
         
-        # Fall detection alert - ONLY trigger when ML confirms a real fall
+        # Fall detection alert - Use sensor's native fall detection
         if data["mode"] == "fall_detection":
-            # Check ML prediction - ONLY trigger if ML confirms it's a real fall
-            ml_detected_fall = ml_prediction and ml_prediction.get("is_real_fall", False) is True
+            # Check sensor's fall_status field directly
+            fall_status = data.get("fall_status", 0)
             
-            # Only create alert if ML explicitly detected a fall (not insufficient_data or false)
-            if ml_detected_fall and settings.FALL_ALERT_ENABLED:
-                confidence = ml_prediction.get("confidence", 0.0) if ml_prediction else 0.0
-                pattern = ml_prediction.get("analysis", {}).get("pattern", "unknown") if ml_prediction else "unknown"
-                analysis_reason = ml_prediction.get("analysis", {}).get("reason")
-                
-                # Double-check: don't alert on insufficient_data or other non-fall patterns
-                if analysis_reason != "insufficient_data" and pattern in ["real_fall_likely"]:
-                    alerts.append({
-                        "type": "fall_detected",
-                        "severity": "critical",
-                        "message": f"Fall detected! (Confidence: {confidence:.0%})",
-                        "title": "🚨 Fall Detected",
-                        "data": data,
-                        "ml_confidence": confidence,
-                        "ml_pattern": pattern
-                    })
+            # Alert if sensor detected a fall
+            if fall_status == 1 and settings.FALL_ALERT_ENABLED:
+                alerts.append({
+                    "type": "fall_detected",
+                    "severity": "critical",
+                    "message": f"Fall detected by sensor!",
+                    "title": "🚨 Fall Detected",
+                    "data": data,
+                    "presence": data.get("presence"),
+                    "body_movement": data.get("body_movement"),
+                    "stationary_dwell": data.get("stationary_dwell")
+                })
         
         # Sleep quality alert
         if data["mode"] == "sleep_detection":
