@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { Activity, Calendar, Moon, Shield, TrendingUp } from 'lucide-react-native';
+import { Activity, Calendar, Moon, Shield, Star, TrendingUp } from 'lucide-react-native';
 import React, { useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, Dimensions, PanResponder, Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -7,6 +7,7 @@ import Svg, { Circle, Path, Rect } from 'react-native-svg';
 import { Card } from '../../components/ui/card';
 import Header from '../../components/ui/header';
 import { useAuth } from '../../contexts/auth-context';
+import { useSleepSummaries } from '../../hooks/useSleepSummaries';
 import { backendAPIService } from '../../services/backend-api.service';
 import { getMockFallData, getMockSleepData, USE_MOCK_STATISTICS } from '../../utils/mock-statistics';
 
@@ -197,7 +198,25 @@ const StatisticsScreen = () => {
     staleTime: 30000,
   });
 
-  const isLoading = sleepLoading || fallLoading;
+  // Generate dates for the last 7 days to fetch sleep summaries
+  const sleepSummaryDates = useMemo(() => {
+    const dates: string[] = [];
+    const today = new Date();
+    for (let i = 1; i <= 7; i++) {
+      const date = new Date(today);
+      date.setDate(date.getDate() - i);
+      dates.push(date.toISOString().split('T')[0]);
+    }
+    return dates;
+  }, []);
+
+  // Fetch sleep summaries for the last 7 days
+  const { data: sleepSummaries, isLoading: sleepSummariesLoading } = useSleepSummaries(
+    userId,
+    sleepSummaryDates
+  );
+
+  const isLoading = sleepLoading || fallLoading || sleepSummariesLoading;
 
   // Calculate statistics from real data (or mock data)
   const stats = useMemo(() => {
@@ -346,6 +365,52 @@ const StatisticsScreen = () => {
     day: entry.day,
   }));
 
+  // Calculate average sleep score from summaries
+  const sleepScoreStats = useMemo(() => {
+    if (!sleepSummaries || sleepSummaries.length === 0) {
+      return {
+        averageScore: null,
+        averageGrade: null,
+        latestScore: null,
+        latestGrade: null,
+        latestDate: null,
+      };
+    }
+
+    const validSummaries = sleepSummaries.filter((s) => s.summary !== null);
+    if (validSummaries.length === 0) {
+      return {
+        averageScore: null,
+        averageGrade: null,
+        latestScore: null,
+        latestGrade: null,
+        latestDate: null,
+      };
+    }
+
+    const scores = validSummaries.map((s) => s.summary!.overall_quality);
+    const averageScore = scores.reduce((sum, score) => sum + score, 0) / scores.length;
+
+    // Get grade from average score
+    const getGrade = (score: number): string => {
+      if (score >= 85) return 'A';
+      if (score >= 75) return 'B';
+      if (score >= 65) return 'C';
+      if (score >= 50) return 'D';
+      return 'F';
+    };
+
+    const latest = validSummaries[0]; // First one is the most recent date
+
+    return {
+      averageScore: Math.round(averageScore * 10) / 10,
+      averageGrade: getGrade(averageScore),
+      latestScore: latest.summary!.overall_quality,
+      latestGrade: latest.summary!.sleep_score_grade,
+      latestDate: latest.date,
+    };
+  }, [sleepSummaries]);
+
   const renderOverview = () => (
     <View className="mb-6">
       <Text className="text-xl font-hell-round-bold text-gray-900 mb-4 ">Overview</Text>
@@ -382,6 +447,147 @@ const StatisticsScreen = () => {
           </View>
         </Card>
       </View>
+
+      {/* Sleep Score Section */}
+      {sleepScoreStats.latestScore !== null && (
+        <View className="mt-4">
+          <Card variant="outlined" className="overflow-hidden">
+            <View className="p-4">
+              <View className="flex-row items-center justify-between mb-3">
+                <View className="flex-row items-center">
+                  <View className="w-12 h-12 bg-primary-accent rounded-xl items-center justify-center mr-3">
+                    <Star size={24} color="white" fill="white" />
+                  </View>
+                  <View>
+                    <Text className="text-lg font-hell-round-bold text-gray-900">
+                      Sleep Score
+                    </Text>
+                    <Text className="text-xs text-gray-600 font-hell">
+                      {sleepScoreStats.latestDate
+                        ? new Date(sleepScoreStats.latestDate).toLocaleDateString('en-US', {
+                            month: 'short',
+                            day: 'numeric',
+                          })
+                        : 'Latest'}
+                    </Text>
+                  </View>
+                </View>
+                <View className="items-end">
+                  <View className="flex-row items-baseline">
+                    <Text className="text-3xl font-hell-round-bold text-gray-900 mr-2">
+                      {Math.round(sleepScoreStats.latestScore)}
+                    </Text>
+                    <View
+                      className={`px-3 py-1 rounded-lg ${
+                        sleepScoreStats.latestGrade === 'A'
+                          ? 'bg-green-100'
+                          : sleepScoreStats.latestGrade === 'B'
+                          ? 'bg-blue-100'
+                          : sleepScoreStats.latestGrade === 'C'
+                          ? 'bg-yellow-100'
+                          : sleepScoreStats.latestGrade === 'D'
+                          ? 'bg-orange-100'
+                          : 'bg-red-100'
+                      }`}
+                    >
+                      <Text
+                        className={`text-sm font-hell-round-bold ${
+                          sleepScoreStats.latestGrade === 'A'
+                            ? 'text-green-700'
+                            : sleepScoreStats.latestGrade === 'B'
+                            ? 'text-blue-700'
+                            : sleepScoreStats.latestGrade === 'C'
+                            ? 'text-yellow-700'
+                            : sleepScoreStats.latestGrade === 'D'
+                            ? 'text-orange-700'
+                            : 'text-red-700'
+                        }`}
+                      >
+                        {sleepScoreStats.latestGrade}
+                      </Text>
+                    </View>
+                  </View>
+                  {sleepScoreStats.averageScore !== null && (
+                    <Text className="text-xs text-gray-500 font-hell mt-1">
+                      7-day avg: {Math.round(sleepScoreStats.averageScore)} ({sleepScoreStats.averageGrade})
+                    </Text>
+                  )}
+                </View>
+              </View>
+            </View>
+          </Card>
+        </View>
+      )}
+
+      {/* Daily Sleep Scores List */}
+      {sleepSummaries && sleepSummaries.length > 0 && (
+        <View className="mt-4">
+          <Text className="text-base font-hell-round-bold text-gray-900 mb-3">
+            Daily Sleep Scores
+          </Text>
+          <Card variant="outlined">
+            <View className="p-4">
+              {sleepSummaries
+                .filter((s) => s.summary !== null)
+                .slice(0, 7)
+                .map((entry, index) => {
+                  const summary = entry.summary!;
+                  const date = new Date(entry.date);
+                  const gradeColor =
+                    summary.sleep_score_grade === 'A'
+                      ? 'text-green-700 bg-green-100'
+                      : summary.sleep_score_grade === 'B'
+                      ? 'text-blue-700 bg-blue-100'
+                      : summary.sleep_score_grade === 'C'
+                      ? 'text-yellow-700 bg-yellow-100'
+                      : summary.sleep_score_grade === 'D'
+                      ? 'text-orange-700 bg-orange-100'
+                      : 'text-red-700 bg-red-100';
+
+                  return (
+                    <View
+                      key={entry.date}
+                      className={`flex-row items-center justify-between py-3 ${
+                        index < sleepSummaries.filter((s) => s.summary !== null).length - 1
+                          ? 'border-b border-gray-100'
+                          : ''
+                      }`}
+                    >
+                      <View className="flex-1">
+                        <Text className="text-sm font-hell-round-bold text-gray-900">
+                          {date.toLocaleDateString('en-US', {
+                            weekday: 'short',
+                            month: 'short',
+                            day: 'numeric',
+                          })}
+                        </Text>
+                        <Text className="text-xs text-gray-500 font-hell mt-1">
+                          {Math.round(summary.total_sleep_time_minutes / 60)}h{' '}
+                          {summary.total_sleep_time_minutes % 60}m sleep
+                        </Text>
+                      </View>
+                      <View className="flex-row items-center">
+                        <Text className="text-xl font-hell-round-bold text-gray-900 mr-3">
+                          {Math.round(summary.overall_quality)}
+                        </Text>
+                        <View className={`px-2 py-1 rounded ${gradeColor}`}>
+                          <Text className={`text-xs font-hell-round-bold`}>
+                            {summary.sleep_score_grade}
+                          </Text>
+                        </View>
+                      </View>
+                    </View>
+                  );
+                })}
+              {sleepSummaries.filter((s) => s.summary !== null).length === 0 && (
+                <Text className="text-sm text-gray-500 font-hell text-center py-4">
+                  No sleep data available
+                </Text>
+              )}
+            </View>
+          </Card>
+        </View>
+      )}
     </View>
   );
 

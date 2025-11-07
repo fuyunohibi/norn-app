@@ -1,9 +1,10 @@
-import { Activity, Heart, Moon, Shield, User, Zap } from 'lucide-react-native';
+import { Activity, Heart, Moon, Shield, Star, User, Zap } from 'lucide-react-native';
 import React, { useMemo } from 'react';
 import { ActivityIndicator, SafeAreaView, ScrollView, Text, View } from 'react-native';
 import { Card } from '../../components/ui/card';
 import Header from '../../components/ui/header';
 import { useLatestSensorReading } from '../../hooks/useSensorReadings';
+import { useLatestSleepSummary } from '../../hooks/useSleepSummaries';
 import { useModeStore } from '../../stores/mode.store';
 
 const HealthScreen = () => {
@@ -11,6 +12,9 @@ const HealthScreen = () => {
   // Use the default user_id that matches the backend
   const userId = '0b8baf9c-dcfa-4d11-93d5-a08ce06a3d61';
   const { reading, rawData, isLoading: readingsLoading, error, timestamp } = useLatestSensorReading(userId);
+  
+  // Fetch latest sleep summary
+  const { data: latestSleepSummary, isLoading: sleepSummaryLoading } = useLatestSleepSummary(userId);
 
   // Extract health metrics from real data
   const healthMetrics = useMemo(() => {
@@ -166,6 +170,105 @@ const HealthScreen = () => {
           </Card>
         </View>
 
+        {/* Sleep Score Summary */}
+        {sleepSummaryLoading ? (
+          <View className="mb-6">
+            <Card variant="outlined">
+              <View className="p-4 items-center">
+                <ActivityIndicator size="small" color="#9E9E9E" />
+                <Text className="text-sm text-gray-500 font-hell mt-2">
+                  Loading sleep score...
+                </Text>
+              </View>
+            </Card>
+          </View>
+        ) : latestSleepSummary ? (
+          <View className="mb-6">
+            <Card variant="outlined" className="bg-primary-accent/5 border-primary-accent/20">
+              <View className="p-4">
+                <View className="flex-row items-center justify-between mb-3">
+                  <View className="flex-row items-center">
+                    <View className="w-12 h-12 bg-primary-accent rounded-xl items-center justify-center mr-3">
+                      <Star size={24} color="white" fill="white" />
+                    </View>
+                    <View>
+                      <Text className="text-lg font-hell-round-bold text-gray-900">
+                        Sleep Score
+                      </Text>
+                      <Text className="text-xs text-gray-600 font-hell">
+                        {latestSleepSummary.date
+                          ? new Date(latestSleepSummary.date).toLocaleDateString('en-US', {
+                              weekday: 'short',
+                              month: 'short',
+                              day: 'numeric',
+                            })
+                          : 'Latest'}
+                      </Text>
+                    </View>
+                  </View>
+                  <View className="items-end">
+                    <View className="flex-row items-baseline">
+                      <Text className="text-3xl font-hell-round-bold text-gray-900 mr-2">
+                        {Math.round(latestSleepSummary.overall_quality)}
+                      </Text>
+                      <View
+                        className={`px-3 py-1 rounded-lg ${
+                          latestSleepSummary.sleep_score_grade === 'A'
+                            ? 'bg-green-100'
+                            : latestSleepSummary.sleep_score_grade === 'B'
+                            ? 'bg-blue-100'
+                            : latestSleepSummary.sleep_score_grade === 'C'
+                            ? 'bg-yellow-100'
+                            : latestSleepSummary.sleep_score_grade === 'D'
+                            ? 'bg-orange-100'
+                            : 'bg-red-100'
+                        }`}
+                      >
+                        <Text
+                          className={`text-sm font-hell-round-bold ${
+                            latestSleepSummary.sleep_score_grade === 'A'
+                              ? 'text-green-700'
+                              : latestSleepSummary.sleep_score_grade === 'B'
+                              ? 'text-blue-700'
+                              : latestSleepSummary.sleep_score_grade === 'C'
+                              ? 'text-yellow-700'
+                              : latestSleepSummary.sleep_score_grade === 'D'
+                              ? 'text-orange-700'
+                              : 'text-red-700'
+                          }`}
+                        >
+                          {latestSleepSummary.sleep_score_grade}
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+                </View>
+                <View className="flex-row gap-4 pt-3 border-t border-gray-100">
+                  <View className="flex-1">
+                    <Text className="text-xs text-gray-500 font-hell mb-1">Sleep Time</Text>
+                    <Text className="text-sm font-hell-round-bold text-gray-900">
+                      {Math.round(latestSleepSummary.total_sleep_time_minutes / 60)}h{' '}
+                      {latestSleepSummary.total_sleep_time_minutes % 60}m
+                    </Text>
+                  </View>
+                  <View className="flex-1">
+                    <Text className="text-xs text-gray-500 font-hell mb-1">Efficiency</Text>
+                    <Text className="text-sm font-hell-round-bold text-gray-900">
+                      {Math.round(latestSleepSummary.sleep_efficiency_percent)}%
+                    </Text>
+                  </View>
+                  <View className="flex-1">
+                    <Text className="text-xs text-gray-500 font-hell mb-1">Deep Sleep</Text>
+                    <Text className="text-sm font-hell-round-bold text-gray-900">
+                      {Math.round(latestSleepSummary.sleep_stages.deep_sleep_minutes)}m
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            </Card>
+          </View>
+        ) : null}
+
         {/* Health Monitor - Three Columns */}
         <View className="mb-8">
           <Text className="text-xl font-hell-round-bold text-gray-900 mb-4 ">
@@ -196,7 +299,7 @@ const HealthScreen = () => {
                   <View className="w-12 h-12 bg-primary-button rounded-xl items-center justify-center mb-3">
                     <User size={24} color="white" />
                   </View>
-                  <Text className="text-xs font-hell font-medium text-gray-600 mb-2 font-hell">
+                  <Text className="text-xs font-hell font-medium text-gray-600 mb-2">
                     Presence
                   </Text>
                   <Text
@@ -220,7 +323,7 @@ const HealthScreen = () => {
                   <View className="w-12 h-12 bg-success rounded-xl items-center justify-center mb-3">
                     <Activity size={24} color="white" />
                   </View>
-                  <Text className="text-xs font-hell font-medium text-gray-600 mb-2 font-hell">
+                  <Text className="text-xs font-hell font-medium text-gray-600 mb-2">
                     Respiration
                   </Text>
                   <Text

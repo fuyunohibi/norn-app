@@ -30,6 +30,49 @@ export interface SensorReadingResponse {
   }>;
 }
 
+export interface SleepSummary {
+  overall_quality: number;
+  sleep_score_grade: string;
+  total_sleep_time_minutes: number;
+  time_in_bed_minutes: number;
+  sleep_efficiency_percent: number;
+  sleep_stages: {
+    deep_sleep_minutes: number;
+    deep_sleep_percent: number;
+    light_sleep_minutes: number;
+    light_sleep_percent: number;
+    awake_minutes: number;
+    awake_percent: number;
+  };
+  vital_signs: {
+    avg_heart_rate: number;
+    min_heart_rate: number;
+    max_heart_rate: number;
+    avg_respiration: number;
+    min_respiration: number;
+    max_respiration: number;
+  };
+  sleep_patterns: {
+    avg_body_movement: number;
+    restlessness_score: number;
+    apnea_events: number;
+  };
+  sleep_onset?: string;
+  wake_time?: string;
+  recommendations: string[];
+  ml_model_version: string;
+  user_id: string;
+  date: string;
+  session_start: string;
+  session_end: string;
+  total_readings: number;
+}
+
+export interface SleepSummaryResponse {
+  status: string;
+  summary: SleepSummary;
+}
+
 class BackendAPIService {
   private baseUrl: string;
 
@@ -192,6 +235,58 @@ class BackendAPIService {
       };
     } catch (error) {
       console.error('Error fetching user statistics:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get sleep summary for a specific date
+   * @param userId User ID to get sleep data for
+   * @param date Optional date (YYYY-MM-DD) to analyze. Defaults to previous night.
+   */
+  async getSleepSummary(userId: string, date?: string): Promise<SleepSummaryResponse> {
+    try {
+      const url = new URL(`${this.baseUrl}/api/v1/sensor/sleep-summary/${userId}`);
+      if (date) {
+        url.searchParams.set('date', date);
+      }
+
+      if (__DEV__) console.log('🌙 Fetching sleep summary from:', url.toString());
+
+      const response = await fetch(url.toString(), {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        if (__DEV__) console.error('❌ Error response:', errorText);
+        let error;
+        try {
+          error = JSON.parse(errorText);
+        } catch {
+          error = { detail: errorText || response.statusText };
+        }
+        throw new Error(error.detail || `HTTP ${response.status}`);
+      }
+
+      const data = await response.json();
+      if (__DEV__) {
+        console.log('✅ Received sleep summary:', {
+          status: data.status,
+          grade: data.summary?.sleep_score_grade,
+          quality: data.summary?.overall_quality,
+          date: data.summary?.date,
+        });
+      }
+      return data;
+    } catch (error: any) {
+      const errorMessage = error.message || String(error);
+      if (__DEV__) {
+        console.error('❌ Error fetching sleep summary:', errorMessage);
+      }
       throw error;
     }
   }
