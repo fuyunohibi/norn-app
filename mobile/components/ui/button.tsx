@@ -44,9 +44,9 @@ export const Button: React.FC<ButtonProps> = ({
   };
   
   const textSizeClasses = {
-    sm: 'text-sm font-medium',
-    md: 'text-base font-semibold',
-    lg: 'text-lg font-semibold',
+    sm: 'text-sm font-hell font-medium',
+    md: 'text-base font-hell-round-bold',
+    lg: 'text-lg font-hell-round-bold',
   };
 
   return (

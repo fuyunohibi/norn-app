@@ -25,7 +25,7 @@ module.exports = {
         gray: {
           50: '#FAFAFA',
           100: '#F5F5F5',
-          200: '#EEEEEE',
+          200: '#EEEEEE', 
           300: '#E0E0E0',
           400: '#BDBDBD',
           500: '#9E9E9E',
@@ -41,9 +41,12 @@ module.exports = {
         info: '#2196F3',
       },
       fontFamily: {
-        // Headspace-style fonts
-        'sans': ['System', 'Helvetica', 'Arial', 'sans-serif'],
-        'display': ['System', 'Helvetica', 'Arial', 'sans-serif'],
+        // Custom Helvetica fonts - font names must match exactly what's registered in useFonts
+        'hell': 'Helvetica',
+        'hell-round-bold': 'HelveticaRoundedBold',
+        // Default fonts (using Helvetica as base)
+        'sans': 'Helvetica',
+        'display': 'Helvetica',
       },
       fontSize: {
         'xs': '12px',

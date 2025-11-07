@@ -78,7 +78,7 @@ const NotificationsScreen = () => {
   const getAlertTypeIcon = (type: string) => {
     switch (type) {
       case 'fall':
-        return <Shield size={20} color="white" />;
+        return <Shield size={20} color="white" fill="white" />;
       default:
         return <AlertCircle size={20} color="white" />;
     }
@@ -101,7 +101,7 @@ const NotificationsScreen = () => {
 
         {/* Preferences Section */}
         <View className="mb-6">
-          <Text className="text-xl font-bold text-gray-900 mb-4">Alert Preferences</Text>
+          <Text className="text-xl font-hell-round-bold text-gray-900 mb-4 ">Alert Preferences</Text>
           <Card variant="outlined">
             <View className="p-4">
               {prefsLoading ? (
@@ -110,34 +110,34 @@ const NotificationsScreen = () => {
                 <>
                   <View className="flex-row items-center justify-between py-3 border-b border-gray-200">
                     <View className="flex-1">
-                      <Text className="text-base font-semibold text-gray-900">
+                      <Text className="text-base font-hell-round-bold text-gray-900 ">
                         Fall Detection Alerts
                       </Text>
-                      <Text className="text-sm text-gray-600 mt-1">
+                      <Text className="text-sm text-gray-600 mt-1 font-hell">
                         Receive notifications for fall events
                       </Text>
                     </View>
                     <Switch
                       value={preferences?.fall_alerts_enabled ?? true}
                       onValueChange={(value) => handleTogglePreference('fall_alerts_enabled', value)}
-                      trackColor={{ false: '#E5E7EB', true: '#6366f1' }}
+                      trackColor={{ false: '#E5E7EB', true: '#FF7300' }}
                       thumbColor="#FFFFFF"
                     />
                   </View>
 
                   <View className="flex-row items-center justify-between py-3">
                     <View className="flex-1">
-                      <Text className="text-base font-semibold text-gray-900">
+                      <Text className="text-base font-hell-round-bold text-gray-900 ">
                         Sleep Quality Alerts
                       </Text>
-                      <Text className="text-sm text-gray-600 mt-1">
+                      <Text className="text-sm text-gray-600 mt-1 font-hell">
                         Get notified about sleep quality issues
                       </Text>
                     </View>
                     <Switch
                       value={preferences?.sleep_alerts_enabled ?? true}
                       onValueChange={(value) => handleTogglePreference('sleep_alerts_enabled', value)}
-                      trackColor={{ false: '#E5E7EB', true: '#6366f1' }}
+                      trackColor={{ false: '#E5E7EB', true: '#FF7300' }}
                       thumbColor="#FFFFFF"
                     />
                   </View>
@@ -150,14 +150,14 @@ const NotificationsScreen = () => {
         {/* Alerts Section */}
         <View className="mb-6">
           <View className="flex-row items-center justify-between mb-4">
-            <Text className="text-xl font-bold text-gray-900">Recent Alerts</Text>
+            <Text className="text-xl font-hell-round-bold text-gray-900 ">Recent Alerts</Text>
             {unreadCount > 0 && (
               <TouchableOpacity
                 onPress={() => markAllAsReadMutation.mutate()}
                 disabled={markAllAsReadMutation.isPending}
-                className="px-3 py-1 bg-primary-accent rounded-lg"
+                className="px-3 py-2 bg-gray-900 rounded-xl"
               >
-                <Text className="text-xs font-semibold text-white">
+                <Text className="text-xs font-hell-round-bold text-white ">
                   Mark all read ({unreadCount})
                 </Text>
               </TouchableOpacity>
@@ -167,18 +167,18 @@ const NotificationsScreen = () => {
           {alertsLoading ? (
             <Card variant="outlined">
               <View className="p-6 items-center">
-                <ActivityIndicator size="large" color="#6366f1" />
-                <Text className="text-gray-600 mt-4">Loading alerts...</Text>
+                <ActivityIndicator size="large" color="#FF7300" />
+                <Text className="text-gray-600 mt-4 font-hell">Loading alerts...</Text>
               </View>
             </Card>
           ) : alerts.length === 0 ? (
             <Card variant="outlined">
               <View className="p-8 items-center">
                 <Bell size={48} color="#9CA3AF" />
-                <Text className="text-lg font-semibold text-gray-900 mt-4">
+                <Text className="text-lg font-hell-round-bold text-gray-900 mt-4 ">
                   No Alerts
                 </Text>
-                <Text className="text-gray-600 text-center mt-2">
+                <Text className="text-gray-600 text-center mt-2 font-hell">
                   You're all caught up! No alerts to display.
                 </Text>
               </View>
@@ -200,18 +200,18 @@ const NotificationsScreen = () => {
                       </View>
                       <View className="flex-1">
                         <View className="flex-row items-center justify-between mb-1">
-                          <Text className="text-base font-semibold text-gray-900">
+                          <Text className="text-base font-hell-round-bold text-gray-900 ">
                             {alert.title}
                           </Text>
                           {!alert.is_read && (
                             <View className="w-2 h-2 bg-primary-accent rounded-full" />
                           )}
                         </View>
-                        <Text className="text-sm text-gray-600 mb-2">
+                        <Text className="text-sm text-gray-600 mb-2 font-hell">
                           {alert.message}
                         </Text>
                         <View className="flex-row items-center justify-between">
-                          <Text className="text-xs text-gray-500">
+                          <Text className="text-xs text-gray-500 font-hell">
                             {new Date(alert.created_at).toLocaleString()}
                           </Text>
                           {!alert.is_read && (
@@ -220,7 +220,7 @@ const NotificationsScreen = () => {
                               disabled={markAsReadMutation.isPending}
                               className="px-2 py-1 bg-gray-100 rounded"
                             >
-                              <Text className="text-xs font-medium text-gray-700">
+                              <Text className="text-xs font-hell font-medium text-gray-700">
                                 Mark read
                               </Text>
                             </TouchableOpacity>

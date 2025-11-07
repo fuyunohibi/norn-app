@@ -30,7 +30,7 @@ export const DatabaseHealth: React.FC<DatabaseHealthProps> = ({ userId }) => {
   return (
     <View className="bg-white rounded-2xl p-4 mb-4">
       <View className="flex-row items-center justify-between mb-3">
-        <Text className="text-lg font-semibold text-gray-900">
+        <Text className="text-lg font-hell-round-bold text-gray-900 ">
           Database Status
         </Text>
         <TouchableOpacity
@@ -50,14 +50,14 @@ export const DatabaseHealth: React.FC<DatabaseHealthProps> = ({ userId }) => {
         {health?.healthy ? (
           <>
             <CheckCircle size={20} color="#10B981" />
-            <Text className="text-green-600 font-medium ml-2">
+            <Text className="text-green-600 font-hell font-medium ml-2 font-hell">
               Database Connected
             </Text>
           </>
         ) : (
           <>
             <XCircle size={20} color="#EF4444" />
-            <Text className="text-red-600 font-medium ml-2">
+            <Text className="text-red-600 font-hell font-medium ml-2 font-hell">
               Database Error
             </Text>
           </>
@@ -65,7 +65,7 @@ export const DatabaseHealth: React.FC<DatabaseHealthProps> = ({ userId }) => {
       </View>
 
       {health?.error && (
-        <Text className="text-red-500 text-sm mt-2">
+        <Text className="text-red-500 text-sm mt-2 font-hell">
           {health.error}
         </Text>
       )}

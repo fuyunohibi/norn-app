@@ -147,14 +147,14 @@ export const SignupForm: React.FC<SignupFormProps> = ({ onSwitchToLogin }) => {
   const renderStep1 = () => (
     <View className="w-full px-2">
       <View className="items-center mb-8">
-        <Text className="text-4xl font-bold text-gray-900 mb-2">
+        <Text className="text-4xl font-hell-round-bold text-gray-900 mb-2 ">
           Create Account
         </Text>
       </View>
       
       <View className="gap-y-6">
         <View>
-          <Text className="text-lg font-semibold text-gray-900 mb-3">
+          <Text className="text-lg font-hell-round-bold text-gray-900 mb-3 ">
             Email Address
           </Text>
           <Controller
@@ -176,7 +176,7 @@ export const SignupForm: React.FC<SignupFormProps> = ({ onSwitchToLogin }) => {
                   keyboardType="email-address"
                   autoCapitalize="none"
                   error={errors.email?.message}
-                  className="pl-12 h-16 text-lg"
+                  className="pl-12 h-16 text-lg font-hell"
                 />
               </View>
             )}
@@ -184,7 +184,7 @@ export const SignupForm: React.FC<SignupFormProps> = ({ onSwitchToLogin }) => {
         </View>
 
         <View>
-          <Text className="text-lg font-semibold text-gray-900 mb-3">
+          <Text className="text-lg font-hell-round-bold text-gray-900 mb-3 ">
             Password
           </Text>
           <Controller
@@ -205,7 +205,7 @@ export const SignupForm: React.FC<SignupFormProps> = ({ onSwitchToLogin }) => {
                   onBlur={onBlur}
                   secureTextEntry={!showPassword}
                   error={errors.password?.message}
-                  className="pl-12 pr-12 h-16 text-lg"
+                  className="pl-12 pr-12 h-16 text-lg font-hell"
                 />
                 <TouchableOpacity
                   onPress={() => setShowPassword(!showPassword)}
@@ -223,7 +223,7 @@ export const SignupForm: React.FC<SignupFormProps> = ({ onSwitchToLogin }) => {
         </View>
 
         <View>
-          <Text className="text-lg font-semibold text-gray-900 mb-3">
+          <Text className="text-lg font-hell-round-bold text-gray-900 mb-3 ">
             Confirm Password
           </Text>
           <Controller
@@ -241,7 +241,7 @@ export const SignupForm: React.FC<SignupFormProps> = ({ onSwitchToLogin }) => {
                   onBlur={onBlur}
                   secureTextEntry={!showConfirmPassword}
                   error={errors.confirmPassword?.message}
-                  className="pl-12 pr-12 h-16 text-lg"
+                  className="pl-12 pr-12 h-16 text-lg font-hell"
                 />
                 <TouchableOpacity
                   onPress={() => setShowConfirmPassword(!showConfirmPassword)}
@@ -268,9 +268,9 @@ export const SignupForm: React.FC<SignupFormProps> = ({ onSwitchToLogin }) => {
         />
 
         <View className="flex-row justify-center mt-6">
-          <Text className="text-gray-600 text-lg">Already have an account? </Text>
+          <Text className="text-gray-600 text-lg font-hell">Already have an account? </Text>
           <Text
-            className="text-primary-accent font-semibold text-lg"
+            className="text-primary-accent font-hell-round-bold text-lg "
             onPress={onSwitchToLogin}
           >
             Sign In
@@ -283,14 +283,14 @@ export const SignupForm: React.FC<SignupFormProps> = ({ onSwitchToLogin }) => {
   const renderStep2 = () => (
     <View className="w-full px-2">
       <View className="items-center mb-8">
-        <Text className="text-4xl font-bold text-gray-900 mb-2">
+        <Text className="text-4xl font-hell-round-bold text-gray-900 mb-2 ">
           Personal Details
         </Text>
       </View>
       
       <View className="gap-y-6">
         <View>
-          <Text className="text-lg font-semibold text-gray-900 mb-3">
+          <Text className="text-lg font-hell-round-bold text-gray-900 mb-3 ">
             Full Name
           </Text>
           <Controller
@@ -308,7 +308,7 @@ export const SignupForm: React.FC<SignupFormProps> = ({ onSwitchToLogin }) => {
                   onBlur={onBlur}
                   autoCapitalize="words"
                   error={errors.fullName?.message}
-                  className="pl-12 h-16 text-lg"
+                  className="pl-12 h-16 text-lg font-hell"
                 />
               </View>
             )}
@@ -316,7 +316,7 @@ export const SignupForm: React.FC<SignupFormProps> = ({ onSwitchToLogin }) => {
         </View>
 
         <View>
-          <Text className="text-lg font-semibold text-gray-900 mb-3">
+          <Text className="text-lg font-hell-round-bold text-gray-900 mb-3 ">
             Username
           </Text>
           <Controller
@@ -334,7 +334,7 @@ export const SignupForm: React.FC<SignupFormProps> = ({ onSwitchToLogin }) => {
                   onBlur={onBlur}
                   autoCapitalize="none"
                   error={errors.username?.message}
-                  className="pl-12 h-16 text-lg"
+                  className="pl-12 h-16 text-lg font-hell"
                 />
               </View>
             )}
@@ -409,9 +409,9 @@ export const SignupForm: React.FC<SignupFormProps> = ({ onSwitchToLogin }) => {
         </View>
 
         <View className="flex-row justify-center mt-6">
-          <Text className="text-gray-600 text-lg">Already have an account? </Text>
+          <Text className="text-gray-600 text-lg font-hell">Already have an account? </Text>
           <Text
-            className="text-primary-accent font-semibold text-lg"
+            className="text-primary-accent font-hell-round-bold text-lg "
             onPress={onSwitchToLogin}
           >
             Sign In
