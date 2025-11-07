@@ -338,6 +338,44 @@ uvicorn app.main:app --reload             # Start server
 - Monitor backend logs for errors
 - Check ESP32 Serial Monitor for connection status
 
+## 🤖 Machine Learning Features
+
+### Sleep Analysis (NEW!)
+The system now includes ML-powered sleep analysis trained on WHOOP data:
+
+**Features:**
+- Sleep quality scoring (0-100)
+- Sleep stage classification (Deep, Light, Awake)
+- Vital signs analysis
+- Personalized recommendations
+- Batch processing for efficiency
+
+**Training Data:**
+- 194 WHOOP sleep sessions
+- 60,359 training samples
+- R² = 0.686 for quality prediction
+- 100% training accuracy for stage classification
+
+**How It Works:**
+1. **During Sleep**: Sensor sends data → Backend stores in database (no ML)
+2. **After Waking**: User requests summary → ML analyzes entire session → Comprehensive report
+
+**API Endpoints:**
+- `GET /api/v1/sensor/sleep-summary/{user_id}` - Get sleep analysis
+- `POST /api/v1/sensor/train-sleep-model` - Retrain models
+- `GET /api/v1/sensor/ml-status` - Check model status
+
+**Documentation:**
+- `/backend/SLEEP_ML_README.md` - Complete ML technical docs
+- `/backend/SLEEP_WORKFLOW.md` - API usage guide
+- `/backend/IMPLEMENTATION_SUMMARY.md` - Implementation overview
+
+**Training Models:**
+```bash
+cd backend
+python train_sleep_model.py
+```
+
 ## 📖 Additional Resources
 
 - [Expo Documentation](https://docs.expo.dev/)

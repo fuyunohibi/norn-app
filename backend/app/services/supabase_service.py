@@ -220,6 +220,50 @@ class SupabaseService:
         logger.info(f"📊 Found {len(ml_detected_falls)} ML-detected falls out of {len(result.data)} total falls")
         return ml_detected_falls
     
+    async def get_readings_by_timerange(
+        self,
+        user_id: str,
+        mode: str,
+        start_time: datetime,
+        end_time: datetime
+    ) -> List[Dict[str, Any]]:
+        """
+        Get all sensor readings within a time range
+        
+        Used for batch processing sleep data
+        
+        Args:
+            user_id: User ID to filter by
+            mode: Sensor mode ("sleep_detection" or "fall_detection")
+            start_time: Start of time range
+            end_time: End of time range
+            
+        Returns:
+            List of sensor readings within the time range
+        """
+        try:
+            logger.info(f"📥 Querying {mode} readings for user {user_id} from {start_time} to {end_time}")
+            
+            result = self.client.table(settings.SUPABASE_TABLE)\
+                .select("*")\
+                .eq("user_id", user_id)\
+                .eq("mode", mode)\
+                .gte("timestamp", start_time.isoformat())\
+                .lte("timestamp", end_time.isoformat())\
+                .order("timestamp", desc=False)\
+                .execute()
+            
+            if not result.data:
+                logger.info(f"No {mode} readings found in time range")
+                return []
+            
+            logger.info(f"✅ Retrieved {len(result.data)} readings")
+            return result.data
+            
+        except Exception as e:
+            logger.error(f"❌ Error retrieving readings by time range: {e}")
+            return []
+    
     async def check_alerts(self, data: Dict[str, Any], user_id: Optional[str] = None, ml_prediction: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
         """
         Check sensor data for alert conditions

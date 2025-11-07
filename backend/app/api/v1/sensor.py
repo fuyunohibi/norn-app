@@ -4,6 +4,7 @@ from typing import Optional, Union
 
 from app.models.sensor import FallDetectionData, SleepDetectionData
 from app.services.ml_service import ml_service
+from app.services.sleep_ml_service import sleep_ml_service
 from app.services.supabase_service import supabase_service
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 
@@ -74,6 +75,12 @@ async def receive_sensor_data(
             data_dict["ml_detected"] = True
             data_dict["ml_confidence"] = confidence
             data_dict["ml_analysis"] = analysis
+        
+        # For sleep detection mode, just store data (NO real-time ML processing)
+        # ML analysis happens later when user requests sleep summary
+        elif data_dict.get("mode") == "sleep_detection":
+            logger.debug("💾 Storing sleep data (ML analysis on-demand)")
+            # Data will be stored and analyzed when user requests summary
         
         # Store data (with ML predictions if available)
         background_tasks.add_task(
@@ -168,22 +175,64 @@ async def train_fall_detection_model(
     }
 
 
+@router.post("/train-sleep-model")
+async def train_sleep_model(
+    background_tasks: BackgroundTasks,
+    csv_path: str = "sleeps.csv"
+):
+    """
+    Train the sleep ML model using WHOOP data from CSV
+    
+    This endpoint trains the sleep quality and stage classification models
+    using WHOOP sleep data. Training is performed in the background.
+    
+    Args:
+        csv_path: Path to WHOOP sleep CSV file (default: "sleeps.csv")
+    """
+    from app.services.sleep_model_trainer import sleep_trainer
+    
+    logger.info(f"🌙 Sleep model training requested with CSV: {csv_path}")
+    
+    # Run training in background
+    background_tasks.add_task(
+        sleep_trainer.train_from_whoop_csv,
+        csv_path=csv_path
+    )
+    
+    return {
+        "status": "success",
+        "message": f"Sleep model training started in background using {csv_path}",
+        "note": "Training may take several minutes. Check server logs for progress."
+    }
+
+
 @router.get("/ml-status")
 async def get_ml_status():
     """
     Get the current ML model status and statistics
     
-    ML is always active for fall detection mode.
+    ML is always active for both fall detection and sleep monitoring.
     """
-    model_trained = hasattr(ml_service.model, 'classes_') if ml_service.model else False
+    fall_model_trained = hasattr(ml_service.model, 'classes_') if ml_service.model else False
+    sleep_quality_trained = hasattr(sleep_ml_service.quality_model, 'n_features_in_') if sleep_ml_service.quality_model else False
+    sleep_stage_trained = hasattr(sleep_ml_service.stage_model, 'classes_') if sleep_ml_service.stage_model else False
     
     return {
         "status": "success",
-        "model_trained": model_trained,
-        "model_path": ml_service.model_path,
-        "window_size": ml_service.window_size,
-        "buffer_size": len(ml_service.data_buffer),
-        "note": "ML is always active for fall detection. Falls are detected based on motion, body_movement, and stationary_dwell patterns."
+        "fall_detection": {
+            "model_trained": fall_model_trained,
+            "model_path": ml_service.model_path,
+            "window_size": ml_service.window_size,
+            "buffer_size": len(ml_service.data_buffer),
+        },
+        "sleep_monitoring": {
+            "quality_model_trained": sleep_quality_trained,
+            "stage_model_trained": sleep_stage_trained,
+            "model_path": sleep_ml_service.model_path,
+            "window_size": sleep_ml_service.window_size,
+            "buffer_size": len(sleep_ml_service.data_buffer),
+        },
+        "note": "ML is active for both fall detection and sleep monitoring."
     }
 
 
@@ -212,4 +261,52 @@ async def get_ml_validated_falls(
     except Exception as e:
         logger.error(f"❌ Error retrieving ML-validated falls: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error retrieving data: {str(e)}")
+
+
+@router.get("/sleep-summary/{user_id}")
+async def get_sleep_summary(
+    user_id: str,
+    date: Optional[str] = None
+):
+    """
+    Get comprehensive sleep summary with ML analysis
+    
+    This endpoint analyzes a complete sleep session using ML to provide:
+    - Overall sleep quality score
+    - Sleep stage breakdown (Deep, Light, Awake)
+    - Vital signs analysis
+    - Sleep patterns and disturbances
+    - Recommendations
+    
+    Args:
+        user_id: User ID to get sleep data for
+        date: Optional date (YYYY-MM-DD) to analyze. Defaults to previous night.
+    
+    Returns:
+        Comprehensive sleep analysis report
+    """
+    from app.services.sleep_analysis_service import analyze_sleep_session
+    
+    try:
+        logger.info(f"🌙 Sleep summary requested for user {user_id}, date: {date or 'latest'}")
+        
+        # Analyze the sleep session with ML
+        summary = await analyze_sleep_session(user_id, date)
+        
+        if not summary:
+            raise HTTPException(
+                status_code=404,
+                detail="No sleep data found for the specified date"
+            )
+        
+        return {
+            "status": "success",
+            "summary": summary
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Error generating sleep summary: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error generating sleep summary: {str(e)}")
 
