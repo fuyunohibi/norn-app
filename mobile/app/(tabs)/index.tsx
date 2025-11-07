@@ -62,6 +62,7 @@ const HomeScreen = () => {
   } = useLatestSensorReading(userId);
   const [showModeSelector, setShowModeSelector] = useState(false);
   const insets = useSafeAreaInsets();
+  const lastFallAlertRef = useRef<string | null>(null);
 
   const handleViewSettings = () => {
     router.push("/settings");
@@ -180,6 +181,42 @@ const HomeScreen = () => {
       );
     }
   }, [unreadAlerts, userId, activeMode?.id]);
+
+  // Immediate fall alert using live readings to give instant feedback on the home screen
+  useEffect(() => {
+    if (activeMode?.id !== "fall") return;
+    if (!rawData && !reading) return;
+
+    const isFallDetected =
+      (rawData && rawData.mode === "fall_detection" && rawData.fall_status === 1) ||
+      Boolean(reading?.is_fall_detected);
+
+    if (!isFallDetected) return;
+
+    const fallIdentifier =
+      (reading && reading.id) ||
+      (rawData?.timestamp ? `ts-${rawData.timestamp}` : null);
+
+    if (fallIdentifier && lastFallAlertRef.current === fallIdentifier) return;
+
+    lastFallAlertRef.current = fallIdentifier;
+
+    Alert.alert(
+      "🚨 Fall Detected",
+      "The sensor just reported a fall event. Please verify the person's safety.",
+      [
+        {
+          text: "View Details",
+          onPress: () => router.push("/notifications"),
+        },
+        {
+          text: "Dismiss",
+          style: "cancel",
+        },
+      ],
+      { cancelable: false }
+    );
+  }, [activeMode?.id, rawData, reading]);
 
   return (
     <View className="flex-1 bg-white">

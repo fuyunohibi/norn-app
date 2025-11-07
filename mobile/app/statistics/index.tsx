@@ -9,7 +9,12 @@ import Header from '../../components/ui/header';
 import { useAuth } from '../../contexts/auth-context';
 import { useSleepSummaries } from '../../hooks/useSleepSummaries';
 import { backendAPIService } from '../../services/backend-api.service';
-import { getMockFallData, getMockSleepData, USE_MOCK_STATISTICS } from '../../utils/mock-statistics';
+import {
+  getMockFallData,
+  getMockSleepData,
+  getMockSleepSummaries,
+  USE_MOCK_STATISTICS,
+} from '../../utils/mock-statistics';
 
 const windowWidth = Dimensions.get('window').width;
 
@@ -211,12 +216,21 @@ const StatisticsScreen = () => {
   }, []);
 
   // Fetch sleep summaries for the last 7 days
-  const { data: sleepSummaries, isLoading: sleepSummariesLoading } = useSleepSummaries(
-    userId,
-    sleepSummaryDates
+  const shouldFetchRealSummaries = !USE_MOCK_STATISTICS && !!userId;
+  const { data: fetchedSleepSummaries, isLoading: sleepSummariesLoading } = useSleepSummaries(
+    shouldFetchRealSummaries ? userId : undefined,
+    shouldFetchRealSummaries ? sleepSummaryDates : []
   );
+  const mockSleepSummaries = useMemo(
+    () => (USE_MOCK_STATISTICS ? getMockSleepSummaries() : []),
+    []
+  );
+  const sleepSummaries = USE_MOCK_STATISTICS
+    ? mockSleepSummaries
+    : fetchedSleepSummaries || [];
 
-  const isLoading = sleepLoading || fallLoading || sleepSummariesLoading;
+  const isLoading =
+    sleepLoading || fallLoading || (shouldFetchRealSummaries && sleepSummariesLoading);
 
   // Calculate statistics from real data (or mock data)
   const stats = useMemo(() => {
