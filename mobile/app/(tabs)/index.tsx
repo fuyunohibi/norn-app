@@ -9,10 +9,11 @@ import {
   Shield,
   Zap,
 } from "lucide-react-native";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Linking,
   Modal,
   ScrollView,
   Text,
@@ -21,7 +22,9 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { NornIcon } from "../../components/norn-icon";
+import { Button } from "../../components/ui/button";
 import { Card } from "../../components/ui/card";
+import { useEmergencyContacts } from "../../hooks/useEmergencyContacts";
 import { useLatestSensorReading } from "../../hooks/useSensorReadings";
 import { backendAPIService } from "../../services/backend-api.service";
 import { getUnreadAlerts } from "../../services/monitoring.service";
@@ -63,6 +66,104 @@ const HomeScreen = () => {
   const [showModeSelector, setShowModeSelector] = useState(false);
   const insets = useSafeAreaInsets();
   const lastFallAlertRef = useRef<string | null>(null);
+  const [fallQuickActionMessage, setFallQuickActionMessage] = useState<string | null>(null);
+  const [showQuickActionsModal, setShowQuickActionsModal] = useState(false);
+
+  const {
+    contacts,
+    isLoading: contactsLoading,
+  } = useEmergencyContacts(userId);
+
+  const primaryContact = useMemo(
+    () => contacts.find((contact) => contact.is_primary) ?? contacts[0] ?? null,
+    [contacts],
+  );
+
+  const otherContacts = useMemo(
+    () =>
+      primaryContact
+        ? contacts.filter((contact) => contact.id !== primaryContact.id)
+        : contacts,
+    [contacts, primaryContact],
+  );
+
+  const presentFallQuickActions = useCallback((message?: string) => {
+    setFallQuickActionMessage(
+      message ??
+        "A fall was detected. Let us know how to help or call an emergency contact.",
+    );
+    setShowQuickActionsModal(true);
+  }, []);
+
+  const dismissFallQuickActions = useCallback(() => {
+    setShowQuickActionsModal(false);
+  }, []);
+
+  const handleFallSheetDismiss = useCallback(() => {
+    setFallQuickActionMessage(null);
+    setShowQuickActionsModal(false);
+  }, []);
+
+  const callPhoneNumber = useCallback(
+    async (phoneNumber: string, label?: string) => {
+      const sanitized = phoneNumber.replace(/[^+\d]/g, "");
+      if (!sanitized) {
+        Alert.alert("Invalid number", "This phone number cannot be dialed.");
+        return;
+      }
+
+      const telUrl = `tel:${sanitized}`;
+      try {
+        const canOpen = await Linking.canOpenURL(telUrl);
+        if (!canOpen) {
+          Alert.alert(
+            "Call not supported",
+            "This device cannot initiate calls automatically.",
+          );
+          return;
+        }
+
+        dismissFallQuickActions();
+        await Linking.openURL(telUrl);
+      } catch (error) {
+        console.error("Error placing call:", error);
+        Alert.alert(
+          "Call failed",
+          `Unable to call ${label ?? "this contact"}. Please try again.`,
+        );
+      }
+    },
+    [dismissFallQuickActions],
+  );
+
+  const handleNeedHelp = useCallback(() => {
+    if (!primaryContact) {
+      Alert.alert(
+        "No emergency contacts",
+        "Add at least one emergency contact in Settings to place a quick call.",
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Add Contact",
+            onPress: () => router.push("/settings"),
+          },
+        ],
+      );
+      return;
+    }
+
+    callPhoneNumber(primaryContact.phone_number, primaryContact.full_name);
+  }, [callPhoneNumber, primaryContact]);
+
+  const handleImOk = useCallback(() => {
+    dismissFallQuickActions();
+    Alert.alert("Status updated", "Thanks for letting us know you are safe.");
+  }, [dismissFallQuickActions]);
+
+  const handleManageContacts = useCallback(() => {
+    dismissFallQuickActions();
+    router.push("/settings");
+  }, [dismissFallQuickActions]);
 
   const handleViewSettings = () => {
     router.push("/settings");
@@ -141,14 +242,31 @@ const HomeScreen = () => {
       if (shownAlertIds.current.has(alert.id)) return false;
 
       // Check if alert is recent (within last 2 minutes)
-      const alertTime = new Date(alert.created_at).getTime();
-      if (alertTime < twoMinutesAgo) return false;
+      const alertTime = alert.created_at ? new Date(alert.created_at).getTime() : null;
+      if (!alertTime || alertTime < twoMinutesAgo) return false;
 
       // Verify ML actually detected a fall (check alert_data for ml_detected or ml_pattern)
-      const alertData = alert.alert_data || {};
-      const mlPattern = alertData.ml_pattern || alertData.ml_analysis?.pattern;
+      const alertDataRaw = alert.alert_data;
+      const alertData =
+        typeof alertDataRaw === "object" && alertDataRaw !== null
+          ? (alertDataRaw as Record<string, unknown>)
+          : {};
+      const mlAnalysisRaw = alertData["ml_analysis"];
+      const mlAnalysis =
+        typeof mlAnalysisRaw === "object" && mlAnalysisRaw !== null
+          ? (mlAnalysisRaw as Record<string, unknown>)
+          : null;
+      const mlAnalysisPattern =
+        mlAnalysis && typeof mlAnalysis["pattern"] === "string"
+          ? (mlAnalysis["pattern"] as string)
+          : null;
+      const mlPatternSource = alertData["ml_pattern"];
+      const mlPattern =
+        typeof mlPatternSource === "string" ? mlPatternSource : mlAnalysisPattern;
+      const mlDetectedValue = alertData["ml_detected"];
       const isRealFall =
-        mlPattern === "real_fall_likely" || alertData.ml_detected === true;
+        mlPattern === "real_fall_likely" ||
+        (typeof mlDetectedValue === "boolean" && mlDetectedValue);
 
       return isRealFall;
     });
@@ -157,30 +275,27 @@ const HomeScreen = () => {
       const latestFall = fallAlerts[0]; // Most recent fall alert
       shownAlertIds.current.add(latestFall.id);
 
-      const confidence = latestFall.alert_data?.ml_confidence
-        ? `${Math.round(latestFall.alert_data.ml_confidence * 100)}%`
+      const latestFallDataRaw = latestFall.alert_data;
+      const latestFallData =
+        typeof latestFallDataRaw === "object" && latestFallDataRaw !== null
+          ? (latestFallDataRaw as Record<string, unknown>)
+          : {};
+      const confidenceSource = latestFallData["ml_confidence"];
+      const confidenceValue =
+        typeof confidenceSource === "number"
+          ? confidenceSource
+          : typeof confidenceSource === "string" && !Number.isNaN(Number(confidenceSource))
+            ? Number(confidenceSource)
+            : null;
+      const confidence = confidenceValue
+        ? `${Math.round(confidenceValue * 100)}%`
         : "High";
 
-      Alert.alert(
-        "🚨 Fall Detected",
-        `A fall has been detected with ${confidence} confidence. Immediate attention may be required.`,
-        [
-          {
-            text: "View Details",
-            onPress: () => {
-              router.push("/notifications");
-            },
-            style: "default",
-          },
-          {
-            text: "Dismiss",
-            style: "cancel",
-          },
-        ],
-        { cancelable: false }
+      presentFallQuickActions(
+        `We detected a fall with ${confidence} confidence. Check in and choose a quick action.`,
       );
     }
-  }, [unreadAlerts, userId, activeMode?.id]);
+  }, [unreadAlerts, activeMode?.id, presentFallQuickActions]);
 
   // Immediate fall alert using live readings to give instant feedback on the home screen
   useEffect(() => {
@@ -201,22 +316,10 @@ const HomeScreen = () => {
 
     lastFallAlertRef.current = fallIdentifier;
 
-    Alert.alert(
-      "🚨 Fall Detected",
-      "The sensor just reported a fall event. Please verify the person's safety.",
-      [
-        {
-          text: "View Details",
-          onPress: () => router.push("/notifications"),
-        },
-        {
-          text: "Dismiss",
-          style: "cancel",
-        },
-      ],
-      { cancelable: false }
+    presentFallQuickActions(
+      "The sensor just detected a fall. Let us know if you need assistance.",
     );
-  }, [activeMode?.id, rawData, reading]);
+  }, [activeMode?.id, rawData, reading, presentFallQuickActions]);
 
   return (
     <View className="flex-1 bg-white">
@@ -638,7 +741,110 @@ const HomeScreen = () => {
           </View>
         </View>
       </Modal>
+      {/* Quick Actions Modal */}
+      <Modal
+        visible={showQuickActionsModal}
+        transparent
+        animationType="slide"
+        onRequestClose={handleFallSheetDismiss}
+      >
+        <View className="flex-1 justify-end bg-black/50 p-7">
+          <View className="bg-white rounded-[2.5rem] p-6 max-h-[75%]">
+            <View className="flex-row items-center justify-between mb-4">
+              <Text className="text-2xl font-hell-round-bold text-gray-900 ">
+                Fall Quick Actions
+              </Text>
+              <TouchableOpacity
+                onPress={handleFallSheetDismiss}
+                className="w-8 h-8 items-center justify-center"
+              >
+                <Text className="text-2xl text-gray-400 font-hell">×</Text>
+              </TouchableOpacity>
+            </View>
+            <Text className="text-gray-600 text-sm font-hell mb-6">
+              {fallQuickActionMessage ??
+                "A fall was detected. Let us know you are safe or call for help."}
+            </Text>
+            <View className="gap-y-3">
+              <Button
+                title="I'm OK"
+                variant="secondary"
+                size="lg"
+                onPress={handleImOk}
+              />
+              <Button
+                title={
+                  primaryContact
+                    ? `Call ${primaryContact.full_name}`
+                    : "Call primary contact"
+                }
+                variant="primary"
+                size="lg"
+                onPress={handleNeedHelp}
+                disabled={!primaryContact && contactsLoading}
+              />
+              <Button
+                title="Manage Contacts"
+                variant="outline"
+                size="lg"
+                onPress={handleManageContacts}
+              />
+            </View>
+            {contactsLoading ? (
+              <View className="flex-row items-center mt-6">
+                <ActivityIndicator size="small" color="#FF7300" />
+                <Text className="text-gray-500 text-sm font-hell ml-3">
+                  Loading emergency contacts...
+                </Text>
+              </View>
+            ) : (
+              <ScrollView className="mt-6" showsVerticalScrollIndicator={false}>
+                {contacts.length > 0 ? (
+                  <View className="gap-y-2">
+                    {contacts.map((contact) => (
+                      <TouchableOpacity
+                        key={contact.id}
+                        onPress={() =>
+                          callPhoneNumber(contact.phone_number, contact.full_name)
+                        }
+                        className="flex-row items-center justify-between bg-gray-50 px-4 py-3 rounded-2xl border border-gray-100"
+                        activeOpacity={0.85}
+                      >
+                        <View className="flex-1 pr-3">
+                          <Text className="text-sm font-hell-round-bold text-gray-900 ">
+                            {contact.full_name}
+                          </Text>
+                          <Text className="text-gray-600 text-xs font-hell mt-1">
+                            {contact.phone_number}
+                          </Text>
+                        </View>
+                        {contact.is_primary && (
+                          <View className="bg-primary-accent/10 px-3 py-1 rounded-full">
+                            <Text className="text-primary-accent text-xs font-hell">
+                              Primary
+                            </Text>
+                          </View>
+                        )}
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                ) : (
+                  <View className="bg-gray-50 rounded-2xl px-4 py-5 border border-dashed border-gray-300">
+                    <Text className="text-sm font-hell-round-bold text-gray-900 text-center">
+                      No emergency contacts yet
+                    </Text>
+                    <Text className="text-gray-600 text-xs font-hell mt-2 text-center">
+                      Add trusted contacts so you can reach them fast during an emergency.
+                    </Text>
+                  </View>
+                )}
+              </ScrollView>
+            )}
+          </View>
+        </View>
+      </Modal>
     </View>
+
   );
 };
 

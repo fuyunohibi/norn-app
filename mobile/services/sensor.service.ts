@@ -1,14 +1,13 @@
 import type {
-    DeviceStatus,
-    EmergencyContact,
-    SensorConfiguration,
-    SensorConfigurationInsert,
-    SensorConfigurationUpdate,
-    SensorDevice,
-    SensorDeviceInsert,
-    SensorDeviceUpdate,
-    SensorReading,
-    SensorReadingInsert,
+  DeviceStatus,
+  SensorConfiguration,
+  SensorConfigurationInsert,
+  SensorConfigurationUpdate,
+  SensorDevice,
+  SensorDeviceInsert,
+  SensorDeviceUpdate,
+  SensorReading,
+  SensorReadingInsert,
 } from '@/database/types';
 import { supabase } from '@/utils/supabase';
 
@@ -197,25 +196,6 @@ export const updateConfiguration = async (deviceId: string, updates: SensorConfi
   } catch (error) {
     console.error('Error updating configuration:', error);
     return null;
-  }
-};
-
-export const updateEmergencyContacts = async (deviceId: string, contacts: EmergencyContact[]): Promise<boolean> => {
-  try {
-    const { error } = await supabase
-      .from('sensor_configurations')
-      .update({ emergency_contacts: contacts })
-      .eq('device_id', deviceId);
-
-    if (error) {
-      console.error('Error updating emergency contacts:', error);
-      return false;
-    }
-
-    return true;
-  } catch (error) {
-    console.error('Error updating emergency contacts:', error);
-    return false;
   }
 };
 
