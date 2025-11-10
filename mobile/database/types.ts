@@ -18,6 +18,10 @@ export type EmergencyContact = Tables<'emergency_contacts'>;
 export type EmergencyContactInsert = TablesInsert<'emergency_contacts'>;
 export type EmergencyContactUpdate = TablesUpdate<'emergency_contacts'>;
 
+export type DailyStatistic = Tables<'daily_statistics'>;
+export type DailyStatisticInsert = TablesInsert<'daily_statistics'>;
+export type DailyStatisticUpdate = TablesUpdate<'daily_statistics'>;
+
 export type MonitoringSession = Tables<'monitoring_sessions'>;
 export type MonitoringSessionInsert = TablesInsert<'monitoring_sessions'>;
 export type MonitoringSessionUpdate = TablesUpdate<'monitoring_sessions'>;

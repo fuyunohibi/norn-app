@@ -119,6 +119,13 @@ class SupabaseService:
         try:
             result = self.client.table("sensor_readings").insert(record).execute()
             logger.info("✅ Successfully stored sensor data in Supabase")
+
+            # Update daily statistics aggregation
+            try:
+                self.update_daily_statistics(user_id, record)
+            except Exception as stats_error:
+                logger.error(f"⚠️  Failed to update daily statistics: {stats_error}")
+
             return result.data
         except Exception as e:
             error_str = str(e)
@@ -350,6 +357,114 @@ class SupabaseService:
                     logger.error(f"❌ Error storing alert: {str(e)}")
         
         return alerts
+
+    def update_daily_statistics(self, user_id: Optional[str], record: Dict[str, Any]) -> None:
+        if not user_id:
+            return
+
+        timestamp_value = record.get("timestamp")
+        if not timestamp_value:
+            return
+
+        try:
+            if isinstance(timestamp_value, datetime):
+                timestamp_dt = timestamp_value
+            else:
+                timestamp_dt = datetime.fromisoformat(
+                    str(timestamp_value).replace("Z", "+00:00")
+                )
+        except Exception:
+            logger.warning(f"⚠️  Unable to parse timestamp for daily statistics: {timestamp_value}")
+            return
+
+        stat_date = timestamp_dt.date().isoformat()
+        reading_type = record.get("reading_type")
+        raw_data = record.get("raw_data") or {}
+
+        def _get_numeric(*keys: str) -> Optional[float]:
+            for key in keys:
+                value = raw_data.get(key)
+                if isinstance(value, (int, float)) and not isinstance(value, bool):
+                    return float(value)
+            return None
+
+        respiration_value = _get_numeric("respiration_rate", "respirationRate", "breathingRate", "avg_respiration")
+        hrv_value = _get_numeric("hrv", "heart_rate_variability", "heartRateVariability", "avg_hrv")
+
+        existing = (
+            self.client.table("daily_statistics")
+            .select("*")
+            .eq("user_id", user_id)
+            .eq("stat_date", stat_date)
+            .limit(1)
+            .execute()
+        )
+
+        now_iso = datetime.now(timezone.utc).isoformat()
+        timestamp_iso = timestamp_dt.isoformat()
+
+        if existing.data:
+            entry = existing.data[0]
+
+            def _min_time(existing_value: Optional[str], candidate: str) -> str:
+                if not existing_value:
+                    return candidate
+                try:
+                    return candidate if datetime.fromisoformat(candidate) < datetime.fromisoformat(existing_value) else existing_value
+                except Exception:
+                    return existing_value
+
+            def _max_time(existing_value: Optional[str], candidate: str) -> str:
+                if not existing_value:
+                    return candidate
+                try:
+                    return candidate if datetime.fromisoformat(candidate) > datetime.fromisoformat(existing_value) else existing_value
+                except Exception:
+                    return existing_value
+
+            update_payload: Dict[str, Any] = {
+                "total_readings": (entry.get("total_readings") or 0) + 1,
+                "sleep_readings": (entry.get("sleep_readings") or 0) + (1 if reading_type == "sleep" else 0),
+                "fall_readings": (entry.get("fall_readings") or 0) + (1 if reading_type == "fall" else 0),
+                "first_reading_at": _min_time(entry.get("first_reading_at"), timestamp_iso),
+                "last_reading_at": _max_time(entry.get("last_reading_at"), timestamp_iso),
+                "updated_at": now_iso,
+            }
+
+            if reading_type == "sleep":
+                update_payload["last_sleep_reading_at"] = _max_time(entry.get("last_sleep_reading_at"), timestamp_iso)
+            if reading_type == "fall":
+                update_payload["last_fall_reading_at"] = _max_time(entry.get("last_fall_reading_at"), timestamp_iso)
+
+            if respiration_value is not None:
+                update_payload["respiration_sum"] = float(entry.get("respiration_sum") or 0) + respiration_value
+                update_payload["respiration_count"] = (entry.get("respiration_count") or 0) + 1
+
+            if hrv_value is not None:
+                update_payload["hrv_sum"] = float(entry.get("hrv_sum") or 0) + hrv_value
+                update_payload["hrv_count"] = (entry.get("hrv_count") or 0) + 1
+
+            self.client.table("daily_statistics").update(update_payload).eq("id", entry["id"]).execute()
+        else:
+            insert_payload: Dict[str, Any] = {
+                "user_id": user_id,
+                "stat_date": stat_date,
+                "total_readings": 1,
+                "sleep_readings": 1 if reading_type == "sleep" else 0,
+                "fall_readings": 1 if reading_type == "fall" else 0,
+                "respiration_sum": respiration_value or 0,
+                "respiration_count": 1 if respiration_value is not None else 0,
+                "hrv_sum": hrv_value or 0,
+                "hrv_count": 1 if hrv_value is not None else 0,
+                "first_reading_at": timestamp_iso,
+                "last_reading_at": timestamp_iso,
+                "last_sleep_reading_at": timestamp_iso if reading_type == "sleep" else None,
+                "last_fall_reading_at": timestamp_iso if reading_type == "fall" else None,
+                "created_at": now_iso,
+                "updated_at": now_iso,
+            }
+
+            self.client.table("daily_statistics").insert(insert_payload).execute()
 
 
 # Initialize service on module import

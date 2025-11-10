@@ -4,17 +4,12 @@ import React, { useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, Dimensions, PanResponder, Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
+import { fetchDailyStatistics, seedDailyStatisticsFromMock } from '../../actions/statistics.actions';
 import { Card } from '../../components/ui/card';
 import Header from '../../components/ui/header';
 import { useAuth } from '../../contexts/auth-context';
 import { useSleepSummaries } from '../../hooks/useSleepSummaries';
-import { backendAPIService } from '../../services/backend-api.service';
-import {
-  getMockFallData,
-  getMockSleepData,
-  getMockSleepSummaries,
-  USE_MOCK_STATISTICS,
-} from '../../utils/mock-statistics';
+import { getMockSleepSummaries, USE_MOCK_STATISTICS } from '../../utils/mock-statistics';
 
 const windowWidth = Dimensions.get('window').width;
 
@@ -168,38 +163,22 @@ const LineChart: React.FC<{
 
 const StatisticsScreen = () => {
   const { user } = useAuth();
-  const userId = user?.id;
+  const fallbackUserId = '0b8baf9c-dcfa-4d11-93d5-a08ce06a3d61';
+  const userId = useMemo(() => user?.id ?? fallbackUserId, [user?.id]);
   const insets = useSafeAreaInsets();
 
-  // Fetch both sleep and fall readings with higher limit for accurate statistics
-  // Use mock data if enabled, otherwise fetch from backend
-  const { data: sleepData, isLoading: sleepLoading } = useQuery({
-    queryKey: ['sensor-readings', 'sleep_detection', userId, 'statistics', USE_MOCK_STATISTICS ? 'mock' : 'real'],
+  const { data: dailyStats = [], isLoading: dailyStatsLoading, refetch: refetchDailyStats } = useQuery({
+    queryKey: ['daily-statistics', userId],
     queryFn: async () => {
-      if (USE_MOCK_STATISTICS) {
-        // Use mock data for visualization
-        return getMockSleepData(userId);
+      if (!userId) return [];
+      let rows = await fetchDailyStatistics(userId, 120);
+      if (!rows.length && __DEV__) {
+        await seedDailyStatisticsFromMock(userId);
+        rows = await fetchDailyStatistics(userId, 120);
       }
-      if (!userId) return { readings: [] };
-      // Fetch more readings for accurate statistics (1000 should cover most use cases)
-      return await backendAPIService.getLatestReadings('sleep_detection', userId, 1000);
+      return rows;
     },
-    enabled: USE_MOCK_STATISTICS || !!userId,
-    staleTime: 30000,
-  });
-
-  const { data: fallData, isLoading: fallLoading } = useQuery({
-    queryKey: ['sensor-readings', 'fall_detection', userId, 'statistics', USE_MOCK_STATISTICS ? 'mock' : 'real'],
-    queryFn: async () => {
-      if (USE_MOCK_STATISTICS) {
-        // Use mock data for visualization
-        return getMockFallData(userId);
-      }
-      if (!userId) return { readings: [] };
-      // Fetch more readings for accurate statistics
-      return await backendAPIService.getLatestReadings('fall_detection', userId, 1000);
-    },
-    enabled: USE_MOCK_STATISTICS || !!userId,
+    enabled: !!userId,
     staleTime: 30000,
   });
 
@@ -230,109 +209,106 @@ const StatisticsScreen = () => {
     : fetchedSleepSummaries || [];
 
   const isLoading =
-    sleepLoading || fallLoading || (shouldFetchRealSummaries && sleepSummariesLoading);
+    dailyStatsLoading || (shouldFetchRealSummaries && sleepSummariesLoading);
 
-  // Calculate statistics from real data (or mock data)
   const stats = useMemo(() => {
-    const sleepReadings = sleepData?.readings || [];
-    const fallReadings = fallData?.readings || [];
-    const allReadings = [...sleepReadings, ...fallReadings];
-
-    const dateBuckets: Record<string, {
-      date: Date;
-      count: number;
-      breathSamples: number[];
-      hrvSamples: number[];
-    }> = {};
-
-    const upsertBucket = (timestamp: string) => {
-      const date = new Date(timestamp);
-      const key = date.toISOString().split('T')[0];
-      if (!dateBuckets[key]) {
-        dateBuckets[key] = {
-          date,
-          count: 0,
-          breathSamples: [],
-          hrvSamples: [],
-        };
-      }
-      return { key, bucket: dateBuckets[key] };
-    };
-
-    sleepReadings.forEach((reading) => {
-      const { bucket } = upsertBucket(reading.timestamp);
-      bucket.count += 1;
-
-      const breathRate = reading.raw_data?.respiration_rate ?? reading.raw_data?.breathingRate;
-      if (typeof breathRate === 'number' && !Number.isNaN(breathRate)) {
-        bucket.breathSamples.push(breathRate);
-      }
-
-      const hrv = reading.raw_data?.hrv ?? reading.raw_data?.heart_rate_variability ?? reading.raw_data?.heart_rate;
-      if (typeof hrv === 'number' && !Number.isNaN(hrv)) {
-        bucket.hrvSamples.push(hrv);
-      }
-    });
-
-    fallReadings.forEach((reading) => {
-      const { bucket } = upsertBucket(reading.timestamp);
-      bucket.count += 1;
-    });
-
-    const sortedDates = Object.keys(dateBuckets).sort(
-      (a, b) => new Date(b).getTime() - new Date(a).getTime()
-    );
-
-    const dailySummaries = sortedDates.map((key) => {
-      const entry = dateBuckets[key];
-      const { date, count, breathSamples, hrvSamples } = entry;
-
-      const average = (values: number[]) => {
-        if (!values.length) return null;
-        const total = values.reduce((sum, value) => sum + value, 0);
-        return Math.round((total / values.length) * 10) / 10;
-      };
-
+    if (!dailyStats || dailyStats.length === 0) {
       return {
-        key,
-        date,
-        count,
-        weekday: date.toLocaleDateString('en-US', { weekday: 'short' }),
-        day: date.toLocaleDateString('en-US', { day: '2-digit' }),
-        breathRate: average(breathSamples),
-        hrv: average(hrvSamples),
+        totalReadings: 0,
+        sleepReadings: 0,
+        fallReadings: 0,
+        totalHours: 0,
+        latestSleep: null,
+        latestFall: null,
+        dailySummaries: [],
       };
-    });
-
-    const sortedAllReadings = [...allReadings].sort(
-      (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
-    );
-
-    const sortedSleep = [...sleepReadings].sort(
-      (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-    );
-    const sortedFall = [...fallReadings].sort(
-      (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-    );
-
-    let totalHours = 0;
-    if (sortedAllReadings.length > 1) {
-      const oldestTime = new Date(sortedAllReadings[0].timestamp).getTime();
-      const newestTime = new Date(sortedAllReadings[sortedAllReadings.length - 1].timestamp).getTime();
-      const timeDiffMs = newestTime - oldestTime;
-      totalHours = Math.round((timeDiffMs / (1000 * 60 * 60)) * 10) / 10;
     }
 
+    const sortedByDate = [...dailyStats].sort(
+      (a, b) => new Date(b.stat_date).getTime() - new Date(a.stat_date).getTime()
+    );
+
+    let totalReadings = 0;
+    let sleepReadings = 0;
+    let fallReadings = 0;
+    let earliestTimestamp: number | null = null;
+    let latestTimestamp: number | null = null;
+    let latestSleepTimestamp: string | null = null;
+    let latestFallTimestamp: string | null = null;
+
+    const dailySummaries = sortedByDate.map((entry) => {
+      totalReadings += entry.total_readings ?? 0;
+      sleepReadings += entry.sleep_readings ?? 0;
+      fallReadings += entry.fall_readings ?? 0;
+
+      if (entry.first_reading_at) {
+        const value = new Date(entry.first_reading_at).getTime();
+        if (!Number.isNaN(value) && (earliestTimestamp === null || value < earliestTimestamp)) {
+          earliestTimestamp = value;
+        }
+      }
+
+      if (entry.last_reading_at) {
+        const value = new Date(entry.last_reading_at).getTime();
+        if (!Number.isNaN(value) && (latestTimestamp === null || value > latestTimestamp)) {
+          latestTimestamp = value;
+        }
+      }
+
+      if (entry.last_sleep_reading_at) {
+        if (
+          !latestSleepTimestamp ||
+          new Date(entry.last_sleep_reading_at).getTime() > new Date(latestSleepTimestamp).getTime()
+        ) {
+          latestSleepTimestamp = entry.last_sleep_reading_at;
+        }
+      }
+
+      if (entry.last_fall_reading_at) {
+        if (
+          !latestFallTimestamp ||
+          new Date(entry.last_fall_reading_at).getTime() > new Date(latestFallTimestamp).getTime()
+        ) {
+          latestFallTimestamp = entry.last_fall_reading_at;
+        }
+      }
+
+      const statDate = new Date(`${entry.stat_date}T00:00:00Z`);
+      const avgBreath =
+        entry.respiration_count > 0
+          ? Math.round(((Number(entry.respiration_sum ?? 0) / entry.respiration_count) || 0) * 10) / 10
+          : null;
+      const avgHRV =
+        entry.hrv_count > 0
+          ? Math.round(((Number(entry.hrv_sum ?? 0) / entry.hrv_count) || 0) * 10) / 10
+          : null;
+
+      return {
+        key: entry.stat_date,
+        date: statDate,
+        count: entry.total_readings ?? 0,
+        weekday: statDate.toLocaleDateString('en-US', { weekday: 'short' }),
+        day: statDate.toLocaleDateString('en-US', { day: '2-digit' }),
+        breathRate: avgBreath,
+        hrv: avgHRV,
+      };
+    });
+
+    const totalHours =
+      earliestTimestamp !== null && latestTimestamp !== null && latestTimestamp > earliestTimestamp
+        ? Math.round(((latestTimestamp - earliestTimestamp) / (1000 * 60 * 60)) * 10) / 10
+        : 0;
+
     return {
-      totalReadings: allReadings.length,
-      sleepReadings: sleepReadings.length,
-      fallReadings: fallReadings.length,
+      totalReadings,
+      sleepReadings,
+      fallReadings,
       totalHours,
-      latestSleep: sortedSleep[0],
-      latestFall: sortedFall[0],
+      latestSleep: latestSleepTimestamp ? { timestamp: latestSleepTimestamp } : null,
+      latestFall: latestFallTimestamp ? { timestamp: latestFallTimestamp } : null,
       dailySummaries,
     };
-  }, [sleepData, fallData]);
+  }, [dailyStats]);
 
   const [activeSection, setActiveSection] = useState<'overview' | 'mode' | 'activity'>('activity');
   const [timeRange, setTimeRange] = useState<'7d' | '30d' | '90d'>('7d');

@@ -48,7 +48,7 @@ interface SettingsFormData {
 
 const SettingsScreen = () => {
   const { user, signOut } = useAuth();
-
+  
   const {
     control,
     handleSubmit,
@@ -278,7 +278,7 @@ const SettingsScreen = () => {
     try {
       // Simulate API call
       await new Promise((resolve) => setTimeout(resolve, 1000));
-
+      
       Alert.alert(
         "Settings Saved",
         "Your sensor configuration has been updated successfully.",
@@ -309,16 +309,16 @@ const SettingsScreen = () => {
   const handleLogout = () => {
     Alert.alert("Sign Out", "Are you sure you want to sign out?", [
       { text: "Cancel", style: "cancel" },
-      {
+        {
         text: "Sign Out",
         style: "destructive",
-        onPress: async () => {
-          const { error } = await signOut();
-          if (error) {
+          onPress: async () => {
+            const { error } = await signOut();
+            if (error) {
             Alert.alert("Error", "Failed to sign out. Please try again.");
-          }
+            }
+          },
         },
-      },
     ]);
   };
 
@@ -442,7 +442,7 @@ const SettingsScreen = () => {
               <UserPlus size={18} color="#FFFFFF" strokeWidth={2.5} />
               <Text className="text-white font-hell-round-bold text-sm ml-2">
                 Add
-              </Text>
+          </Text>
             </TouchableOpacity>
           </View>
 

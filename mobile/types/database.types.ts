@@ -28,7 +28,7 @@ export type Database = {
           resolved_by: string | null
           severity: string
           title: string
-          user_id: string | null
+          user_id: string
         }
         Insert: {
           alert_data?: Json | null
@@ -43,7 +43,7 @@ export type Database = {
           resolved_by?: string | null
           severity: string
           title: string
-          user_id?: string | null
+          user_id: string
         }
         Update: {
           alert_data?: Json | null
@@ -117,6 +117,71 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "emergency_contacts_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      daily_statistics: {
+        Row: {
+          created_at: string | null
+          fall_readings: number
+          first_reading_at: string | null
+          hrv_count: number
+          hrv_sum: number | null
+          id: string
+          last_fall_reading_at: string | null
+          last_reading_at: string | null
+          last_sleep_reading_at: string | null
+          respiration_count: number
+          respiration_sum: number | null
+          sleep_readings: number
+          stat_date: string
+          total_readings: number
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          fall_readings?: number
+          first_reading_at?: string | null
+          hrv_count?: number
+          hrv_sum?: number | null
+          id?: string
+          last_fall_reading_at?: string | null
+          last_reading_at?: string | null
+          last_sleep_reading_at?: string | null
+          respiration_count?: number
+          respiration_sum?: number | null
+          sleep_readings?: number
+          stat_date: string
+          total_readings?: number
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          fall_readings?: number
+          first_reading_at?: string | null
+          hrv_count?: number
+          hrv_sum?: number | null
+          id?: string
+          last_fall_reading_at?: string | null
+          last_reading_at?: string | null
+          last_sleep_reading_at?: string | null
+          respiration_count?: number
+          respiration_sum?: number | null
+          sleep_readings?: number
+          stat_date?: string
+          total_readings?: number
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "daily_statistics_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "users"

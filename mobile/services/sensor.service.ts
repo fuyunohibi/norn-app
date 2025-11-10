@@ -1,13 +1,13 @@
 import type {
-  DeviceStatus,
-  SensorConfiguration,
-  SensorConfigurationInsert,
-  SensorConfigurationUpdate,
-  SensorDevice,
-  SensorDeviceInsert,
-  SensorDeviceUpdate,
-  SensorReading,
-  SensorReadingInsert,
+    DeviceStatus,
+    SensorConfiguration,
+    SensorConfigurationInsert,
+    SensorConfigurationUpdate,
+    SensorDevice,
+    SensorDeviceInsert,
+    SensorDeviceUpdate,
+    SensorReading,
+    SensorReadingInsert,
 } from '@/database/types';
 import { supabase } from '@/utils/supabase';
 
