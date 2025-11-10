@@ -77,6 +77,71 @@ export type Database = {
           },
         ]
       }
+      daily_statistics: {
+        Row: {
+          id: string
+          created_at: string | null
+          fall_readings: number | null
+          first_reading_at: string | null
+          hrv_count: number | null
+          hrv_sum: number | null
+          last_fall_reading_at: string | null
+          last_reading_at: string | null
+          last_sleep_reading_at: string | null
+          respiration_count: number | null
+          respiration_sum: number | null
+          sleep_readings: number | null
+          stat_date: string
+          total_readings: number | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          created_at?: string | null
+          fall_readings?: number | null
+          first_reading_at?: string | null
+          hrv_count?: number | null
+          hrv_sum?: number | null
+          last_fall_reading_at?: string | null
+          last_reading_at?: string | null
+          last_sleep_reading_at?: string | null
+          respiration_count?: number | null
+          respiration_sum?: number | null
+          sleep_readings?: number | null
+          stat_date: string
+          total_readings?: number | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          id?: string
+          created_at?: string | null
+          fall_readings?: number | null
+          first_reading_at?: string | null
+          hrv_count?: number | null
+          hrv_sum?: number | null
+          last_fall_reading_at?: string | null
+          last_reading_at?: string | null
+          last_sleep_reading_at?: string | null
+          respiration_count?: number | null
+          respiration_sum?: number | null
+          sleep_readings?: number | null
+          stat_date?: string
+          total_readings?: number | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "daily_statistics_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       emergency_contacts: {
         Row: {
           created_at: string | null

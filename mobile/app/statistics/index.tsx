@@ -4,17 +4,17 @@ import React, { useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, Dimensions, PanResponder, Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
+import { fetchDailyStatistics } from '../../actions/statistics.actions';
 import { Card } from '../../components/ui/card';
 import Header from '../../components/ui/header';
 import { useAuth } from '../../contexts/auth-context';
-import { useSleepSummaries } from '../../hooks/useSleepSummaries';
-import { backendAPIService } from '../../services/backend-api.service';
 import {
   getMockFallData,
   getMockSleepData,
   getMockSleepSummaries,
   USE_MOCK_STATISTICS,
 } from '../../utils/mock-statistics';
+import { aggregateReadingsToDailyStatistics } from '../../utils/statistics-aggregator';
 
 const windowWidth = Dimensions.get('window').width;
 
@@ -22,6 +22,21 @@ type ChartLabel = {
   key: string;
   weekday: string;
   day: string;
+};
+
+type DailyStatisticLike = {
+  stat_date: string;
+  total_readings: number | null;
+  sleep_readings: number | null;
+  fall_readings: number | null;
+  respiration_sum: number | null;
+  respiration_count: number | null;
+  hrv_sum: number | null;
+  hrv_count: number | null;
+  first_reading_at: string | null;
+  last_reading_at: string | null;
+  last_sleep_reading_at: string | null;
+  last_fall_reading_at: string | null;
 };
 
 const LineChart: React.FC<{
@@ -171,168 +186,173 @@ const StatisticsScreen = () => {
   const userId = user?.id;
   const insets = useSafeAreaInsets();
 
-  // Fetch both sleep and fall readings with higher limit for accurate statistics
-  // Use mock data if enabled, otherwise fetch from backend
-  const { data: sleepData, isLoading: sleepLoading } = useQuery({
-    queryKey: ['sensor-readings', 'sleep_detection', userId, 'statistics', USE_MOCK_STATISTICS ? 'mock' : 'real'],
-    queryFn: async () => {
-      if (USE_MOCK_STATISTICS) {
-        // Use mock data for visualization
-        return getMockSleepData(userId);
-      }
-      if (!userId) return { readings: [] };
-      // Fetch more readings for accurate statistics (1000 should cover most use cases)
-      return await backendAPIService.getLatestReadings('sleep_detection', userId, 1000);
+  const {
+    data: fetchedDailyStatistics = [],
+    isLoading: fetchedDailyStatisticsLoading,
+  } = useQuery({
+    queryKey: ['daily-statistics', userId, 90],
+    queryFn: async (): Promise<DailyStatisticLike[]> => {
+      if (!userId) return [];
+      const rows = await fetchDailyStatistics(userId, 90);
+      return rows.map<DailyStatisticLike>((stat) => ({
+        stat_date: stat.stat_date,
+        total_readings: stat.total_readings,
+        sleep_readings: stat.sleep_readings,
+        fall_readings: stat.fall_readings,
+        respiration_sum: stat.respiration_sum,
+        respiration_count: stat.respiration_count,
+        hrv_sum: stat.hrv_sum,
+        hrv_count: stat.hrv_count,
+        first_reading_at: stat.first_reading_at,
+        last_reading_at: stat.last_reading_at,
+        last_sleep_reading_at: stat.last_sleep_reading_at,
+        last_fall_reading_at: stat.last_fall_reading_at,
+      }));
     },
-    enabled: USE_MOCK_STATISTICS || !!userId,
-    staleTime: 30000,
+    enabled: !USE_MOCK_STATISTICS && !!userId,
+    staleTime: 60000,
   });
 
-  const { data: fallData, isLoading: fallLoading } = useQuery({
-    queryKey: ['sensor-readings', 'fall_detection', userId, 'statistics', USE_MOCK_STATISTICS ? 'mock' : 'real'],
-    queryFn: async () => {
-      if (USE_MOCK_STATISTICS) {
-        // Use mock data for visualization
-        return getMockFallData(userId);
-      }
-      if (!userId) return { readings: [] };
-      // Fetch more readings for accurate statistics
-      return await backendAPIService.getLatestReadings('fall_detection', userId, 1000);
-    },
-    enabled: USE_MOCK_STATISTICS || !!userId,
-    staleTime: 30000,
-  });
+  const mockDailyStatistics = useMemo<DailyStatisticLike[]>(() => {
+    if (!USE_MOCK_STATISTICS) return [];
+    const mockUserId = userId ?? 'mock-user';
+    const sleepReadings = getMockSleepData(mockUserId)?.readings ?? [];
+    const fallReadings = getMockFallData(mockUserId)?.readings ?? [];
+    const combined = [...sleepReadings, ...fallReadings];
+    if (!combined.length) return [];
+    return aggregateReadingsToDailyStatistics(combined).map<DailyStatisticLike>((stat) => ({
+      stat_date: stat.stat_date,
+      total_readings: stat.total_readings,
+      sleep_readings: stat.sleep_readings,
+      fall_readings: stat.fall_readings,
+      respiration_sum: stat.respiration_sum,
+      respiration_count: stat.respiration_count,
+      hrv_sum: stat.hrv_sum,
+      hrv_count: stat.hrv_count,
+      first_reading_at: stat.first_reading_at,
+      last_reading_at: stat.last_reading_at,
+      last_sleep_reading_at: stat.last_sleep_reading_at,
+      last_fall_reading_at: stat.last_fall_reading_at,
+    }));
+  }, [userId]);
 
-  // Generate dates for the last 7 days to fetch sleep summaries
-  const sleepSummaryDates = useMemo(() => {
-    const dates: string[] = [];
-    const today = new Date();
-    for (let i = 1; i <= 7; i++) {
-      const date = new Date(today);
-      date.setDate(date.getDate() - i);
-      dates.push(date.toISOString().split('T')[0]);
-    }
-    return dates;
-  }, []);
+  const dailyStatistics = USE_MOCK_STATISTICS ? mockDailyStatistics : fetchedDailyStatistics;
 
-  // Fetch sleep summaries for the last 7 days
-  const shouldFetchRealSummaries = !USE_MOCK_STATISTICS && !!userId;
-  const { data: fetchedSleepSummaries, isLoading: sleepSummariesLoading } = useSleepSummaries(
-    shouldFetchRealSummaries ? userId : undefined,
-    shouldFetchRealSummaries ? sleepSummaryDates : []
-  );
+
   const mockSleepSummaries = useMemo(
     () => (USE_MOCK_STATISTICS ? getMockSleepSummaries() : []),
     []
   );
-  const sleepSummaries = USE_MOCK_STATISTICS
-    ? mockSleepSummaries
-    : fetchedSleepSummaries || [];
+const sleepSummaries = mockSleepSummaries;
 
-  const isLoading =
-    sleepLoading || fallLoading || (shouldFetchRealSummaries && sleepSummariesLoading);
+const statisticsLoading = !USE_MOCK_STATISTICS && fetchedDailyStatisticsLoading;
+const isLoading = statisticsLoading;
 
   // Calculate statistics from real data (or mock data)
   const stats = useMemo(() => {
-    const sleepReadings = sleepData?.readings || [];
-    const fallReadings = fallData?.readings || [];
-    const allReadings = [...sleepReadings, ...fallReadings];
+    const entries = dailyStatistics ?? [];
 
-    const dateBuckets: Record<string, {
-      date: Date;
-      count: number;
-      breathSamples: number[];
-      hrvSamples: number[];
-    }> = {};
-
-    const upsertBucket = (timestamp: string) => {
-      const date = new Date(timestamp);
-      const key = date.toISOString().split('T')[0];
-      if (!dateBuckets[key]) {
-        dateBuckets[key] = {
-          date,
-          count: 0,
-          breathSamples: [],
-          hrvSamples: [],
-        };
-      }
-      return { key, bucket: dateBuckets[key] };
-    };
-
-    sleepReadings.forEach((reading) => {
-      const { bucket } = upsertBucket(reading.timestamp);
-      bucket.count += 1;
-
-      const breathRate = reading.raw_data?.respiration_rate ?? reading.raw_data?.breathingRate;
-      if (typeof breathRate === 'number' && !Number.isNaN(breathRate)) {
-        bucket.breathSamples.push(breathRate);
-      }
-
-      const hrv = reading.raw_data?.hrv ?? reading.raw_data?.heart_rate_variability ?? reading.raw_data?.heart_rate;
-      if (typeof hrv === 'number' && !Number.isNaN(hrv)) {
-        bucket.hrvSamples.push(hrv);
-      }
-    });
-
-    fallReadings.forEach((reading) => {
-      const { bucket } = upsertBucket(reading.timestamp);
-      bucket.count += 1;
-    });
-
-    const sortedDates = Object.keys(dateBuckets).sort(
-      (a, b) => new Date(b).getTime() - new Date(a).getTime()
-    );
-
-    const dailySummaries = sortedDates.map((key) => {
-      const entry = dateBuckets[key];
-      const { date, count, breathSamples, hrvSamples } = entry;
-
-      const average = (values: number[]) => {
-        if (!values.length) return null;
-        const total = values.reduce((sum, value) => sum + value, 0);
-        return Math.round((total / values.length) * 10) / 10;
-      };
-
+    if (!entries.length) {
       return {
-        key,
-        date,
-        count,
-        weekday: date.toLocaleDateString('en-US', { weekday: 'short' }),
-        day: date.toLocaleDateString('en-US', { day: '2-digit' }),
-        breathRate: average(breathSamples),
-        hrv: average(hrvSamples),
+        totalReadings: 0,
+        sleepReadings: 0,
+        fallReadings: 0,
+        totalHours: 0,
+        latestSleep: null as { timestamp: string } | null,
+        latestFall: null as { timestamp: string } | null,
+        dailySummaries: [] as Array<{
+          key: string;
+          date: Date;
+          count: number;
+          weekday: string;
+          day: string;
+          breathRate: number | null;
+          hrv: number | null;
+        }>,
       };
-    });
-
-    const sortedAllReadings = [...allReadings].sort(
-      (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
-    );
-
-    const sortedSleep = [...sleepReadings].sort(
-      (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-    );
-    const sortedFall = [...fallReadings].sort(
-      (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-    );
-
-    let totalHours = 0;
-    if (sortedAllReadings.length > 1) {
-      const oldestTime = new Date(sortedAllReadings[0].timestamp).getTime();
-      const newestTime = new Date(sortedAllReadings[sortedAllReadings.length - 1].timestamp).getTime();
-      const timeDiffMs = newestTime - oldestTime;
-      totalHours = Math.round((timeDiffMs / (1000 * 60 * 60)) * 10) / 10;
     }
 
+    const sum = (value: number | null | undefined): number =>
+      typeof value === 'number' && !Number.isNaN(value) ? value : 0;
+
+    const totalReadings = entries.reduce((acc, entry) => acc + sum(entry.total_readings), 0);
+    const sleepReadingCount = entries.reduce((acc, entry) => acc + sum(entry.sleep_readings), 0);
+    const fallReadingCount = entries.reduce((acc, entry) => acc + sum(entry.fall_readings), 0);
+    const sleepSessions = entries.filter((entry) => sum(entry.sleep_readings) > 0).length;
+    const fallSessions = entries.filter((entry) => sum(entry.fall_readings) > 0).length;
+
+    const earliest = entries.reduce<string | null>((result, entry) => {
+      const timestamp = entry.first_reading_at;
+      if (!timestamp) return result;
+      if (!result || new Date(timestamp) < new Date(result)) {
+        return timestamp;
+      }
+      return result;
+    }, null);
+
+    const latest = entries.reduce<string | null>((result, entry) => {
+      const timestamp = entry.last_reading_at;
+      if (!timestamp) return result;
+      if (!result || new Date(timestamp) > new Date(result)) {
+        return timestamp;
+      }
+      return result;
+    }, null);
+
+    const totalHours =
+      earliest && latest
+        ? Math.round(((new Date(latest).getTime() - new Date(earliest).getTime()) / (1000 * 60 * 60)) * 10) / 10
+        : 0;
+
+    const latestSleepTimestamp = entries.reduce<string | null>((result, entry) => {
+      const timestamp = entry.last_sleep_reading_at;
+      if (!timestamp) return result;
+      if (!result || new Date(timestamp) > new Date(result)) {
+        return timestamp;
+      }
+      return result;
+    }, null);
+
+    const latestFallTimestamp = entries.reduce<string | null>((result, entry) => {
+      const timestamp = entry.last_fall_reading_at;
+      if (!timestamp) return result;
+      if (!result || new Date(timestamp) > new Date(result)) {
+        return timestamp;
+      }
+      return result;
+    }, null);
+
+    const average = (sumValue: number | null, countValue: number | null): number | null => {
+      if (typeof sumValue !== 'number' || Number.isNaN(sumValue)) return null;
+      if (typeof countValue !== 'number' || countValue <= 0) return null;
+      return Math.round((sumValue / countValue) * 10) / 10;
+    };
+
+    const dailySummaries = entries.map((entry) => {
+      const date = new Date(entry.stat_date);
+      return {
+        key: entry.stat_date,
+        date,
+        count: sum(entry.total_readings),
+        weekday: date.toLocaleDateString('en-US', { weekday: 'short' }),
+        day: date.toLocaleDateString('en-US', { day: '2-digit' }),
+        breathRate: average(entry.respiration_sum, entry.respiration_count),
+        hrv: average(entry.hrv_sum, entry.hrv_count),
+      };
+    });
+
     return {
-      totalReadings: allReadings.length,
-      sleepReadings: sleepReadings.length,
-      fallReadings: fallReadings.length,
+      totalReadings,
+      sleepReadingCount,
+      fallReadingCount,
+      sleepSessions,
+      fallSessions,
       totalHours,
-      latestSleep: sortedSleep[0],
-      latestFall: sortedFall[0],
+      latestSleep: latestSleepTimestamp ? { timestamp: latestSleepTimestamp } : null,
+      latestFall: latestFallTimestamp ? { timestamp: latestFallTimestamp } : null,
       dailySummaries,
     };
-  }, [sleepData, fallData]);
+  }, [dailyStatistics]);
 
   const [activeSection, setActiveSection] = useState<'overview' | 'mode' | 'activity'>('activity');
   const [timeRange, setTimeRange] = useState<'7d' | '30d' | '90d'>('7d');
@@ -617,7 +637,7 @@ const StatisticsScreen = () => {
               </View>
               <View className="flex-1">
                 <Text className="text-lg font-hell-round-bold text-gray-900 ">
-                  {stats.sleepReadings}
+                  {stats.sleepSessions}
                 </Text>
                 <Text className="text-xs text-gray-600 font-hell">
                   Sleep Sessions
@@ -640,7 +660,7 @@ const StatisticsScreen = () => {
               </View>
               <View className="flex-1">
                 <Text className="text-lg font-hell-round-bold text-gray-900 ">
-                  {stats.fallReadings}
+                  {stats.fallSessions}
                 </Text>
                 <Text className="text-xs text-gray-600 font-hell">
                   Fall Sessions

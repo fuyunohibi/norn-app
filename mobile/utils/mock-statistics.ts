@@ -425,7 +425,7 @@ const buildSleepSummary = (date: string): { date: string; summary: any } => {
           deep_sleep_percent: 26,
           light_sleep_minutes: 210,
           light_sleep_percent: 55,
-          awake_minutes,
+          awake_minutes: awakeMinutes,
           awake_percent: Math.round((awakeMinutes / inBedMinutes) * 100),
         },
         vital_signs: {
@@ -540,6 +540,10 @@ export const getMockSleepSummaries = () => generateMockSleepSummaries();
  * Check if mock data should be used
  * Set this to true to enable mock data
  */
-export const USE_MOCK_STATISTICS = __DEV__;
+const EXPO_USE_MOCK_STATISTICS = process.env.EXPO_PUBLIC_USE_MOCK_STATISTICS;
+export const USE_MOCK_STATISTICS =
+  typeof EXPO_USE_MOCK_STATISTICS === 'string'
+    ? EXPO_USE_MOCK_STATISTICS.toLowerCase() === 'true'
+    : false;
 
 

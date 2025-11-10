@@ -1,9 +1,9 @@
 import type {
-  Database,
-  Enums,
-  Tables,
-  TablesInsert,
-  TablesUpdate,
+    Database,
+    Enums,
+    Tables,
+    TablesInsert,
+    TablesUpdate,
 } from '../types/database.types';
 
 export type { Database, Enums, Tables, TablesInsert, TablesUpdate };
@@ -21,6 +21,10 @@ export type EmergencyContactUpdate = TablesUpdate<'emergency_contacts'>;
 export type MonitoringSession = Tables<'monitoring_sessions'>;
 export type MonitoringSessionInsert = TablesInsert<'monitoring_sessions'>;
 export type MonitoringSessionUpdate = TablesUpdate<'monitoring_sessions'>;
+
+export type DailyStatistic = Tables<'daily_statistics'>;
+export type DailyStatisticInsert = TablesInsert<'daily_statistics'>;
+export type DailyStatisticUpdate = TablesUpdate<'daily_statistics'>;
 
 export type SensorConfiguration = Tables<'sensor_configurations'>;
 export type SensorConfigurationInsert = TablesInsert<'sensor_configurations'>;
