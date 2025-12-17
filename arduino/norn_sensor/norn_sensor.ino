@@ -89,115 +89,66 @@ void loop() {
   server.handleClient();
 
   if (currentMode == FALL) {
-    // Fall detection mode - read and display data every second (like sample code)
-    Serial.print("Existing information:");
-    int presence = hu.smHumanData(hu.eHumanPresence);
-    switch (presence) {
-      case 0:
-        Serial.println("No one is present");
-        break;
-      case 1:
-        Serial.println("Someone is present");
-        break;
-      default:
-        Serial.println("Read error");
+    // --------------------------------------------------
+    // FALL DETECTION MODE - FOCUSED DATA FOR ANALYSIS
+    // --------------------------------------------------
+
+    // Human-related data in fall mode
+    uint16_t existence               = hu.dmHumanData(DFRobot_HumanDetection::eExistence);                // 0/1
+    uint16_t motion                  = hu.dmHumanData(DFRobot_HumanDetection::eMotion);                   // 0/1/2
+    uint16_t body_move               = hu.dmHumanData(DFRobot_HumanDetection::eBodyMove);
+    uint16_t seated_distance_cm      = hu.dmHumanData(DFRobot_HumanDetection::eSeatedHorizontalDistance); // cm
+    uint16_t motion_distance_cm      = hu.dmHumanData(DFRobot_HumanDetection::eMotionHorizontalDistance); // cm
+
+    // Fall-specific data
+    uint16_t fall_state              = hu.getFallData(DFRobot_HumanDetection::eFallState);                // 0/1
+    uint16_t fall_break_height_cm    = hu.getFallData(DFRobot_HumanDetection::eFallBreakHeight);          // cm
+    uint16_t static_residency_state  = hu.getFallData(DFRobot_HumanDetection::estaticResidencyState);     // 0/1
+
+    // Vital signs
+    uint8_t  heart_rate              = hu.getHeartRate();        // bpm, 0xFF if invalid
+    uint8_t  respiration_rate        = hu.getBreatheValue();     // breaths/min, 0xFF if invalid
+
+    // Minimal serial debug (good for checking during experiments)
+    Serial.println("---- FALL MODE ----");
+    Serial.printf("existence=%u, motion=%u, body_move=%u\n",
+                  existence, motion, body_move);
+    Serial.printf("seated_distance_cm=%u, motion_distance_cm=%u\n",
+                  seated_distance_cm, motion_distance_cm);
+    Serial.printf("fall_state=%u, fall_break_height_cm=%u, static_residency_state=%u\n",
+                  fall_state, fall_break_height_cm, static_residency_state);
+    Serial.printf("heart_rate=%u, respiration_rate=%u\n",
+                  heart_rate, respiration_rate);
+
+    // Simple real-time fall alert (for testing only)
+    static uint16_t last_fall_state = 0;
+    if (fall_state > 0 && last_fall_state == 0) {
+      Serial.println("FALL DETECTED!");
     }
+    last_fall_state = fall_state;
 
-    Serial.print("Motion information:");
-    int motion = hu.smHumanData(hu.eHumanMovement);
-    switch (motion) {
-      case 0:
-        Serial.println("None");
-        break;
-      case 1:
-        Serial.println("Still");
-        break;
-      case 2:
-        Serial.println("Active");
-        break;
-      default:
-        Serial.println("Read error");
-    }
-
-    int body_movement = hu.smHumanData(hu.eHumanMovingRange);
-    Serial.printf("Body movement parameters:%d\n", body_movement);
-
-    Serial.print("Fall status:");
-    int fall_status = hu.getFallData(hu.eFallState);
-    switch (fall_status) {
-      case 0:
-        Serial.println("Not fallen");
-        break;
-      case 1:
-        Serial.println("Fallen");
-        break;
-      default:
-        Serial.println("Read error");
-    }
-
-    Serial.print("Stationary dwell status:");
-    int stationary_dwell = hu.getFallData(hu.estaticResidencyState);
-    switch (stationary_dwell) {
-      case 0:
-        Serial.println("No stationary dwell");
-        break;
-      case 1:
-        Serial.println("Stationary dwell present");
-        break;
-      default:
-        Serial.println("Read error");
-    }
-
-    // Direct sensor readings (real-time values)
-    int direct_heart_rate = hu.getHeartRate();
-    int direct_respiration = hu.getBreatheValue();
-    int human_movement = hu.smHumanData(hu.eHumanMovement);
-    
-    // Interpret movement status
-    String movement_status = "Unknown";
-    switch (human_movement) {
-      case 0:
-        movement_status = "None";
-        break;
-      case 1:
-        movement_status = "Still";
-        break;
-      case 2:
-        movement_status = "Active";
-        break;
-      default:
-        movement_status = "Read error";
-    }
-
-    Serial.printf("Respiration rate:%d\n", direct_respiration);
-    Serial.printf("Heart rate:%d\n", direct_heart_rate);
-    Serial.println();
-
-    // Real-time fall detection alert
-    static int last_fall_status = 0;
-    if (fall_status > 0 && last_fall_status == 0) {
-      Serial.println("🚨🚨🚨 FALL DETECTED! 🚨🚨🚨");
-    }
-    last_fall_status = fall_status;
-
-    // Send data to backend
+    // JSON payload for backend (numeric, compact)
     String json = "{";
     json += "\"mode\":\"fall_detection\",";
-    json += "\"timestamp\":" + String(millis()/1000) + ",";
-    json += "\"presence\":" + String(presence) + ",";
+    json += "\"timestamp\":" + String(millis() / 1000) + ","; // seconds since boot
+    json += "\"existence\":" + String(existence) + ",";
     json += "\"motion\":" + String(motion) + ",";
-    json += "\"body_movement\":" + String(body_movement) + ",";
-    json += "\"fall_status\":" + String(fall_status) + ",";
-    json += "\"stationary_dwell\":" + String(stationary_dwell) + ",";
-    json += "\"heart_rate\":" + String(direct_heart_rate) + ",";
-    json += "\"respiration_rate\":" + String(direct_respiration) + ",";
-    json += "\"human_movement\":" + String(human_movement) + ",";
-    json += "\"movement_status\":\"" + movement_status + "\"";
+    json += "\"body_move\":" + String(body_move) + ",";
+    json += "\"seated_distance_cm\":" + String(seated_distance_cm) + ",";
+    json += "\"motion_distance_cm\":" + String(motion_distance_cm) + ",";
+    json += "\"fall_state\":" + String(fall_state) + ",";
+    json += "\"fall_break_height_cm\":" + String(fall_break_height_cm) + ",";
+    json += "\"static_residency_state\":" + String(static_residency_state) + ",";
+    json += "\"heart_rate_bpm\":" + String(heart_rate) + ",";
+    json += "\"respiration_rate_bpm\":" + String(respiration_rate);
     json += "}";
+
     sendToBackend(json);
 
   } else if (currentMode == SLEEP) {
-    // Sleep detection mode
+    // --------------------------------------------------
+    // SLEEP DETECTION MODE - LEAVE AS IS
+    // --------------------------------------------------
     int in_bed = hu.smSleepData(hu.eInOrNotInBed);
     int sleep_status = hu.smSleepData(hu.eSleepState);
     sSleepComposite comp = hu.getSleepComposite();
@@ -271,7 +222,7 @@ void loop() {
     sendToBackend(json);
   }
 
-  delay(1000); // Wait 1 second before next reading (like sample code)
+  delay(1000); // Sampling interval (1 second)
 }
 
 // --- HTTP Handler ---
@@ -337,19 +288,15 @@ void initSensor(Mode mode) {
     hu.configLEDLight(hu.eFALLLed, 1);
     hu.configLEDLight(hu.eHPLed, 1);
     
-    // Fall detection configuration - OPTIMIZED FOR CLOSE RANGE (15-20cm above head)
-    // Based on DFRobot C1001 documentation: https://wiki.dfrobot.com/SKU_SEN0623_C1001_mmWave_Human_Detection_Sensor
-    // If sensor is 15-20cm above head, typical height is ~180-200cm (1.8-2.0m)
-    // Adjust this value to match your ACTUAL installation height from floor to sensor
-    int install_height_cm = 190; // CHANGE THIS to your actual height in cm (floor to sensor)
+    // Fall detection configuration
+    int install_height_cm = 270; // CHANGE to your actual floor-to-sensor height
     hu.dmInstallHeight(install_height_cm);
     
-    // For close range detection, use faster response times
-    hu.dmFallTime(1); // Minimum fall time (1 second) for fastest detection
-    hu.dmUnmannedTime(1); // Minimum time before considering area unmanned
-    hu.dmFallConfig(hu.eResidenceTime, 50); // Even faster response for close range
-    hu.dmFallConfig(hu.eFallSensitivityC, 3); // Maximum sensitivity (range 0-3, 3 = highest)
-    
+    hu.dmFallTime(2);          // wait until detect fall
+    hu.dmUnmannedTime(1);      // time before outputting a no person status
+    hu.dmFallConfig(hu.eResidenceTime, 50);
+    hu.dmFallConfig(hu.eFallSensitivityC, 3); // Max sensitivity (0–3)
+
     Serial.println("✓ Fall detection mode configured");
     Serial.printf("Radar installation height: %d cm\n", hu.dmGetInstallHeight());
     Serial.printf("Fall duration: %d seconds\n", hu.getFallTime());
