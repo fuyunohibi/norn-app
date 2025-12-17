@@ -96,11 +96,17 @@ class SupabaseService:
             record["is_person_detected"] = data.get("in_bed", 0) > 0
             record["is_movement_detected"] = data.get("sleep_status", 0) > 0
         
-        # Map fall-specific fields
+        # Map fall-specific fields (also store in fall_samples table)
         elif reading_type == "fall":
-            record["is_fall_detected"] = data.get("fall_status", 0) > 0
-            record["is_person_detected"] = data.get("presence", 0) > 0
+            record["is_fall_detected"] = data.get("fall_state", 0) > 0
+            record["is_person_detected"] = data.get("existence", 0) > 0
             record["is_movement_detected"] = data.get("motion", 0) > 0
+            
+            # Store in fall_samples table with correct field mapping
+            try:
+                await self.store_fall_sample(data)
+            except Exception as fall_err:
+                logger.error(f"⚠️  Failed to store fall sample: {fall_err}")
             
             # Log ML detection if present
             if data.get("ml_detected"):
@@ -148,6 +154,46 @@ class SupabaseService:
                 logger.error("   The key should start with 'eyJ' (it's a JWT token).")
                 logger.error("")
             
+            raise
+    
+    async def store_fall_sample(self, data: Dict[str, Any]):
+        """
+        Store fall detection data in the fall_samples table
+        
+        Maps Arduino JSON field names to database column names.
+        
+        Args:
+            data: Sensor data dictionary from Arduino
+        """
+        # Map Arduino field names to database column names
+        # Arduino sends _cm suffix, database stores without suffix
+        fall_record = {
+            "timestamp_device": data.get("timestamp"),  # seconds since ESP32 boot
+            "existence": data.get("existence"),
+            "motion": data.get("motion"),
+            "body_move": data.get("body_move"),
+            "seated_distance": data.get("seated_distance_cm"),
+            "motion_distance": data.get("motion_distance_cm"),
+            "fall_state": data.get("fall_state"),
+            "fall_break_height": data.get("fall_break_height_cm"),
+            "static_residency_state": data.get("static_residency_state"),
+            "heart_rate_bpm": data.get("heart_rate_bpm"),
+            "respiration_rate_bpm": data.get("respiration_rate_bpm"),
+            # label is left NULL - to be added later from video annotation
+        }
+        
+        # Remove None values (database will use defaults)
+        fall_record = {k: v for k, v in fall_record.items() if v is not None}
+        
+        logger.info("💾 Storing fall sample in fall_samples table")
+        logger.debug(f"  Record: {json.dumps(fall_record, indent=2)}")
+        
+        try:
+            result = self.client.table("fall_samples").insert(fall_record).execute()
+            logger.info("✅ Successfully stored fall sample")
+            return result.data
+        except Exception as e:
+            logger.error(f"❌ Error storing fall sample: {str(e)}")
             raise
     
     async def get_latest_readings(self, mode: str, user_id: Optional[str] = None, limit: int = 10):
@@ -216,10 +262,12 @@ class SupabaseService:
                     "ml_confidence": raw_data.get("ml_confidence", 0),
                     "ml_pattern": raw_data.get("ml_analysis", {}).get("pattern", "unknown"),
                     "sensor_data": {
-                        "presence": raw_data.get("presence"),
+                        "existence": raw_data.get("existence"),
                         "motion": raw_data.get("motion"),
-                        "body_movement": raw_data.get("body_movement"),
-                        "stationary_dwell": raw_data.get("stationary_dwell")
+                        "body_move": raw_data.get("body_move"),
+                        "static_residency_state": raw_data.get("static_residency_state"),
+                        "heart_rate_bpm": raw_data.get("heart_rate_bpm"),
+                        "respiration_rate_bpm": raw_data.get("respiration_rate_bpm")
                     },
                     "ml_analysis": raw_data.get("ml_analysis", {})
                 })
@@ -287,20 +335,22 @@ class SupabaseService:
         
         # Fall detection alert - Use sensor's native fall detection
         if data["mode"] == "fall_detection":
-            # Check sensor's fall_status field directly
-            fall_status = data.get("fall_status", 0)
+            # Check sensor's fall_state field directly
+            fall_state = data.get("fall_state", 0)
             
             # Alert if sensor detected a fall
-            if fall_status == 1 and settings.FALL_ALERT_ENABLED:
+            if fall_state == 1 and settings.FALL_ALERT_ENABLED:
                 alerts.append({
                     "type": "fall_detected",
                     "severity": "critical",
                     "message": f"Fall detected by sensor!",
                     "title": "🚨 Fall Detected",
                     "data": data,
-                    "presence": data.get("presence"),
-                    "body_movement": data.get("body_movement"),
-                    "stationary_dwell": data.get("stationary_dwell")
+                    "existence": data.get("existence"),
+                    "body_move": data.get("body_move"),
+                    "static_residency_state": data.get("static_residency_state"),
+                    "heart_rate_bpm": data.get("heart_rate_bpm"),
+                    "respiration_rate_bpm": data.get("respiration_rate_bpm")
                 })
         
         # Sleep quality alert
@@ -388,7 +438,7 @@ class SupabaseService:
                     return float(value)
             return None
 
-        respiration_value = _get_numeric("respiration_rate", "respirationRate", "breathingRate", "avg_respiration")
+        respiration_value = _get_numeric("respiration_rate", "respiration_rate_bpm", "respirationRate", "breathingRate", "avg_respiration")
         hrv_value = _get_numeric("hrv", "heart_rate_variability", "heartRateVariability", "avg_hrv")
 
         existing = (

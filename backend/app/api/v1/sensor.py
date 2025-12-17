@@ -56,15 +56,17 @@ async def receive_sensor_data(
         ml_prediction = None
         
         # For fall detection mode, use sensor's native fall detection (NO ML)
-        # Trust the sensor's fall_status field directly
+        # Trust the sensor's fall_state field directly
         if data_dict.get("mode") == "fall_detection":
-            fall_status = data_dict.get("fall_status", 0)
-            if fall_status == 1:
+            fall_state = data_dict.get("fall_state", 0)
+            if fall_state == 1:
                 logger.warning(f"⚠️  FALL DETECTED by sensor!")
-                logger.info(f"   Presence: {data_dict.get('presence')}")
+                logger.info(f"   Existence: {data_dict.get('existence')}")
                 logger.info(f"   Motion: {data_dict.get('motion')}")
-                logger.info(f"   Body Movement: {data_dict.get('body_movement')}")
-                logger.info(f"   Stationary Dwell: {data_dict.get('stationary_dwell')}")
+                logger.info(f"   Body Move: {data_dict.get('body_move')}")
+                logger.info(f"   Static Residency State: {data_dict.get('static_residency_state')}")
+                logger.info(f"   Heart Rate: {data_dict.get('heart_rate_bpm')} bpm")
+                logger.info(f"   Respiration Rate: {data_dict.get('respiration_rate_bpm')} bpm")
             
             # No ML processing - use sensor data directly
         

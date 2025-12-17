@@ -53,19 +53,23 @@ class SleepDetectionData(BaseModel):
 
 
 class FallDetectionData(BaseModel):
-    """Fall detection sensor data"""
+    """Fall detection sensor data - matches Arduino JSON and fall_samples table"""
     mode: Literal["fall_detection"]
-    timestamp: int
-    presence: int
-    motion: int
-    body_movement: int
-    fall_status: int
-    stationary_dwell: int
-    # Direct sensor readings (real-time values)
-    heart_rate: Optional[int] = None
-    respiration_rate: Optional[int] = None
-    human_movement: Optional[int] = None
-    movement_status: Optional[str] = None
+    timestamp: int  # seconds since ESP32 boot
+    # Human presence and motion
+    existence: int  # 0 = no person, 1 = person present
+    motion: int  # 0 = none, 1 = still, 2 = active
+    body_move: int  # movement intensity index (0-255)
+    # Distance measurements (cm)
+    seated_distance_cm: Optional[int] = None  # distance when seated
+    motion_distance_cm: Optional[int] = None  # distance when moving
+    # Fall detection specific
+    fall_state: int  # 0 = not fallen, 1 = fallen
+    fall_break_height_cm: Optional[int] = None  # distance at fall break
+    static_residency_state: int  # 0 = no residency, 1 = static residency
+    # Vital signs (255 = invalid reading)
+    heart_rate_bpm: Optional[int] = None  # 0-255
+    respiration_rate_bpm: Optional[int] = None  # 0-255
 
 
 class ModeChangeRequest(BaseModel):
