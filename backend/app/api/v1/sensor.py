@@ -2,7 +2,7 @@ import json
 import logging
 from typing import Optional, Union
 
-from app.models.sensor import FallDetectionData, SleepDetectionData
+from app.models.sensor import FallDetectionData, FallSampleData, SleepDetectionData
 from app.services.esp32_service import esp32_service
 from app.services.sleep_ml_service import sleep_ml_service
 from app.services.supabase_service import supabase_service
@@ -110,6 +110,88 @@ async def receive_sensor_data(
     except Exception as e:
         logger.error(f"❌ Error processing sensor data: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Error processing sensor data: {str(e)}")
+
+
+@router.post("/fall-samples")
+async def receive_fall_sample(
+    data: FallSampleData,
+    background_tasks: BackgroundTasks
+):
+    """
+    Receive fall sample data for training data collection.
+    
+    This endpoint is used to collect labeled fall detection data
+    for ML model training. Data is stored in the fall_samples table.
+    
+    The Arduino should send data in this format:
+    {
+        "timestamp": 12345,
+        "existence": 1,
+        "motion": 2,
+        "body_move": 50,
+        "seated_distance": 120,
+        "motion_distance": 150,
+        "fall_state": 0,
+        "fall_break_height": 0,
+        "static_residency_state": 0,
+        "heart_rate_bpm": 72,
+        "respiration_rate_bpm": 16,
+        "label": "sitting_on_chair"  // optional, can be added later
+    }
+    """
+    try:
+        data_dict = data.model_dump()
+        
+        logger.info("=" * 60)
+        logger.info("📥 RECEIVED FALL SAMPLE DATA")
+        logger.info("=" * 60)
+        logger.info(f"Timestamp: {data_dict.get('timestamp')}")
+        logger.info(f"Fall State: {data_dict.get('fall_state')}")
+        logger.info(f"Existence: {data_dict.get('existence')}")
+        logger.info(f"Label: {data_dict.get('label', 'unlabeled')}")
+        
+        # Store in background
+        background_tasks.add_task(
+            supabase_service.store_fall_sample_direct,
+            data_dict
+        )
+        
+        return {
+            "status": "success",
+            "message": "Fall sample received",
+            "timestamp": data_dict.get("timestamp"),
+            "fall_state": data_dict.get("fall_state")
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Error storing fall sample: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error storing fall sample: {str(e)}")
+
+
+@router.get("/fall-samples")
+async def get_fall_samples(
+    limit: int = 100,
+    label: Optional[str] = None,
+    fall_state: Optional[int] = None
+):
+    """
+    Get fall sample data for review or export.
+    
+    Args:
+        limit: Maximum number of samples to return (default: 100)
+        label: Optional filter by label (e.g., 'falling', 'sitting_on_chair')
+        fall_state: Optional filter by fall_state (0 or 1)
+    """
+    try:
+        samples = await supabase_service.get_fall_samples(limit, label, fall_state)
+        return {
+            "status": "success",
+            "count": len(samples),
+            "samples": samples
+        }
+    except Exception as e:
+        logger.error(f"❌ Error retrieving fall samples: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error retrieving fall samples: {str(e)}")
 
 
 @router.get("/readings/{mode}")

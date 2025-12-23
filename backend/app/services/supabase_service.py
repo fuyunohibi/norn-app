@@ -196,6 +196,79 @@ class SupabaseService:
             logger.error(f"❌ Error storing fall sample: {str(e)}")
             raise
     
+    async def store_fall_sample_direct(self, data: Dict[str, Any]):
+        """
+        Store fall sample data directly from the /fall-samples endpoint.
+        
+        This method expects data that already matches the database column names
+        (no field mapping needed).
+        
+        Args:
+            data: Fall sample data dictionary matching fall_samples table schema
+        """
+        # Build record from data - fields already match database schema
+        fall_record = {
+            "timestamp": data.get("timestamp"),
+            "existence": data.get("existence"),
+            "motion": data.get("motion"),
+            "body_move": data.get("body_move"),
+            "seated_distance": data.get("seated_distance"),
+            "motion_distance": data.get("motion_distance"),
+            "fall_state": data.get("fall_state"),
+            "fall_break_height": data.get("fall_break_height"),
+            "static_residency_state": data.get("static_residency_state"),
+            "heart_rate_bpm": data.get("heart_rate_bpm"),
+            "respiration_rate_bpm": data.get("respiration_rate_bpm"),
+            "label": data.get("label"),  # Can be provided for labeled data
+        }
+        
+        # Remove None values (database will use defaults)
+        fall_record = {k: v for k, v in fall_record.items() if v is not None}
+        
+        logger.info("💾 Storing fall sample (direct) in fall_samples table")
+        logger.debug(f"  Record: {json.dumps(fall_record, indent=2)}")
+        
+        try:
+            result = self.client.table("fall_samples").insert(fall_record).execute()
+            logger.info("✅ Successfully stored fall sample (direct)")
+            return result.data
+        except Exception as e:
+            logger.error(f"❌ Error storing fall sample (direct): {str(e)}")
+            raise
+    
+    async def get_fall_samples(
+        self,
+        limit: int = 100,
+        label: Optional[str] = None,
+        fall_state: Optional[int] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Get fall samples from the fall_samples table.
+        
+        Args:
+            limit: Maximum number of samples to return
+            label: Optional filter by label
+            fall_state: Optional filter by fall_state (0 or 1)
+            
+        Returns:
+            List of fall sample records
+        """
+        try:
+            query = self.client.table("fall_samples").select("*").order("id", desc=True).limit(limit)
+            
+            if label is not None:
+                query = query.eq("label", label)
+            
+            if fall_state is not None:
+                query = query.eq("fall_state", fall_state)
+            
+            result = query.execute()
+            logger.info(f"📊 Retrieved {len(result.data)} fall samples")
+            return result.data
+        except Exception as e:
+            logger.error(f"❌ Error retrieving fall samples: {str(e)}")
+            raise
+    
     async def get_latest_readings(self, mode: str, user_id: Optional[str] = None, limit: int = 10):
         """
         Get latest sensor readings
