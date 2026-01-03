@@ -1,0 +1,7 @@
+# Ignore CSV data files (can be large)
+*.csv
+
+# Keep documentation and this file
+!DATA_COLLECTION_GUIDE.md
+!.gitignore
+
