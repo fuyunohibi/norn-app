@@ -94,6 +94,23 @@ class FallSampleData(BaseModel):
     label: Optional[str] = None  # e.g. 'sitting_on_chair', 'falling', 'after_fall_on_floor'
 
 
+class IMUAlertData(BaseModel):
+    """
+    IMU-based fall detection alert from ESP32.
+    
+    Sent when the on-device ML model detects a critical state:
+    - 'f' = falling
+    - 'af' = after fall on floor  
+    - 'nf' = unstable standing (near fall)
+    """
+    device_id: str  # e.g., "esp32-imu-001"
+    timestamp: int  # milliseconds since ESP32 boot
+    prediction: str  # predicted class label: f, af, nf, st, si, w, r
+    prediction_idx: Optional[int] = None  # class index (0-6)
+    confidence: Optional[float] = None  # prediction confidence (if available)
+    features: Optional[list] = None  # 32 features for debugging (optional)
+
+
 class ModeChangeRequest(BaseModel):
     """Request to change ESP32 mode"""
     mode: Literal["sleep", "fall"]

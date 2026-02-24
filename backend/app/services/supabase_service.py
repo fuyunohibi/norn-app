@@ -481,6 +481,39 @@ class SupabaseService:
         
         return alerts
 
+    async def create_alert(self, alert_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """
+        Create a new alert in the database.
+        
+        Args:
+            alert_data: Dictionary containing:
+                - user_id: User ID to associate with alert
+                - alert_type: Type of alert (fall, fall_risk, sleep_quality, etc.)
+                - severity: Alert severity (critical, high, medium, low)
+                - title: Alert title
+                - message: Alert message
+                - alert_data: Additional data dictionary
+        
+        Returns:
+            Created alert record or None if failed
+        """
+        try:
+            result = self.client.table("alerts").insert({
+                "user_id": alert_data.get("user_id"),
+                "alert_type": alert_data.get("alert_type"),
+                "severity": alert_data.get("severity", "high"),
+                "title": alert_data.get("title"),
+                "message": alert_data.get("message"),
+                "alert_data": alert_data.get("alert_data", {})
+            }).execute()
+            
+            logger.info(f"✅ Alert created: {alert_data.get('alert_type')} for user {alert_data.get('user_id')}")
+            return result.data[0] if result.data else None
+            
+        except Exception as e:
+            logger.error(f"❌ Error creating alert: {str(e)}")
+            return None
+
     def update_daily_statistics(self, user_id: Optional[str], record: Dict[str, Any]) -> None:
         if not user_id:
             return

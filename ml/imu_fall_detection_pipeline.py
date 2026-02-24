@@ -83,17 +83,45 @@ def load_all_sessions(data_dir: str, file_pattern: str = "session_*.csv") -> pd.
     combined_df['label'] = combined_df['label'].astype(str)
     combined_df['bkk_time'] = combined_df['bkk_time'].astype(str)
     
-    # Clean labels: fix common typos and remove invalid labels
-    # Valid labels: standing, sitting, walking, sit_to_stand, stand_to_sit, 
-    #               falling, after_fall_on_floor, unstable_standing, getting_up_from_floor
-    label_corrections = {
-        'sittting': 'sitting',  # Fix typo
-        'getting_up_from_fall': 'getting_up_from_floor',  # Fix incorrect label
+    # Clean labels and convert to abbreviated format (7 classes):
+    #   st - standing, si - sitting, w - walking, r - running,
+    #   f - falling, nf - near fall (unstable), af - after fall on floor
+    #
+    # Accepts BOTH full names (old format) and abbreviated names (new format)
+    label_mapping = {
+        # Full names → abbreviated (old recordings)
+        'standing': 'st',
+        'sitting': 'si',
+        'walking': 'w',
+        'running': 'r',
+        'falling': 'f',
+        'unstable_standing': 'nf',
+        'after_fall_on_floor': 'af',
+        
+        # Typo fixes → abbreviated
+        'sittting': 'si',
+        'unstable': 'nf',
+        
+        # Merged transitions → standing (st)
+        'sit_to_stand': 'st',
+        'stand_to_sit': 'st',
+        
+        # Merged floor states → after fall (af)
+        'getting_up_from_fall': 'af',
+        'getting_up_from_floor': 'af',
+        
+        # Abbreviated names pass through unchanged (new recordings)
+        # 'st': 'st', 'si': 'si', 'w': 'w', 'r': 'r', 'f': 'f', 'nf': 'nf', 'af': 'af'
+        # (not needed - they pass through automatically if not in mapping)
     }
-    combined_df['label'] = combined_df['label'].replace(label_corrections)
+    combined_df['label'] = combined_df['label'].replace(label_mapping)
     
-    # Remove rows with invalid labels (e.g., those containing 'timestamp_ms')
-    invalid_mask = combined_df['label'].str.contains('timestamp_ms', na=False)
+    # Remove rows with invalid labels (e.g., those containing 'timestamp_ms' or empty)
+    invalid_mask = (
+        combined_df['label'].str.contains('timestamp_ms', na=False) |
+        (combined_df['label'].str.strip() == '') |
+        combined_df['label'].isna()
+    )
     if invalid_mask.any():
         print(f"Warning: Removing {invalid_mask.sum()} rows with invalid labels")
         combined_df = combined_df[~invalid_mask]
@@ -438,6 +466,41 @@ def train_random_forest(
     clf = RandomForestClassifier(
         n_estimators=n_estimators,
         max_depth=max_depth,
+        random_state=random_state,
+        n_jobs=-1
+    )
+    clf.fit(X_train, y_train)
+    
+    return clf
+
+
+def train_random_forest_embedded(
+    X_train: np.ndarray,
+    y_train: np.ndarray,
+    n_estimators: int = 25,
+    max_depth: int = 10,
+    random_state: int = 42
+) -> RandomForestClassifier:
+    """
+    Train a smaller Random Forest optimized for ESP32 deployment.
+    
+    This model uses fewer trees and limited depth to fit in ESP32 Flash memory
+    (~50-150KB vs ~2MB for full model).
+    
+    Args:
+        X_train: Training features
+        y_train: Training labels
+        n_estimators: Number of trees (default: 25, vs 200 for full)
+        max_depth: Maximum tree depth (default: 10, limits model size)
+        random_state: Random seed
+        
+    Returns:
+        Trained RandomForestClassifier suitable for embedded deployment
+    """
+    clf = RandomForestClassifier(
+        n_estimators=n_estimators,
+        max_depth=max_depth,
+        min_samples_leaf=2,  # Prevents overly specific leaf nodes
         random_state=random_state,
         n_jobs=-1
     )

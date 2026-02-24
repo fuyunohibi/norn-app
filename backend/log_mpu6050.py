@@ -13,7 +13,7 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(SCRIPT_DIR, "collected_data")
 os.makedirs(DATA_DIR, exist_ok=True)
 
-OUTPUT_CSV = os.path.join(DATA_DIR, "mpu6050_data_20.csv")
+OUTPUT_CSV = os.path.join(DATA_DIR, "mpu6050_data_70.csv")
 
 # Timezone for Bangkok
 BKK_TZ = pytz.timezone("Asia/Bangkok")
