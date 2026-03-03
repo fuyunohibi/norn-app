@@ -19,7 +19,6 @@ async def lifespan(app: FastAPI):
     """Lifecycle manager for FastAPI application"""
     # Startup
     print(f"🚀 Starting Norn Backend API - Environment: {settings.ENVIRONMENT}")
-    print(f"📡 ESP32 expected at: http://{settings.ESP32_IP}:{settings.ESP32_PORT}")
     yield
     # Shutdown
     print("👋 Shutting down Norn Backend API")

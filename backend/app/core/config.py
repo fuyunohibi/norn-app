@@ -25,10 +25,6 @@ class Settings(BaseSettings):
     SUPABASE_URL: str
     SUPABASE_SERVICE_KEY: str
     
-    # ESP32 Configuration
-    ESP32_IP: str = "192.168.1.36"  # Default IP, can be overridden in .env.local
-    ESP32_PORT: int = 80  # HTTP server port on ESP32
-    
     # CORS Origins - stored as string to avoid JSON parsing issues with Pydantic Settings
     ALLOWED_ORIGINS_STR: Optional[str] = None
     
@@ -48,16 +44,9 @@ class Settings(BaseSettings):
             # If it's not valid JSON, try splitting by comma
             origins = [origin.strip() for origin in self.ALLOWED_ORIGINS_STR.split(",") if origin.strip()]
             return origins if origins else ["http://localhost:8081"]
-    
+
     # Alert Thresholds
     FALL_ALERT_ENABLED: bool = True
-    SLEEP_QUALITY_THRESHOLD: int = 60
-    ABNORMAL_STRUGGLE_THRESHOLD: int = 5
-    
-    @property
-    def esp32_url(self) -> str:
-        """Get the full ESP32 URL"""
-        return f"http://{self.ESP32_IP}:{self.ESP32_PORT}"
 
 
 settings = Settings()
