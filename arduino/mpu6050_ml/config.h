@@ -22,9 +22,12 @@
 // Backend Configuration
 // ============================================================================
 
-// FastAPI backend URL for sending alerts
-// Format: http://<ip>:<port>/api/v1/imu/alert
-#define BACKEND_URL "http://192.168.1.9:8000/api/v1/sensor/imu/alert"
+// FastAPI backend base URL (no trailing slash)
+#define BACKEND_BASE_URL "http://192.168.1.9:8000"
+// Alert endpoint - called when critical state (fall, after_fall, unstable) is detected
+#define BACKEND_ALERT_URL BACKEND_BASE_URL "/api/v1/sensor/imu/alert"
+// Activity endpoint - called on every activity state change (walk, standing, sitting, etc.)
+#define BACKEND_ACTIVITY_URL BACKEND_BASE_URL "/api/v1/sensor/activity"
 
 // User ID for alert association (optional - update if needed)
 #define USER_ID "0b8baf9c-dcfa-4d11-93d5-a08ce06a3d61"

@@ -2,10 +2,9 @@ import json
 import logging
 from typing import Optional
 
-from app.models.sensor import IMUAlertData
-from fastapi import Query
+from app.models.sensor import ActivityEventData, IMUAlertData
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Request
 from app.services.supabase_service import supabase_service
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
 
 # Set up logger
 logger = logging.getLogger(__name__)
@@ -15,6 +14,52 @@ if supabase_service is None:
     logger.error("❌ Supabase service is not initialized! Check your configuration.")
 
 router = APIRouter()
+
+
+@router.post("/activity")
+async def receive_activity_event(
+    data: ActivityEventData,
+    background_tasks: BackgroundTasks,
+    user_id: str = Query(default="0b8baf9c-dcfa-4d11-93d5-a08ce06a3d61"),
+):
+    """
+    Receive activity change event from ESP32.
+    ESP32 sends only when the activity state changes (e.g. walk -> standing -> sitting).
+    """
+    try:
+        background_tasks.add_task(
+            supabase_service.store_activity_event,
+            user_id=user_id,
+            device_id=data.device_id,
+            activity=data.activity.strip().lower(),
+            timestamp_device=data.timestamp,
+        )
+        return {"status": "success", "message": "Activity event received", "activity": data.activity}
+    except Exception as e:
+        logger.error(f"Error processing activity event: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Error processing activity event")
+
+
+@router.get("/activity/statistics")
+async def get_activity_statistics(
+    period: str = Query(..., description="One of: today, 7d, 30d"),
+    user_id: str = Query(default="0b8baf9c-dcfa-4d11-93d5-a08ce06a3d61"),
+):
+    """
+    Get activity statistics for the given period.
+    Returns time spent and count per activity (walking, standing, sitting, etc.).
+    """
+    if period not in ("today", "7d", "30d"):
+        raise HTTPException(status_code=400, detail="period must be one of: today, 7d, 30d")
+    try:
+        stats = supabase_service.get_activity_statistics(user_id=user_id, period=period)
+        return {"status": "success", "statistics": stats}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error fetching activity statistics: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Error fetching activity statistics")
+
 
 @router.post("/imu/alert")
 async def receive_imu_alert(

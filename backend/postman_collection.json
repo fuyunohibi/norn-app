@@ -1,0 +1,536 @@
+{
+  "info": {
+    "name": "Norn Backend API",
+    "description": "Norn Health Monitoring API - Verification and Validation tests. Open each request and check the 'Tests' tab to see scripts.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "event": [
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Collection-level test (runs after each request). Request-specific tests are in each request's Tests tab."
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000"
+    },
+    {
+      "key": "user_id",
+      "value": "0b8baf9c-dcfa-4d11-93d5-a08ce06a3d61"
+    },
+    {
+      "key": "alert_id",
+      "value": "",
+      "description": "Set from GET Alerts response (e.g. first alert id) for PATCH requests"
+    }
+  ],
+  "item": [
+    {
+      "name": "Root",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{base_url}}/",
+        "description": "API root - version and status"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 200', function() { pm.response.to.have.status(200); });",
+              "pm.test('Response is JSON', function() { pm.response.to.be.json; });",
+              "const body = pm.response.json();",
+              "pm.test('Has message', function() { pm.expect(body).to.have.property('message'); });",
+              "pm.test('Has version', function() { pm.expect(body).to.have.property('version'); });",
+              "pm.test('Has status running', function() { pm.expect(body.status).to.eql('running'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Health (simple)",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{base_url}}/health",
+        "description": "Simple health check"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 200', function() { pm.response.to.have.status(200); });",
+              "const body = pm.response.json();",
+              "pm.test('Has status healthy', function() { pm.expect(body).to.have.property('status'); pm.expect(body.status).to.eql('healthy'); });",
+              "pm.test('Has environment', function() { pm.expect(body).to.have.property('environment'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Health status (detailed)",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{base_url}}/api/v1/health/status",
+        "description": "Backend + Supabase status"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 200', function() { pm.response.to.have.status(200); });",
+              "const body = pm.response.json();",
+              "pm.test('Has backend object', function() { pm.expect(body).to.have.property('backend'); pm.expect(body.backend.status).to.eql('healthy'); });",
+              "pm.test('Has supabase object', function() { pm.expect(body).to.have.property('supabase'); pm.expect(body.supabase).to.have.property('url'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "POST Activity event",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"device_id\": \"esp32-imu-001\",\n  \"timestamp\": 123456,\n  \"activity\": \"w\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/v1/sensor/activity?user_id={{user_id}}",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "sensor",
+            "activity"
+          ],
+          "query": [
+            {
+              "key": "user_id",
+              "value": "{{user_id}}",
+              "description": "Optional"
+            }
+          ]
+        },
+        "description": "Receive activity change from ESP32. Activity: w, st, si, r, f, af, nf"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 200', function() { pm.response.to.have.status(200); });",
+              "const body = pm.response.json();",
+              "pm.test('Response status is success', function() { pm.expect(body.status).to.eql('success'); });",
+              "pm.test('Has activity in response', function() { pm.expect(body).to.have.property('activity'); });",
+              "pm.test('Message indicates received', function() { pm.expect(body.message).to.include('Activity'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "GET Activity statistics (today)",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/api/v1/sensor/activity/statistics?period=today&user_id={{user_id}}",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "sensor",
+            "activity",
+            "statistics"
+          ],
+          "query": [
+            {
+              "key": "period",
+              "value": "today",
+              "description": "Required: today, 7d, or 30d"
+            },
+            {
+              "key": "user_id",
+              "value": "{{user_id}}",
+              "description": "Optional"
+            }
+          ]
+        },
+        "description": "Get activity stats for today"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 200', function() { pm.response.to.have.status(200); });",
+              "const body = pm.response.json();",
+              "pm.test('Response status is success', function() { pm.expect(body.status).to.eql('success'); });",
+              "pm.test('Has statistics object', function() { pm.expect(body).to.have.property('statistics'); });",
+              "const stats = body.statistics;",
+              "pm.test('Statistics has period', function() { pm.expect(stats).to.have.property('period'); });",
+              "pm.test('Statistics has by_activity', function() { pm.expect(stats).to.have.property('by_activity'); });",
+              "pm.test('Statistics has events array', function() { pm.expect(stats).to.have.property('events'); pm.expect(stats.events).to.be.an('array'); });",
+              "pm.test('Period is today', function() { pm.expect(stats.period).to.eql('today'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "GET Activity statistics (7d)",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/api/v1/sensor/activity/statistics?period=7d&user_id={{user_id}}",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "sensor",
+            "activity",
+            "statistics"
+          ],
+          "query": [
+            {
+              "key": "period",
+              "value": "7d"
+            },
+            {
+              "key": "user_id",
+              "value": "{{user_id}}"
+            }
+          ]
+        },
+        "description": "Get activity stats for last 7 days"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 200', function() { pm.response.to.have.status(200); });",
+              "const body = pm.response.json();",
+              "pm.test('Response status is success', function() { pm.expect(body.status).to.eql('success'); });",
+              "pm.test('Has statistics with period last_7_days', function() { pm.expect(body.statistics.period).to.eql('last_7_days'); });",
+              "pm.test('Statistics has from and to dates', function() { pm.expect(body.statistics).to.have.property('from'); pm.expect(body.statistics).to.have.property('to'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "GET Activity statistics (30d)",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/api/v1/sensor/activity/statistics?period=30d&user_id={{user_id}}",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "sensor",
+            "activity",
+            "statistics"
+          ],
+          "query": [
+            {
+              "key": "period",
+              "value": "30d"
+            },
+            {
+              "key": "user_id",
+              "value": "{{user_id}}"
+            }
+          ]
+        },
+        "description": "Get activity stats for last 30 days"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 200', function() { pm.response.to.have.status(200); });",
+              "const body = pm.response.json();",
+              "pm.test('Response status is success', function() { pm.expect(body.status).to.eql('success'); });",
+              "pm.test('Has statistics with period last_30_days', function() { pm.expect(body.statistics.period).to.eql('last_30_days'); });",
+              "pm.test('Statistics has total_events', function() { pm.expect(body.statistics).to.have.property('total_events'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "POST IMU alert (critical)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"device_id\": \"esp32-imu-001\",\n  \"timestamp\": 45678,\n  \"prediction\": \"f\",\n  \"prediction_idx\": 1\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/v1/sensor/imu/alert?user_id={{user_id}}",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "sensor",
+            "imu",
+            "alert"
+          ],
+          "query": [
+            {
+              "key": "user_id",
+              "value": "{{user_id}}",
+              "description": "Optional"
+            }
+          ]
+        },
+        "description": "IMU critical alert (f, af, nf). Creates alert in DB."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 200', function() { pm.response.to.have.status(200); });",
+              "const body = pm.response.json();",
+              "pm.test('Response status is success', function() { pm.expect(body.status).to.eql('success'); });",
+              "pm.test('Alert was created', function() { pm.expect(body.alert_created).to.be.true; });",
+              "pm.test('Has alert_type', function() { pm.expect(body).to.have.property('alert_type'); });",
+              "pm.test('Has severity', function() { pm.expect(body).to.have.property('severity'); });",
+              "pm.test('Critical prediction creates fall alert', function() { pm.expect(body.alert_type).to.eql('fall'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "POST IMU alert (non-critical)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"device_id\": \"esp32-imu-001\",\n  \"timestamp\": 45678,\n  \"prediction\": \"st\",\n  \"prediction_idx\": 5\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/v1/sensor/imu/alert?user_id={{user_id}}",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "sensor",
+            "imu",
+            "alert"
+          ],
+          "query": [
+            {
+              "key": "user_id",
+              "value": "{{user_id}}"
+            }
+          ]
+        },
+        "description": "Non-critical prediction (st, si, w, r). No alert stored."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 200', function() { pm.response.to.have.status(200); });",
+              "const body = pm.response.json();",
+              "pm.test('Response status is success', function() { pm.expect(body.status).to.eql('success'); });",
+              "pm.test('No alert created for non-critical', function() { pm.expect(body.alert_created).to.be.false; });",
+              "pm.test('Message indicates logged', function() { pm.expect(body.message).to.include('logged'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "GET Alerts",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/api/v1/alerts?user_id={{user_id}}&limit=50",
+          "host": ["{{base_url}}"],
+          "path": ["api", "v1", "alerts"],
+          "query": [
+            { "key": "user_id", "value": "{{user_id}}" },
+            { "key": "limit", "value": "50" },
+            { "key": "is_read", "value": "", "disabled": true, "description": "Optional: true/false" },
+            { "key": "is_resolved", "value": "", "disabled": true, "description": "Optional: true/false" }
+          ]
+        },
+        "description": "List alerts for user. Optionally filter by is_read, is_resolved. Save an alert id to alert_id variable for PATCH."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 200', function() { pm.response.to.have.status(200); });",
+              "const body = pm.response.json();",
+              "pm.test('Response status is success', function() { pm.expect(body.status).to.eql('success'); });",
+              "pm.test('Has alerts array', function() { pm.expect(body).to.have.property('alerts'); pm.expect(body.alerts).to.be.an('array'); });",
+              "pm.test('Has count', function() { pm.expect(body).to.have.property('count'); });",
+              "if (body.alerts && body.alerts.length > 0) { pm.collectionVariables.set('alert_id', body.alerts[0].id); }"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "PATCH Alert mark read",
+      "request": {
+        "method": "PATCH",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"is_read\": true\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/v1/alerts/{{alert_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["api", "v1", "alerts", "{{alert_id}}"]
+        },
+        "description": "Set is_read=true for an alert. Use alert_id from GET Alerts or set collection variable alert_id."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 200', function() { pm.response.to.have.status(200); });",
+              "const body = pm.response.json();",
+              "pm.test('Response status is success', function() { pm.expect(body.status).to.eql('success'); });",
+              "pm.test('Has updated alert', function() { pm.expect(body).to.have.property('alert'); });",
+              "pm.test('Alert is_read is true', function() { pm.expect(body.alert.is_read).to.be.true; });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "PATCH Alert mark resolved",
+      "request": {
+        "method": "PATCH",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"is_resolved\": true\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/v1/alerts/{{alert_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["api", "v1", "alerts", "{{alert_id}}"]
+        },
+        "description": "Set is_resolved=true for an alert. Backend also sets resolved_at. Use alert_id from GET Alerts."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 200', function() { pm.response.to.have.status(200); });",
+              "const body = pm.response.json();",
+              "pm.test('Response status is success', function() { pm.expect(body.status).to.eql('success'); });",
+              "pm.test('Has updated alert', function() { pm.expect(body).to.have.property('alert'); });",
+              "pm.test('Alert is_resolved is true', function() { pm.expect(body.alert.is_resolved).to.be.true; });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "PATCH Alert mark read and resolved",
+      "request": {
+        "method": "PATCH",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"is_read\": true,\n  \"is_resolved\": true\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/v1/alerts/{{alert_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["api", "v1", "alerts", "{{alert_id}}"]
+        },
+        "description": "Set both is_read and is_resolved to true in one call."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 200', function() { pm.response.to.have.status(200); });",
+              "const body = pm.response.json();",
+              "pm.test('Response status is success', function() { pm.expect(body.status).to.eql('success'); });",
+              "pm.test('Alert is_read and is_resolved true', function() { pm.expect(body.alert.is_read).to.be.true; pm.expect(body.alert.is_resolved).to.be.true; });"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

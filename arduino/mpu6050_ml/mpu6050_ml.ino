@@ -213,6 +213,39 @@ int runInference() {
 // HTTP Alert
 // ============================================================================
 
+// Send activity change to backend (first time each activity happens)
+void sendActivityChange(unsigned long timestampMs, const char* label) {
+    if (WiFi.status() != WL_CONNECTED) return;
+    
+    HTTPClient http;
+    http.setTimeout(HTTP_TIMEOUT_MS);
+    
+    String url = String(BACKEND_ACTIVITY_URL) + "?user_id=" + USER_ID;
+    if (!http.begin(url)) {
+        Serial.println("HTTP begin failed (activity)");
+        return;
+    }
+    http.addHeader("Content-Type", "application/json");
+    
+    // JSON: {"device_id":"...", "timestamp":12345, "activity":"w"}
+    String json = "{\"device_id\":\"" + String(DEVICE_ID) + "\",";
+    json += "\"timestamp\":" + String(timestampMs) + ",";
+    json += "\"activity\":\"" + String(label) + "\"}";
+    
+    #if DEBUG_ENABLED
+    Serial.print("Activity: ");
+    Serial.println(json);
+    #endif
+    
+    int httpCode = http.POST(json);
+    if (httpCode > 0) {
+        Serial.printf("Activity sent: %s -> HTTP %d\n", label, httpCode);
+    } else {
+        Serial.printf("Activity send failed: HTTP %d\n", httpCode);
+    }
+    http.end();
+}
+
 void sendAlert(int prediction, const char* label) {
     if (WiFi.status() != WL_CONNECTED) {
         Serial.println("WiFi not connected - cannot send alert");
@@ -232,7 +265,7 @@ void sendAlert(int prediction, const char* label) {
     HTTPClient http;
     http.setTimeout(HTTP_TIMEOUT_MS);
     
-    String url = String(BACKEND_URL) + "?user_id=" + USER_ID;
+    String url = String(BACKEND_ALERT_URL) + "?user_id=" + USER_ID;
     
     if (!http.begin(url)) {
         Serial.println("HTTP begin failed");
@@ -401,22 +434,21 @@ void loop() {
             Serial.println();
             #endif
             
-            // Send alert ONLY when state changes TO a critical label
-            // This prevents sending repeated alerts for the same state
+            // On any state change: send activity event (for statistics)
+            // Only first time each activity happens: 1=walk, 6=standing, 9=sitting, 11=standing
             bool stateChanged = (finalPrediction != previousPrediction);
             bool isCritical = is_critical_label(finalPrediction);
             
-            if (stateChanged && isCritical) {
-                #if DEBUG_ENABLED
-                Serial.printf("State changed: %s -> %s (sending alert)\n", 
-                    previousPrediction >= 0 ? CLASS_NAMES[previousPrediction] : "none",
-                    currentLabel);
-                #endif
-                sendAlert(finalPrediction, currentLabel);
-            } else if (isCritical && !stateChanged) {
-                #if DEBUG_ENABLED
-                Serial.println("Same critical state - no alert sent");
-                #endif
+            if (stateChanged) {
+                sendActivityChange(now, currentLabel);
+                if (isCritical) {
+                    #if DEBUG_ENABLED
+                    Serial.printf("State changed: %s -> %s (sending alert)\n",
+                        previousPrediction >= 0 ? CLASS_NAMES[previousPrediction] : "none",
+                        currentLabel);
+                    #endif
+                    sendAlert(finalPrediction, currentLabel);
+                }
             }
         }
     }

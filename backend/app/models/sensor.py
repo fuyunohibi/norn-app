@@ -45,6 +45,13 @@ class FallSampleData(BaseModel):
     label: Optional[str] = None  # e.g. 'sitting_on_chair', 'falling', 'after_fall_on_floor'
 
 
+class ActivityEventData(BaseModel):
+    """Single activity change event from ESP32 (sent when activity state changes)."""
+    device_id: str
+    timestamp: int  # milliseconds since ESP32 boot
+    activity: str  # label: w, st, si, r, f, af, nf
+
+
 class IMUAlertData(BaseModel):
     """
     IMU-based fall detection alert from ESP32.
