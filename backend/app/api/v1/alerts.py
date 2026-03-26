@@ -6,7 +6,7 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
-from app.services.supabase_service import supabase_service
+from app.services.monitoring_services import alert_application_service
 
 
 class AlertUpdateBody(BaseModel):
@@ -32,13 +32,14 @@ async def list_alerts(
     Frontend can use this to show the alert list and get alert IDs for PATCH.
     """
     try:
-        alerts = supabase_service.get_alerts(
+        return alert_application_service.list_alerts(
             user_id=user_id,
             limit=limit,
             is_read=is_read,
             is_resolved=is_resolved,
         )
-        return {"status": "success", "count": len(alerts), "alerts": alerts}
+    except RuntimeError as e:
+        raise HTTPException(status_code=503, detail=str(e)) from e
     except Exception as e:
         logger.error(f"Error listing alerts: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Error listing alerts")
@@ -57,7 +58,7 @@ async def update_alert(alert_id: str, body: AlertUpdateBody):
             detail="Provide at least one of: is_read, is_resolved",
         )
     try:
-        updated = supabase_service.update_alert(
+        updated = alert_application_service.patch_alert(
             alert_id=alert_id,
             is_read=body.is_read,
             is_resolved=body.is_resolved,

@@ -6,6 +6,10 @@ This module provides:
   feature extraction, model training, and evaluation.
 """
 
+from .activity_classification_pipeline import (
+    ActivityClassificationPipeline,
+    ActivityPipelineConfig,
+)
 from .imu_fall_detection_pipeline import (
     load_all_sessions,
     make_windows,
@@ -18,13 +22,15 @@ from .imu_fall_detection_pipeline import (
 )
 
 __all__ = [
-    'load_all_sessions',
-    'make_windows',
-    'extract_features_for_windows',
-    'train_test_split_by_session',
-    'train_logistic_regression',
-    'train_random_forest',
-    'evaluate_model',
-    'run_full_pipeline',
+    "ActivityClassificationPipeline",
+    "ActivityPipelineConfig",
+    "load_all_sessions",
+    "make_windows",
+    "extract_features_for_windows",
+    "train_test_split_by_session",
+    "train_logistic_regression",
+    "train_random_forest",
+    "evaluate_model",
+    "run_full_pipeline",
 ]
 

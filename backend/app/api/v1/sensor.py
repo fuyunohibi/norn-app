@@ -1,17 +1,14 @@
-import json
 import logging
-from typing import Optional
 
 from app.models.sensor import ActivityEventData, IMUAlertData
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Request
+from app.services.monitoring_services import activity_monitoring_service
 from app.services.supabase_service import supabase_service
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Query
 
-# Set up logger
 logger = logging.getLogger(__name__)
 
-# Verify service is initialized
 if supabase_service is None:
-    logger.error("❌ Supabase service is not initialized! Check your configuration.")
+    logger.error("Supabase service is not initialized! Check your configuration.")
 
 router = APIRouter()
 
@@ -27,17 +24,16 @@ async def receive_activity_event(
     ESP32 sends only when the activity state changes (e.g. walk -> standing -> sitting).
     """
     try:
-        background_tasks.add_task(
-            supabase_service.store_activity_event,
+        return activity_monitoring_service.enqueue_activity_event(
+            background_tasks,
             user_id=user_id,
-            device_id=data.device_id,
-            activity=data.activity.strip().lower(),
-            timestamp_device=data.timestamp,
+            data=data,
         )
-        return {"status": "success", "message": "Activity event received", "activity": data.activity}
+    except RuntimeError as e:
+        raise HTTPException(status_code=503, detail=str(e)) from e
     except Exception as e:
-        logger.error(f"Error processing activity event: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Error processing activity event")
+        logger.error("Error processing activity event: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Error processing activity event") from e
 
 
 @router.get("/activity/statistics")
@@ -49,123 +45,37 @@ async def get_activity_statistics(
     Get activity statistics for the given period.
     Returns time spent and count per activity (walking, standing, sitting, etc.).
     """
-    if period not in ("today", "7d", "30d"):
-        raise HTTPException(status_code=400, detail="period must be one of: today, 7d, 30d")
     try:
-        stats = supabase_service.get_activity_statistics(user_id=user_id, period=period)
-        return {"status": "success", "statistics": stats}
+        return activity_monitoring_service.get_activity_statistics(user_id=user_id, period=period)
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except RuntimeError as e:
+        raise HTTPException(status_code=503, detail=str(e)) from e
     except Exception as e:
-        logger.error(f"Error fetching activity statistics: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Error fetching activity statistics")
+        logger.error("Error fetching activity statistics: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Error fetching activity statistics") from e
 
 
 @router.post("/imu/alert")
 async def receive_imu_alert(
     data: IMUAlertData,
     background_tasks: BackgroundTasks,
-    user_id: str = Query(default="0b8baf9c-dcfa-4d11-93d5-a08ce06a3d61")
+    user_id: str = Query(default="0b8baf9c-dcfa-4d11-93d5-a08ce06a3d61"),
 ):
     """
-    Receive IMU-based fall detection alert from ESP32.
-    
-    This endpoint is called by the ESP32 when the on-device ML model
-    detects a critical state (falling, after fall, or unstable standing).
-    
-    Critical labels that trigger alerts:
-    - 'f' = falling (CRITICAL)
-    - 'af' = after fall on floor (CRITICAL)
-    - 'nf' = unstable standing / near fall (HIGH)
-    
-    Args:
-        data: IMUAlertData with device_id, timestamp, prediction, etc.
-        user_id: User ID to associate with the alert
-    
-    Returns:
-        Alert acknowledgment with stored alert ID
+    Receive IMU-based alert from ESP32 when on-device ML reports a critical activity label.
+
+    Critical labels: ``f`` (falling), ``af`` (after fall), ``nf`` (unstable / near fall).
     """
     try:
-        data_dict = data.model_dump()
-        prediction = data_dict.get("prediction", "")
-        device_id = data_dict.get("device_id", "unknown")
-        
-        logger.info("=" * 60)
-        logger.info("🚨 IMU FALL DETECTION ALERT RECEIVED")
-        logger.info("=" * 60)
-        logger.info(f"Device ID: {device_id}")
-        logger.info(f"Prediction: {prediction}")
-        logger.info(f"Timestamp: {data_dict.get('timestamp')}")
-        logger.info(f"User ID: {user_id}")
-        
-        # Determine alert type and severity based on prediction
-        alert_type = "fall"
-        severity = "high"
-        title = "Activity Alert"
-        message = f"Detected: {prediction}"
-        
-        # Map predictions to alert details
-        if prediction == "f":
-            alert_type = "fall"
-            severity = "critical"
-            title = "Fall Detected!"
-            message = "A fall has been detected by the IMU sensor. Please check on the user immediately."
-            logger.warning("⚠️  CRITICAL: FALL DETECTED!")
-        elif prediction == "af":
-            alert_type = "fall"
-            severity = "critical"
-            title = "Person on Floor After Fall"
-            message = "The user appears to be on the floor after a fall. Immediate assistance may be required."
-            logger.warning("⚠️  CRITICAL: AFTER FALL ON FLOOR!")
-        elif prediction == "nf":
-            alert_type = "fall_risk"
-            severity = "high"
-            title = "Unstable Standing Detected"
-            message = "The user appears to be standing unsteadily. They may be at risk of falling."
-            logger.warning("⚠️  HIGH: UNSTABLE STANDING DETECTED!")
-        else:
-            # Non-critical prediction - log but don't create alert
-            logger.info(f"Non-critical prediction received: {prediction}")
-            return {
-                "status": "success",
-                "message": f"Prediction logged (non-critical): {prediction}",
-                "alert_created": False
-            }
-        
-        # Create alert in Supabase
-        alert_data = {
-            "user_id": user_id,
-            "alert_type": alert_type,
-            "severity": severity,
-            "title": title,
-            "message": message,
-            "alert_data": {
-                "source": "imu",
-                "device_id": device_id,
-                "prediction": prediction,
-                "prediction_idx": data_dict.get("prediction_idx"),
-                "timestamp_ms": data_dict.get("timestamp"),
-                "ml_detected": True
-            }
-        }
-        
-        # Store alert in background
-        background_tasks.add_task(
-            supabase_service.create_alert,
-            alert_data
+        return activity_monitoring_service.enqueue_imu_alert(
+            background_tasks,
+            user_id=user_id,
+            data=data,
         )
-        
-        logger.info(f"✓ Alert created: {alert_type} ({severity})")
-        
-        return {
-            "status": "success",
-            "message": f"Alert created: {title}",
-            "alert_created": True,
-            "alert_type": alert_type,
-            "severity": severity
-        }
-        
+    except RuntimeError as e:
+        raise HTTPException(status_code=503, detail=str(e)) from e
     except Exception as e:
-        logger.error(f"❌ Error processing IMU alert: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Error processing IMU alert: {str(e)}")
+        logger.error("Error processing IMU alert: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error processing IMU alert: {e}") from e
 

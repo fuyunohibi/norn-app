@@ -539,12 +539,20 @@ def evaluate_model(
         X_test_transformed = X_test
     
     y_pred = model.predict(X_test_transformed)
-    
+
+    # Use the model's known classes so the matrix/report stay well-defined when the test
+    # fold is missing some labels (common with session splits).
+    if hasattr(model, "classes_") and getattr(model, "classes_", None) is not None:
+        labels = list(model.classes_)
+    else:
+        labels = sorted(set(y_test) | set(y_pred))
+
     accuracy = accuracy_score(y_test, y_pred)
-    report = classification_report(y_test, y_pred, output_dict=True)
-    report_str = classification_report(y_test, y_pred)
-    cm = confusion_matrix(y_test, y_pred)
-    labels = sorted(set(y_test) | set(y_pred))
+    report = classification_report(
+        y_test, y_pred, labels=labels, output_dict=True, zero_division=0
+    )
+    report_str = classification_report(y_test, y_pred, labels=labels, zero_division=0)
+    cm = confusion_matrix(y_test, y_pred, labels=labels)
     
     print(f"\n{'='*60}")
     print(f"=== {model_name} ===")
