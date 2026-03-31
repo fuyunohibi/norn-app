@@ -8,8 +8,8 @@ Output: ml/data/new/synthetic_sessions/session_*.csv
 
 from __future__ import annotations
 
+import glob
 import os
-import re
 import sys
 from typing import Dict, List, Tuple
 
@@ -28,7 +28,9 @@ DURATION_SAMPLES_RANGE = (55 * SAMPLE_RATE_HZ, 65 * SAMPLE_RATE_HZ)  # inclusive
 
 # Five underrepresented motion/fall classes (standing/sitting come from recordings only)
 SYNTH_LABELS = ["f", "af", "nf", "r", "w"]
-SESSIONS_PER_LABEL = 100
+
+# Total sessions (recorded + synthetic). Synthetic count = this minus unique recorded sessions.
+TARGET_COMBINED_SESSIONS = 300
 
 # Session IDs far above recorded ranges (sessions + movement offsets)
 SESSION_ID_START = 500_001
@@ -155,15 +157,33 @@ def main() -> None:
     for lab in SYNTH_LABELS:
         print(f"  Pool '{lab}': {len(pools[lab]):,} rows")
 
+    n_recorded = int(combined["session_id"].nunique())
+    n_synth = max(0, TARGET_COMBINED_SESSIONS - n_recorded)
+    n_labels = len(SYNTH_LABELS)
+    per_label = [n_synth // n_labels] * n_labels
+    for i in range(n_synth % n_labels):
+        per_label[i] += 1
+    print(
+        f"\nRecorded sessions: {n_recorded}  →  synthetic target: {n_synth}  "
+        f"(combined total {n_recorded + n_synth}, cap={TARGET_COMBINED_SESSIONS})"
+    )
+    print(f"  Sessions per synth label: {dict(zip(SYNTH_LABELS, per_label))}")
+
     os.makedirs(out_dir, exist_ok=True)
+    for old in glob.glob(os.path.join(out_dir, "session_*.csv")):
+        os.remove(old)
+    man_old = os.path.join(out_dir, "_manifest.txt")
+    if os.path.isfile(man_old):
+        os.remove(man_old)
+
     rng = np.random.default_rng(42)
 
     sid = SESSION_ID_START
     manifest: List[Tuple[int, str, int]] = []
 
-    for lab in SYNTH_LABELS:
+    for lab, n_sessions in zip(SYNTH_LABELS, per_label):
         pool = pools[lab]
-        for _ in range(SESSIONS_PER_LABEL):
+        for _ in range(n_sessions):
             n = int(rng.integers(DURATION_SAMPLES_RANGE[0], DURATION_SAMPLES_RANGE[1] + 1))
             imu = _synthesize_one_session(pool, lab, rng, n)
             path = os.path.join(out_dir, f"session_{sid}.csv")

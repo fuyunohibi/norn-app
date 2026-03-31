@@ -70,6 +70,9 @@ def generate_augmented_report(
     rf_results: Dict,
     feature_names: List[str],
     output_path: str,
+    *,
+    n_recorded_sessions: int,
+    n_synthetic_sessions: int,
 ) -> None:
     with open(output_path, "w") as f:
         f.write("# IMU Fall/Activity Detection — Training results\n\n")
@@ -86,7 +89,9 @@ def generate_augmented_report(
         f.write("## Dataset summary\n\n")
         f.write("| Metric | Value |\n")
         f.write("|--------|-------|\n")
-        f.write(f"| Sessions | {combined_df['session_id'].nunique()} |\n")
+        f.write(f"| Sessions (total) | {combined_df['session_id'].nunique()} |\n")
+        f.write(f"| Recorded sessions | {n_recorded_sessions} |\n")
+        f.write(f"| Synthetic sessions | {n_synthetic_sessions} |\n")
         f.write(f"| Samples | {len(combined_df):,} |\n")
         f.write(f"| Total windows | {len(features_df):,} |\n")
         f.write("| Window size | 1.0 s |\n")
@@ -157,6 +162,10 @@ def generate_augmented_report(
         f.write("## Output artifacts (this run only)\n\n")
         f.write("- Numeric summary (this document)\n")
         f.write("- Confusion-matrix, feature-importance, and window-count bar chart (same folder)\n")
+        f.write(
+            "- **random_forest_per_class_metrics.png** — precision/recall/F1 bar chart per class; "
+            "run `python3 reports/new/plot_rf_per_class_metrics.py` after updating values in that script\n"
+        )
         f.write("- Trained model binaries under `ml/models/new/` (project root)\n")
 
     print(f"  Saved: {output_path}")
@@ -183,9 +192,12 @@ def main() -> None:
     recorded_df = pd.concat([original_df, friend_df], ignore_index=True)
     synthetic_df = load_synthetic_sessions(synthetic_dir)
     combined_df = pd.concat([recorded_df, synthetic_df], ignore_index=True)
+    n_rec_sess = int(recorded_df["session_id"].nunique())
+    n_syn_sess = int(synthetic_df["session_id"].nunique())
     print(
         f"  Combined: {len(combined_df):,} samples, "
-        f"{combined_df['session_id'].nunique()} sessions"
+        f"{combined_df['session_id'].nunique()} sessions "
+        f"(recorded {n_rec_sess}, synthetic {n_syn_sess})"
     )
 
     print("\n[2/7] Windowing...")
@@ -256,6 +268,8 @@ def main() -> None:
         rf_results,
         feature_names,
         os.path.join(reports_dir, "baseline_results.md"),
+        n_recorded_sessions=n_rec_sess,
+        n_synthetic_sessions=n_syn_sess,
     )
 
     joblib.dump(
