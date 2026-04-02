@@ -30,6 +30,17 @@ class _FakeSupabase:
         self.stats_requests.append({"user_id": user_id, "period": period})
         return {"period": period, "by_activity": {}}
 
+    def get_imu_live_status(self, user_id: str, device_id=None, stale_seconds=90):
+        return {
+            "online": False,
+            "last_seen_at": None,
+            "age_seconds": None,
+            "activity_code": None,
+            "activity_label": None,
+            "device_id": device_id,
+            "reason": "no_events",
+        }
+
     async def create_alert(self, alert_data: dict):
         self.alert_calls.append(alert_data)
         return {"id": "a1"}
@@ -71,6 +82,13 @@ def test_get_activity_statistics_ok(svc: ActivityMonitoringService, fake_db: _Fa
     out = svc.get_activity_statistics(user_id="u1", period="today")
     assert out["status"] == "success"
     assert fake_db.stats_requests[-1]["period"] == "today"
+
+
+def test_get_imu_live_status_wraps_db(svc: ActivityMonitoringService) -> None:
+    out = svc.get_imu_live_status(user_id="u1", device_id="d1")
+    assert out["status"] == "success"
+    assert out["online"] is False
+    assert out["reason"] == "no_events"
 
 
 def test_enqueue_activity_event_schedules_store(svc: ActivityMonitoringService, fake_db: _FakeSupabase) -> None:

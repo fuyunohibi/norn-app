@@ -57,6 +57,24 @@ class ActivityMonitoringService:
         stats = self._db.get_activity_statistics(user_id=user_id, period=period)
         return {"status": "success", "statistics": stats}
 
+    def get_imu_live_status(
+        self,
+        *,
+        user_id: str,
+        device_id: Optional[str] = None,
+        stale_seconds: int = 90,
+    ) -> Dict[str, Any]:
+        """Mobile app: infer wearable on/off from last DB row (heartbeats use activity ``ping``)."""
+        self._require_db()
+        payload = self._db.get_imu_live_status(
+            user_id,
+            device_id=device_id,
+            stale_seconds=stale_seconds,
+        )
+        out: Dict[str, Any] = {"status": "success"}
+        out.update(payload)
+        return out
+
     def process_imu_alert(
         self,
         user_id: str,

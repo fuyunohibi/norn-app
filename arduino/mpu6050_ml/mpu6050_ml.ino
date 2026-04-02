@@ -22,6 +22,7 @@
 #include <math.h>
 
 #include "config.h"
+#include "mpu6050_lenient.h"
 #include "fall_model.h"
 #include "labels.h"
 #include "features.h"
@@ -53,35 +54,48 @@ int currentPrediction = -1;
 int previousPrediction = -1;
 const char* currentLabel = "";
 
+unsigned long lastHeartbeatMs = 0;
+
 // ============================================================================
 // WiFi Functions
 // ============================================================================
 
-void connectWiFi() {
+bool connectWiFiWithOption(bool restartOnFailure) {
     Serial.print("Connecting to WiFi: ");
     Serial.println(WIFI_SSID);
-    
+
+    WiFi.mode(WIFI_STA);
     WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-    
+
     int attempts = 0;
-    int maxAttempts = WIFI_TIMEOUT_SEC * 2;  // Check every 500ms
-    
+    int maxAttempts = WIFI_TIMEOUT_SEC * 2;
+
     while (WiFi.status() != WL_CONNECTED && attempts < maxAttempts) {
         delay(500);
         Serial.print(".");
         attempts++;
     }
-    
+
     if (WiFi.status() == WL_CONNECTED) {
         Serial.println("\nWiFi connected!");
         Serial.print("IP address: ");
         Serial.println(WiFi.localIP());
-    } else {
-        Serial.println("\nWiFi connection FAILED!");
+        return true;
+    }
+
+    Serial.println("\nWiFi connection FAILED!");
+    if (restartOnFailure) {
         Serial.println("Restarting in 5 seconds...");
         delay(5000);
         ESP.restart();
+    } else {
+        Serial.println("(No restart — BLE remote can retry later.)");
     }
+    return false;
+}
+
+void connectWiFi() {
+    connectWiFiWithOption(true);
 }
 
 // ============================================================================
@@ -306,6 +320,34 @@ void sendAlert(int prediction, const char* label) {
 // Setup
 // ============================================================================
 
+static uint8_t mpu6050ReadWhoAmIByte(uint8_t devAddr) {
+    Wire.beginTransmission(devAddr);
+    Wire.write((uint8_t)0x75);
+    uint8_t err = Wire.endTransmission(false);
+    if (err != 0) {
+        return 0xFF;
+    }
+    if (Wire.requestFrom(devAddr, (uint8_t)1) != 1) {
+        return 0xFF;
+    }
+    return Wire.available() ? (uint8_t)Wire.read() : (uint8_t)0xFF;
+}
+
+static void printI2cScan() {
+    Serial.println("I2C scan (1-126):");
+    int found = 0;
+    for (uint8_t addr = 1; addr < 127; addr++) {
+        Wire.beginTransmission(addr);
+        if (Wire.endTransmission() == 0) {
+            Serial.printf("  0x%02X\n", addr);
+            found++;
+        }
+    }
+    if (found == 0) {
+        Serial.println("  (none - check SDA/SCL/GND and 3.3V)");
+    }
+}
+
 void setup() {
     Serial.begin(115200);
     while (!Serial) delay(10);
@@ -317,10 +359,55 @@ void setup() {
     // Connect WiFi
     connectWiFi();
     
-    // Initialize MPU6050
+    // Initialize MPU6050 (try both I2C addresses: AD0 LOW=0x68, AD0 HIGH=0x69)
     Serial.println("\nInitializing MPU6050...");
-    if (!mpu.begin()) {
-        Serial.println("MPU6050 not found!");
+#if defined(MPU6050_I2C_SDA) && defined(MPU6050_I2C_SCL)
+    Wire.begin(MPU6050_I2C_SDA, MPU6050_I2C_SCL);
+    Serial.printf("I2C: SDA=%d SCL=%d\n", MPU6050_I2C_SDA, MPU6050_I2C_SCL);
+#else
+    Wire.begin();
+#endif
+#ifdef MPU6050_I2C_CLOCK_HZ
+    Wire.setClock((uint32_t)MPU6050_I2C_CLOCK_HZ);
+#else
+    Wire.setClock(100000);
+#endif
+#if defined(MPU6050_I2C_ADDR)
+    bool mpuOk = mpu.begin(MPU6050_I2C_ADDR);
+    if (!mpuOk) {
+        Serial.println("Retry with relaxed WHO_AM_I (clone rules)...");
+        mpuOk = mpu6050BeginLenient(mpu, MPU6050_I2C_ADDR, &Wire, false);
+    }
+#if defined(MPU6050_SKIP_WHOAMI_CHECK)
+    if (!mpuOk) {
+        Serial.println("MPU6050_SKIP_WHOAMI_CHECK: init without WHO_AM_I...");
+        mpuOk = mpu6050BeginLenient(mpu, MPU6050_I2C_ADDR, &Wire, true);
+    }
+#endif
+#else
+    bool mpuOk = mpu.begin(0x68) || mpu.begin(0x69);
+    if (!mpuOk) {
+        Serial.println("Retry with relaxed WHO_AM_I (clone rules)...");
+        mpuOk = mpu6050BeginLenient(mpu, 0x68, &Wire, false) || mpu6050BeginLenient(mpu, 0x69, &Wire, false);
+    }
+#if defined(MPU6050_SKIP_WHOAMI_CHECK)
+    if (!mpuOk) {
+        Serial.println("MPU6050_SKIP_WHOAMI_CHECK: init without WHO_AM_I...");
+        mpuOk = mpu6050BeginLenient(mpu, 0x68, &Wire, true) || mpu6050BeginLenient(mpu, 0x69, &Wire, true);
+    }
+#endif
+#endif
+    if (!mpuOk) {
+#if defined(MPU6050_I2C_ADDR)
+        Serial.printf("MPU6050 not found at 0x%02X - check SDA/SCL/VCC/GND.\n", MPU6050_I2C_ADDR);
+#else
+        Serial.println("MPU6050 not found at 0x68 or 0x69 - check SDA/SCL/VCC/GND.");
+#endif
+        uint8_t w68 = mpu6050ReadWhoAmIByte(0x68);
+        uint8_t w69 = mpu6050ReadWhoAmIByte(0x69);
+        Serial.printf("WHO_AM_I raw: 0x68->0x%02X (id6=0x%02X)  0x69->0x%02X (id6=0x%02X)\n",
+                      w68, (unsigned)((w68 >> 1) & 0x3F), w69, (unsigned)((w69 >> 1) & 0x3F));
+        printI2cScan();
         while (1) delay(1000);
     }
     Serial.println("MPU6050 initialized!");
@@ -357,7 +444,13 @@ void setup() {
 
 void loop() {
     unsigned long now = millis();
-    
+
+    if (WiFi.status() == WL_CONNECTED &&
+        (now - lastHeartbeatMs >= IMU_HEARTBEAT_INTERVAL_MS)) {
+        lastHeartbeatMs = now;
+        sendActivityChange(now, "ping");
+    }
+
     // -------------------------------------------------------------------------
     // Sample IMU at 50Hz
     // -------------------------------------------------------------------------
@@ -441,6 +534,7 @@ void loop() {
             
             if (stateChanged) {
                 sendActivityChange(now, currentLabel);
+                lastHeartbeatMs = now;
                 if (isCritical) {
                     #if DEBUG_ENABLED
                     Serial.printf("State changed: %s -> %s (sending alert)\n",

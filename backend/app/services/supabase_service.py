@@ -109,7 +109,12 @@ class SupabaseService:
                 "error": str(e),
             }
 
-        events = result.data or []
+        events_raw = result.data or []
+        events = [
+            e
+            for e in events_raw
+            if e.get("activity", "").strip().lower() != "ping"
+        ]
         # Build by_activity: count of segments and total seconds per activity
         by_activity: Dict[str, Dict[str, Any]] = {}
         activity_labels: Dict[str, str] = {
@@ -149,7 +154,10 @@ class SupabaseService:
 
         # Build a simple events list for frontend (activity + created_at)
         events_list = [
-            {"activity": activity_labels.get(e.get("activity", "").strip().lower(), e.get("activity", "")), "created_at": e.get("created_at")}
+            {
+                "activity": activity_labels.get(e.get("activity", "").strip().lower(), e.get("activity", "")),
+                "created_at": e.get("created_at"),
+            }
             for e in events
         ]
 
@@ -160,6 +168,94 @@ class SupabaseService:
             "by_activity": by_activity,
             "events": events_list,
             "total_events": len(events),
+        }
+
+    def get_imu_live_status(
+        self,
+        user_id: str,
+        device_id: Optional[str] = None,
+        stale_seconds: int = 90,
+    ) -> Dict[str, Any]:
+        """
+        Last event time (including heartbeat ``ping``) determines if the wearable is powered and online.
+        Latest non-ping activity is the last reported movement class from the IMU.
+        """
+        activity_labels: Dict[str, str] = {
+            "w": "Walking",
+            "st": "Standing",
+            "si": "Sitting",
+            "r": "Running",
+            "f": "Falling",
+            "af": "After fall",
+            "nf": "Unstable",
+        }
+        try:
+            q = (
+                self.client.table("activity_events")
+                .select("activity, created_at, device_id")
+                .eq("user_id", user_id)
+                .order("created_at", desc=True)
+                .limit(50)
+            )
+            if device_id:
+                q = q.eq("device_id", device_id)
+            result = q.execute()
+            rows = result.data or []
+        except Exception as e:
+            logger.error("Error fetching IMU live status: %s", e)
+            return {
+                "online": False,
+                "last_seen_at": None,
+                "age_seconds": None,
+                "activity_code": None,
+                "activity_label": None,
+                "device_id": device_id,
+                "error": str(e),
+            }
+
+        if not rows:
+            return {
+                "online": False,
+                "last_seen_at": None,
+                "age_seconds": None,
+                "activity_code": None,
+                "activity_label": None,
+                "device_id": device_id,
+                "reason": "no_events",
+            }
+
+        now = datetime.now(timezone.utc)
+        last_ts_str = rows[0].get("created_at")
+        try:
+            last_dt = datetime.fromisoformat(str(last_ts_str).replace("Z", "+00:00"))
+            age_sec = max(0.0, (now - last_dt).total_seconds())
+        except Exception:
+            age_sec = float("inf")
+
+        online = age_sec <= float(stale_seconds)
+
+        last_activity_code: Optional[str] = None
+        for r in rows:
+            a = str(r.get("activity", "")).strip().lower()
+            if a and a != "ping":
+                last_activity_code = a
+                break
+
+        activity_label: Optional[str] = None
+        if last_activity_code:
+            activity_label = activity_labels.get(
+                last_activity_code,
+                last_activity_code,
+            )
+
+        return {
+            "online": online,
+            "last_seen_at": last_ts_str,
+            "age_seconds": int(age_sec) if age_sec != float("inf") else None,
+            "activity_code": last_activity_code,
+            "activity_label": activity_label,
+            "device_id": device_id or rows[0].get("device_id"),
+            "reason": None,
         }
 
     async def create_alert(self, alert_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:

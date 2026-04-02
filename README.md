@@ -114,6 +114,8 @@ API docs: http://localhost:8000/docs
    - **Sketch → Include Library → Manage Libraries**
    - Search and install: `DFRobot_HumanDetection`
 
+**`arduino/mpu6050_ml/` (IMU + on-device ML):** The Random Forest in `fall_model.h` produces a **large binary** (~1.9MB+). If the build fails with **Sketch too big** or **text section exceeds available space**, raise the app partition: **Tools → Partition Scheme → Huge APP (3MB No OTA)** (typical for **4MB** ESP32-WROOM-32). Use a scheme that matches your module’s **flash size** (e.g. 16MB boards need the corresponding huge-app option). Libraries: **Adafruit MPU6050**, **Adafruit Unified Sensor**, **Adafruit Bus IO**. The sketch sends periodic **activity `ping`** heartbeats so the mobile app (via **GET `/api/v1/sensor/imu/status`**) can tell if the wearable is powered.
+
 **Wire the sensor:**
 ```
 ESP32      C1001

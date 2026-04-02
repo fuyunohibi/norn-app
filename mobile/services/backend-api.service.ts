@@ -73,6 +73,18 @@ export interface SleepSummaryResponse {
   summary: SleepSummary;
 }
 
+export interface ImuWearableStatusResponse {
+  status: string;
+  online: boolean;
+  last_seen_at: string | null;
+  age_seconds: number | null;
+  activity_code: string | null;
+  activity_label: string | null;
+  device_id?: string | null;
+  reason?: string | null;
+  error?: string;
+}
+
 class BackendAPIService {
   private baseUrl: string;
 
@@ -179,6 +191,41 @@ class BackendAPIService {
       
       throw error;
     }
+  }
+
+  /**
+   * IMU clip: online if a row (including heartbeat `ping`) arrived recently; activity from last non-ping event.
+   */
+  async getImuWearableStatus(
+    userId: string,
+    deviceId?: string,
+    staleSeconds: number = 90,
+  ): Promise<ImuWearableStatusResponse> {
+    const url = new URL(`${this.baseUrl}/api/v1/sensor/imu/status`);
+    url.searchParams.set("user_id", userId);
+    if (deviceId) {
+      url.searchParams.set("device_id", deviceId);
+    }
+    url.searchParams.set("stale_seconds", String(staleSeconds));
+
+    const response = await fetch(url.toString(), {
+      method: "GET",
+      headers: { "Content-Type": "application/json" },
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      let detail = text;
+      try {
+        const j = JSON.parse(text);
+        detail = j.detail ?? text;
+      } catch {
+        /* keep text */
+      }
+      throw new Error(detail || `HTTP ${response.status}`);
+    }
+
+    return response.json();
   }
 
   /**

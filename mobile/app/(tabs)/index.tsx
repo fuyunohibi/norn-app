@@ -25,6 +25,7 @@ import { NornIcon } from "../../components/norn-icon";
 import { Button } from "../../components/ui/button";
 import { Card } from "../../components/ui/card";
 import { useEmergencyContacts } from "../../hooks/useEmergencyContacts";
+import { useImuWearableStatus } from "../../hooks/useImuWearableStatus";
 import { useLatestSensorReading } from "../../hooks/useSensorReadings";
 import { backendAPIService } from "../../services/backend-api.service";
 import { getUnreadAlerts } from "../../services/monitoring.service";
@@ -63,6 +64,11 @@ const HomeScreen = () => {
     timestamp,
     readingType,
   } = useLatestSensorReading(userId);
+  const {
+    data: imuStatus,
+    isLoading: imuStatusLoading,
+    error: imuStatusError,
+  } = useImuWearableStatus(userId);
   const [showModeSelector, setShowModeSelector] = useState(false);
   const insets = useSafeAreaInsets();
   const lastFallAlertRef = useRef<string | null>(null);
@@ -370,6 +376,64 @@ const HomeScreen = () => {
               }`}
             />
           </View>
+        </Card>
+
+        <Card variant="outlined" className="mb-6">
+          <Text className="text-lg font-hell-round-bold text-gray-900 mb-2">
+            Fall sensor (wearable)
+          </Text>
+          {backendConnected === null ? (
+            <View className="py-2">
+              <ActivityIndicator color="#FF7300" />
+            </View>
+          ) : backendConnected === false ? (
+            <Text className="text-gray-600 text-sm font-hell">
+              Connect to the backend to see whether your clip sensor is powered and reporting.
+            </Text>
+          ) : imuStatusLoading ? (
+            <View className="py-2">
+              <ActivityIndicator color="#FF7300" />
+            </View>
+          ) : imuStatusError ? (
+            <Text className="text-orange-600 text-sm font-hell">
+              Could not load sensor status. Check the API and database.
+            </Text>
+          ) : imuStatus?.online ? (
+            <View>
+              <View className="flex-row items-center mb-2">
+                <View className="w-3 h-3 rounded-full bg-green-500 mr-2" />
+                <Text className="text-gray-800 font-hell-round-bold">On</Text>
+              </View>
+              <Text className="text-gray-700 text-sm font-hell">
+                Current activity:{" "}
+                <Text className="font-hell-round-bold">
+                  {imuStatus.activity_label ??
+                    "No activity change yet (sensor is running)"}
+                </Text>
+              </Text>
+              {imuStatus.last_seen_at ? (
+                <Text className="text-gray-500 text-xs font-hell mt-2">
+                  Last signal: {new Date(imuStatus.last_seen_at).toLocaleString()}
+                  {typeof imuStatus.age_seconds === "number"
+                    ? ` (${imuStatus.age_seconds}s ago)`
+                    : ""}
+                </Text>
+              ) : null}
+            </View>
+          ) : (
+            <View>
+              <View className="flex-row items-center mb-2">
+                <View className="w-3 h-3 rounded-full bg-gray-400 mr-2" />
+                <Text className="text-gray-800 font-hell-round-bold">
+                  Not available
+                </Text>
+              </View>
+              <Text className="text-gray-600 text-sm font-hell">
+                The sensor may be switched off, out of Wi-Fi range, or has not
+                reported in the last ~90 seconds.
+              </Text>
+            </View>
+          )}
         </Card>
 
         {/* Mode Selector */}

@@ -1,7 +1,13 @@
 /*
  * Configuration for MPU6050 ML Fall Detection
- * 
+ *
  * IMPORTANT: Update these settings before uploading to ESP32
+ *
+ * FLASH / PARTITION (Arduino IDE): The embedded model compiles to ~1.9MB+ firmware.
+ * Default "OTA" partitions only allow ~1.3MB app -> link error "text section exceeds".
+ * Set: Tools -> Partition Scheme -> Huge APP (3MB No OTA) [4MB flash modules]
+ *      or a 16MB-flash scheme if your board has 16MB.
+ * Optional: increase IMU_HEARTBEAT_INTERVAL_MS if you want fewer API calls (mobile "online" uses this).
  */
 
 #ifndef CONFIG_H
@@ -12,8 +18,8 @@
 // ============================================================================
 
 // Your WiFi network credentials
-#define WIFI_SSID "wiangkham2.4G"
-#define WIFI_PASSWORD "532707902"
+#define WIFI_SSID "Pochara"
+#define WIFI_PASSWORD "petch123"
 
 // Connection timeout (seconds)
 #define WIFI_TIMEOUT_SEC 30
@@ -34,6 +40,9 @@
 
 // Device ID for this ESP32
 #define DEVICE_ID "esp32-imu-001"
+
+// Heartbeat: POST activity "ping" over WiFi so the backend knows the wearable is powered (mobile reads /imu/status).
+#define IMU_HEARTBEAT_INTERVAL_MS 45000
 
 // HTTP timeout (milliseconds)
 #define HTTP_TIMEOUT_MS 10000
@@ -86,6 +95,18 @@
 
 // Print state machine debug info (transitions blocked, etc.)
 #define DEBUG_STATE_MACHINE true
+
+// I2C (MPU6050)
+// Default on ESP32 is SDA=GPIO21, SCL=GPIO22. If your wiring differs, uncomment and set:
+// #define MPU6050_I2C_SDA 21
+// #define MPU6050_I2C_SCL 22
+// MPU6050 is 0x68 when AD0 is LOW, 0x69 when AD0 is HIGH. The sketch tries both unless you force:
+// #define MPU6050_I2C_ADDR 0x69
+// WHO_AM_I 0x70 = MPU-6500 (common on boards sold as MPU6050). 0x68 = MPU-6050. Relaxed init accepts both.
+// Lower I2C speed if you see flaky reads (default 100 kHz in sketch):
+// #define MPU6050_I2C_CLOCK_HZ 50000
+// Last resort: only if something ACKs at 0x68 but ID never matches — may hang on wrong chip:
+// #define MPU6050_SKIP_WHOAMI_CHECK
 
 // Enable serial debug output
 #define DEBUG_ENABLED true
