@@ -42,6 +42,7 @@ class ActivityMonitoringService:
             device_id=data.device_id,
             activity=activity,
             timestamp_device=data.timestamp,
+            extras=data.extras,
         )
         return {
             "status": "success",
@@ -134,20 +135,26 @@ class ActivityMonitoringService:
                 None,
             )
 
+        inner: Dict[str, Any] = {
+            "source": "imu",
+            "device_id": device_id,
+            "prediction": prediction,
+            "prediction_idx": data_dict.get("prediction_idx"),
+            "timestamp_ms": data_dict.get("timestamp"),
+            "ml_detected": True,
+        }
+        if data_dict.get("confidence") is not None:
+            inner["confidence"] = data_dict.get("confidence")
+        if data_dict.get("features") is not None:
+            inner["features"] = data_dict.get("features")
+
         alert_data: Dict[str, Any] = {
             "user_id": user_id,
             "alert_type": alert_type,
             "severity": severity,
             "title": title,
             "message": message,
-            "alert_data": {
-                "source": "imu",
-                "device_id": device_id,
-                "prediction": prediction,
-                "prediction_idx": data_dict.get("prediction_idx"),
-                "timestamp_ms": data_dict.get("timestamp"),
-                "ml_detected": True,
-            },
+            "alert_data": inner,
         }
 
         return (

@@ -8,6 +8,7 @@ class ActivityEventData(BaseModel):
     device_id: str
     timestamp: int  # milliseconds since ESP32 boot
     activity: str  # label: w, st, si, r, f, af, nf, or "ping" for heartbeat (ignored in stats)
+    extras: Optional[dict] = None  # optional JSON (e.g. future: confidence); stored in DB extras column
 
 
 class IMUAlertData(BaseModel):

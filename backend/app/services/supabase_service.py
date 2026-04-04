@@ -44,15 +44,19 @@ class SupabaseService:
         device_id: Optional[str],
         activity: str,
         timestamp_device: Optional[int] = None,
+        extras: Optional[Dict[str, Any]] = None,
     ) -> Optional[Dict[str, Any]]:
         """Store one activity change event from ESP32."""
         try:
-            result = self.client.table("activity_events").insert({
+            row: Dict[str, Any] = {
                 "user_id": user_id,
                 "device_id": device_id,
                 "activity": activity,
                 "timestamp_device": timestamp_device,
-            }).execute()
+            }
+            if extras:
+                row["extras"] = extras
+            result = self.client.table("activity_events").insert(row).execute()
             logger.debug(f"Activity event stored: {activity} for user {user_id}")
             return result.data[0] if result.data else None
         except Exception as e:
@@ -275,14 +279,25 @@ class SupabaseService:
             Created alert record or None if failed
         """
         try:
-            result = self.client.table("alerts").insert({
+            inner = alert_data.get("alert_data") or {}
+            source_device_id = None
+            if isinstance(inner, dict):
+                raw = inner.get("device_id")
+                if isinstance(raw, str) and raw.strip():
+                    source_device_id = raw.strip()
+
+            row: Dict[str, Any] = {
                 "user_id": alert_data.get("user_id"),
                 "alert_type": alert_data.get("alert_type"),
                 "severity": alert_data.get("severity", "high"),
                 "title": alert_data.get("title"),
                 "message": alert_data.get("message"),
-                "alert_data": alert_data.get("alert_data", {})
-            }).execute()
+                "alert_data": alert_data.get("alert_data", {}),
+            }
+            if source_device_id is not None:
+                row["source_device_id"] = source_device_id
+
+            result = self.client.table("alerts").insert(row).execute()
             
             logger.info(f"✅ Alert created: {alert_data.get('alert_type')} for user {alert_data.get('user_id')}")
             return result.data[0] if result.data else None
@@ -308,9 +323,16 @@ class SupabaseService:
                 .limit(limit)
             )
             if is_read is not None:
-                query = query.eq("is_read", is_read)
+                if is_read is False:
+                    # Unread = false or null (legacy / partial rows)
+                    query = query.or_("is_read.is.null,is_read.eq.false")
+                else:
+                    query = query.eq("is_read", True)
             if is_resolved is not None:
-                query = query.eq("is_resolved", is_resolved)
+                if is_resolved is False:
+                    query = query.or_("is_resolved.is.null,is_resolved.eq.false")
+                else:
+                    query = query.eq("is_resolved", True)
             result = query.execute()
             return result.data or []
         except Exception as e:

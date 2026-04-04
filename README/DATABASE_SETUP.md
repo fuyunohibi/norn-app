@@ -23,7 +23,7 @@ node scripts/migrate-database.js
 If you're experiencing RLS policy violations, the easiest solution is to recreate the tables with proper policies:
 
 1. Go to **SQL Editor** in Supabase
-2. Run the migration: `mobile/supabase/migrations/20250910_000005_recreate_tables_with_rls.sql`
+2. Run the migration: `mobile/supabase/migrations/20250910000005_recreate_tables_with_rls.sql`
    - This will drop and recreate all sensor-related tables (keeps `users` and `user_preferences`)
    - Sets up RLS with permissive INSERT policies for backend service_role
    - All tables will be recreated with correct schema and indexes
@@ -31,13 +31,15 @@ If you're experiencing RLS policy violations, the easiest solution is to recreat
 **Option B: Fix Existing Tables**
 
 If you want to keep existing data, run:
-- `mobile/supabase/migrations/20250910_000004_fix_rls_policies.sql`
+
+- `mobile/supabase/migrations/20250910000004_fix_rls_policies.sql`
 
 **Important:** The backend uses `service_role` key which should bypass RLS, but the permissive policies ensure inserts work even if RLS is enforced.
 
 ### 3. Verify Setup
 
 The migration will create:
+
 - ✅ All required tables (`users`, `sensor_devices`, `sensor_configurations`, etc.)
 - ✅ Row Level Security (RLS) policies
 - ✅ Database indexes for performance
@@ -48,15 +50,16 @@ The migration will create:
 
 ### Core Tables
 
-| Table | Purpose |
-|-------|---------|
-| `users` | User profiles with username and full name |
-| `sensor_devices` | C1001 device information and status |
-| `sensor_configurations` | Device settings and emergency contacts |
-| `sensor_readings` | Real-time sensor data (sleep, fall, movement) |
-| `alerts` | System alerts and notifications |
-| `monitoring_sessions` | Tracking monitoring sessions |
-| `user_preferences` | User notification and backup settings |
+| Table                   | Purpose                                       |
+| ----------------------- | --------------------------------------------- |
+| `users`                 | User profiles with username and full name     |
+| `sensor_devices`        | C1001 device information and status           |
+| `sensor_configurations` | Device settings and emergency contacts        |
+| `activity_events`       | IMU activity timeline (firmware → FastAPI)    |
+| `daily_statistics`      | Per-day aggregates (IMU + fall counts)        |
+| `alerts`                | System alerts and notifications               |
+| `monitoring_sessions`   | Tracking monitoring sessions                  |
+| `user_preferences`      | User notification and backup settings         |
 
 ### Key Features
 
@@ -77,16 +80,19 @@ EXPO_PUBLIC_SUPABASE_KEY=your_supabase_anon_key
 ## 🧪 Testing the Setup
 
 ### 1. Test Authentication
+
 - Try signing up with a new account
 - Check if user profile is created automatically
 - Verify login works correctly
 
 ### 2. Test Database Connection
+
 - Go to Settings page
 - Check the "Database Status" section
 - Should show "Database Connected" with green checkmark
 
 ### 3. Test User Profile
+
 - After login, user profile should be created
 - Check Supabase dashboard to see the new user record
 
@@ -116,6 +122,7 @@ EXPO_PUBLIC_SUPABASE_KEY=your_supabase_anon_key
 ## 📊 Database Health Check
 
 The app includes a built-in database health check component that:
+
 - Tests database connectivity
 - Shows connection status
 - Provides error details if issues occur
