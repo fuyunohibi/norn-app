@@ -34,14 +34,13 @@ describe('signup (registration)', () => {
     jest.restoreAllMocks();
   });
 
-  it('returns success true when auth signup and profile insert succeed', async () => {
-    const { signUp, from, insert } = getMocks();
+  it('returns success when auth signup includes profile metadata for DB trigger', async () => {
+    const { signUp, from } = getMocks();
 
     signUp.mockResolvedValue({
       data: { user: { id: 'user-123' } },
       error: null,
     });
-    insert.mockResolvedValue({ error: null });
 
     const result = await signup({
       email: 'TEST@EXAMPLE.COM ',
@@ -54,13 +53,14 @@ describe('signup (registration)', () => {
     expect(signUp).toHaveBeenCalledWith({
       email: 'test@example.com',
       password: 'password123',
+      options: {
+        data: {
+          username: 'myuser',
+          full_name: 'Test User',
+        },
+      },
     });
-    expect(from).toHaveBeenCalledWith('users');
-    expect(insert).toHaveBeenCalledWith({
-      user_id: 'user-123',
-      username: 'myuser',
-      full_name: 'Test User',
-    });
+    expect(from).not.toHaveBeenCalled();
   });
 
   it('maps "User already registered" auth error to a friendly message', async () => {
@@ -84,27 +84,5 @@ describe('signup (registration)', () => {
     });
   });
 
-  it('maps duplicate username profile insert error to a friendly message', async () => {
-    const { signUp, insert } = getMocks();
-
-    signUp.mockResolvedValue({
-      data: { user: { id: 'user-123' } },
-      error: null,
-    });
-    insert.mockResolvedValue({
-      error: { message: 'duplicate key value violates unique constraint', code: '23505' },
-    });
-
-    await expect(
-      signup({
-        email: 'a@b.com',
-        password: 'password123',
-        username: 'TakenName',
-        full_name: 'User',
-      })
-    ).resolves.toEqual({
-      error: 'This username is already taken. Please choose a different one.',
-    });
-  });
 });
 

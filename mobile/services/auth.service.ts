@@ -102,10 +102,21 @@ export async function signup(data: {
   
   try {
     console.log('📡 Calling Supabase auth.signUp...');
-    // 1. Create user in Supabase Auth
+    const username = data.username.toLowerCase().trim();
+    const full_name = data.full_name.trim();
+
+    // 1. Create user in Supabase Auth. `options.data` becomes raw_user_meta_data and is read by
+    //    the DB trigger `handle_new_user()` (see migrations) to insert `public.users` — do not
+    //    insert the profile again from the client or you get duplicate user_id (23505).
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email: data.email.toLowerCase().trim(),
       password: data.password,
+      options: {
+        data: {
+          username,
+          full_name,
+        },
+      },
     });
     
     console.log('📡 Supabase auth.signUp response:', {
@@ -140,40 +151,7 @@ export async function signup(data: {
     }
 
     console.log('✅ User created with ID:', userId);
-    console.log('📝 Inserting user profile...');
-    
-    // 2. Insert user profile via normal query
-    const { error: profileError } = await supabase.from('users').insert({
-      user_id: userId,
-      username: data.username.toLowerCase().trim(),
-      full_name: data.full_name.trim(),
-    });
-    
-    console.log('📝 Profile insert result:', {
-      error: profileError?.message,
-      code: profileError?.code
-    });
-
-    if (profileError) {
-      console.error('❌ Profile insert error:', profileError.message);
-
-      // Handle specific profile errors
-      if (
-        profileError.message.includes('duplicate key') ||
-        profileError.message.includes('already exists') ||
-        profileError.code === '23505'
-      ) {
-        return {
-          error: 'This username is already taken. Please choose a different one.',
-        };
-      }
-
-      return { 
-        error: profileError.message || 'Signup failed. Please try again.' 
-      };
-    }
-
-    // 3. Success
+    console.log('📝 Profile row is created by DB trigger from signup metadata.');
     return { success: true };
   } catch (error) {
     console.error('❌ Unexpected signup error:', error);

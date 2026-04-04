@@ -2,29 +2,45 @@ import { useQuery } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { Activity, Bell, ChevronRight, Info } from 'lucide-react-native';
 import React from 'react';
-import { ActivityIndicator, SafeAreaView, ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import {
+  ActivityIndicator,
+  RefreshControl,
+  ScrollView,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { getCurrentUser } from '../../actions/user.actions';
 import { Button } from '../../components/ui/button';
 import { Card } from '../../components/ui/card';
 import Header from '../../components/ui/header';
+import { useAuth } from '../../contexts/auth-context';
 import { formatMemberSince } from '../../utils/date.utils';
 
 const ProfileScreen = () => {
-  const { data: profile, isLoading, error } = useQuery({
-    queryKey: ['current-user'],
+  const { user, loading: authLoading } = useAuth();
+
+  const {
+    data: profile,
+    isPending,
+    isRefetching,
+    error,
+    refetch,
+  } = useQuery({
+    queryKey: ['current-user', user?.id],
     queryFn: getCurrentUser,
-    staleTime: 5 * 60 * 1000, // Consider data fresh for 5 minutes
+    enabled: !authLoading && !!user?.id,
+    staleTime: 60 * 1000,
   });
 
   if (error) {
     console.error('Profile query error:', error);
   }
 
-  console.log("profile", profile);
-  console.log("isLoading", isLoading);
-  console.log("error", error);
+  const showInitialLoading = authLoading || (!!user?.id && isPending);
 
-  if (isLoading) {
+  if (showInitialLoading) {
     return (
       <SafeAreaView className="flex-1 bg-white">
         <ScrollView className="flex-1 px-6">
@@ -45,7 +61,17 @@ const ProfileScreen = () => {
 
   return (
     <SafeAreaView className="flex-1 bg-white">
-      <ScrollView className="flex-1 px-6">
+      <ScrollView
+        className="flex-1 px-6"
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefetching}
+            onRefresh={() => refetch()}
+            tintColor="#FF7300"
+            colors={['#FF7300']}
+          />
+        }
+      >
         {/* Header */}
         <Header
           title="Profile"

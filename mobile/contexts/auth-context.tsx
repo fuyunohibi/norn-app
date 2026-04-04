@@ -1,4 +1,5 @@
 import { Session, User } from '@supabase/supabase-js';
+import { useQueryClient } from '@tanstack/react-query';
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { emailLogin, signup } from '../services/auth.service';
 import { DatabaseService } from '../services/database.service';
@@ -24,6 +25,7 @@ export const useAuth = () => {
 };
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const queryClient = useQueryClient();
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
@@ -44,6 +46,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUser(session?.user ?? null);
       setLoading(false);
 
+      if (
+        event === 'SIGNED_IN' ||
+        event === 'TOKEN_REFRESHED' ||
+        (event === 'INITIAL_SESSION' && session?.user)
+      ) {
+        queryClient.invalidateQueries({ queryKey: ['current-user'] });
+      }
+      if (event === 'SIGNED_OUT') {
+        queryClient.removeQueries({ queryKey: ['current-user'] });
+      }
+
       // Initialize user database when they sign in
       if (event === 'SIGNED_IN' && session?.user) {
         try {
@@ -58,7 +71,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [queryClient]);
 
   const signUp = async (data: { email: string; password: string; username: string; full_name: string }) => {
     console.log('🔑 AuthContext.signUp called');

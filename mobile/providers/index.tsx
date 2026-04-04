@@ -6,11 +6,9 @@ import { AppQueryProvider } from './query-provider';
 export const AppProviders: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <AuthProvider>
-        <AppQueryProvider>
-          {children}
-        </AppQueryProvider>
-      </AuthProvider>
+      <AppQueryProvider>
+        <AuthProvider>{children}</AuthProvider>
+      </AppQueryProvider>
     </GestureHandlerRootView>
   );
 };

@@ -322,7 +322,7 @@ npm run ios         # Run on iOS
 ### Backend
 ```bash
 cd backend
-python -m venv venv                        # Create virtual env
+python3 -m venv venv                        # Create virtual env
 venv\Scripts\activate                      # Activate (Windows)
 pip install -r requirements.txt            # Install dependencies
 uvicorn app.main:app --reload             # Start server

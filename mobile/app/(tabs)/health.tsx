@@ -1,6 +1,7 @@
 import { Activity, Heart, Moon, Shield, Star, User, Zap } from 'lucide-react-native';
 import React, { useMemo } from 'react';
-import { ActivityIndicator, SafeAreaView, ScrollView, Text, View } from 'react-native';
+import { ActivityIndicator, ScrollView, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Card } from '../../components/ui/card';
 import Header from '../../components/ui/header';
 import { useLatestSensorReading } from '../../hooks/useSensorReadings';
