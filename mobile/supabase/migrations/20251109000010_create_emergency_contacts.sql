@@ -26,31 +26,36 @@ CREATE INDEX IF NOT EXISTS idx_emergency_contacts_priority
 
 ALTER TABLE emergency_contacts ENABLE ROW LEVEL SECURITY;
 
--- Ensure service role always has access (backend integrations)
-CREATE POLICY IF NOT EXISTS "Service role full access to emergency_contacts"
+-- PostgreSQL has no CREATE POLICY IF NOT EXISTS; drop then create for idempotent push
+DROP POLICY IF EXISTS "Service role full access to emergency_contacts" ON emergency_contacts;
+DROP POLICY IF EXISTS "Users can view own emergency contacts" ON emergency_contacts;
+DROP POLICY IF EXISTS "Users can insert own emergency contacts" ON emergency_contacts;
+DROP POLICY IF EXISTS "Users can update own emergency contacts" ON emergency_contacts;
+DROP POLICY IF EXISTS "Users can delete own emergency contacts" ON emergency_contacts;
+
+CREATE POLICY "Service role full access to emergency_contacts"
     ON emergency_contacts
     FOR ALL
     USING (auth.role() = 'service_role')
     WITH CHECK (auth.role() = 'service_role');
 
--- Authenticated users can manage their own contacts
-CREATE POLICY IF NOT EXISTS "Users can view own emergency contacts"
+CREATE POLICY "Users can view own emergency contacts"
     ON emergency_contacts
     FOR SELECT
     USING (auth.uid() = user_id);
 
-CREATE POLICY IF NOT EXISTS "Users can insert own emergency contacts"
+CREATE POLICY "Users can insert own emergency contacts"
     ON emergency_contacts
     FOR INSERT
     WITH CHECK (auth.uid() = user_id);
 
-CREATE POLICY IF NOT EXISTS "Users can update own emergency contacts"
+CREATE POLICY "Users can update own emergency contacts"
     ON emergency_contacts
     FOR UPDATE
     USING (auth.uid() = user_id)
     WITH CHECK (auth.uid() = user_id);
 
-CREATE POLICY IF NOT EXISTS "Users can delete own emergency contacts"
+CREATE POLICY "Users can delete own emergency contacts"
     ON emergency_contacts
     FOR DELETE
     USING (auth.uid() = user_id);

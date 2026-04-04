@@ -163,8 +163,7 @@ const LineChart: React.FC<{
 
 const StatisticsScreen = () => {
   const { user } = useAuth();
-  const fallbackUserId = '0b8baf9c-dcfa-4d11-93d5-a08ce06a3d61';
-  const userId = useMemo(() => user?.id ?? fallbackUserId, [user?.id]);
+  const userId = user?.id;
   const insets = useSafeAreaInsets();
 
   const { data: dailyStats = [], isLoading: dailyStatsLoading, refetch: refetchDailyStats } = useQuery({
@@ -195,7 +194,8 @@ const StatisticsScreen = () => {
   }, []);
 
   // Fetch sleep summaries for the last 7 days
-  const shouldFetchRealSummaries = !USE_MOCK_STATISTICS && !!userId;
+  // Backend sleep-summary ML route removed with MPU6050; keep mock-only until a new pipeline exists.
+  const shouldFetchRealSummaries = false;
   const { data: fetchedSleepSummaries, isLoading: sleepSummariesLoading } = useSleepSummaries(
     shouldFetchRealSummaries ? userId : undefined,
     shouldFetchRealSummaries ? sleepSummaryDates : []

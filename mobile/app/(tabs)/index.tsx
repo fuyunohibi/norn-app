@@ -24,9 +24,10 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { NornIcon } from "../../components/norn-icon";
 import { Button } from "../../components/ui/button";
 import { Card } from "../../components/ui/card";
+import { useAuth } from "../../contexts/auth-context";
+import { useActivityStatistics } from "../../hooks/useActivityStatistics";
 import { useEmergencyContacts } from "../../hooks/useEmergencyContacts";
 import { useImuWearableStatus } from "../../hooks/useImuWearableStatus";
-import { useLatestSensorReading } from "../../hooks/useSensorReadings";
 import { backendAPIService } from "../../services/backend-api.service";
 import { getUnreadAlerts } from "../../services/monitoring.service";
 import { useModeStore } from "../../stores/mode.store";
@@ -44,6 +45,8 @@ const getModeIcon = (modeId: string) => {
 };
 
 const HomeScreen = () => {
+  const { user } = useAuth();
+  const userId = user?.id;
   const {
     modes,
     activeMode,
@@ -51,24 +54,19 @@ const HomeScreen = () => {
     isLoading: modeLoading,
     error: modeError,
   } = useModeStore();
-  // Use the default user_id that matches the backend (memoized)
-  const userId = React.useMemo(
-    () => "0b8baf9c-dcfa-4d11-93d5-a08ce06a3d61",
-    []
-  );
-  const {
-    reading,
-    rawData,
-    isLoading: readingLoading,
-    error: readingError,
-    timestamp,
-    readingType,
-  } = useLatestSensorReading(userId);
   const {
     data: imuStatus,
     isLoading: imuStatusLoading,
     error: imuStatusError,
   } = useImuWearableStatus(userId);
+  const {
+    data: activityStatsRes,
+    isLoading: activityStatsLoading,
+    error: activityStatsError,
+  } = useActivityStatistics(userId, "today");
+  const activityStats = activityStatsRes?.statistics;
+  const imuDataLoading = imuStatusLoading || activityStatsLoading;
+  const imuDataError = imuStatusError ?? null;
   const [showModeSelector, setShowModeSelector] = useState(false);
   const insets = useSafeAreaInsets();
   const lastFallAlertRef = useRef<string | null>(null);
@@ -270,7 +268,9 @@ const HomeScreen = () => {
       const mlPattern =
         typeof mlPatternSource === "string" ? mlPatternSource : mlAnalysisPattern;
       const mlDetectedValue = alertData["ml_detected"];
+      const imuSource = alertData["source"] === "imu";
       const isRealFall =
+        imuSource ||
         mlPattern === "real_fall_likely" ||
         (typeof mlDetectedValue === "boolean" && mlDetectedValue);
 
@@ -303,29 +303,26 @@ const HomeScreen = () => {
     }
   }, [unreadAlerts, activeMode?.id, presentFallQuickActions]);
 
-  // Immediate fall alert using live readings to give instant feedback on the home screen
+  // Live IMU activity codes from wearable (f / af / nf)
   useEffect(() => {
     if (activeMode?.id !== "fall") return;
-    if (!rawData && !reading) return;
+    const code = imuStatus?.activity_code?.toLowerCase();
+    if (!code || !["f", "af", "nf"].includes(code)) return;
 
-    const isFallDetected =
-      (rawData && rawData.mode === "fall_detection" && rawData.fall_status === 1) ||
-      Boolean(reading?.is_fall_detected);
-
-    if (!isFallDetected) return;
-
-    const fallIdentifier =
-      (reading && reading.id) ||
-      (rawData?.timestamp ? `ts-${rawData.timestamp}` : null);
-
-    if (fallIdentifier && lastFallAlertRef.current === fallIdentifier) return;
+    const fallIdentifier = `${code}-${imuStatus?.last_seen_at ?? ""}`;
+    if (lastFallAlertRef.current === fallIdentifier) return;
 
     lastFallAlertRef.current = fallIdentifier;
 
-    presentFallQuickActions(
-      "The sensor just detected a fall. Let us know if you need assistance.",
-    );
-  }, [activeMode?.id, rawData, reading, presentFallQuickActions]);
+    const msg =
+      code === "f"
+        ? "The wearable reported a fall. Let us know if you need assistance."
+        : code === "af"
+          ? "The wearable reports you may still be down after a fall."
+          : "The wearable reports unstable standing — you may be at risk of falling.";
+
+    presentFallQuickActions(msg);
+  }, [activeMode?.id, imuStatus?.activity_code, imuStatus?.last_seen_at, presentFallQuickActions]);
 
   return (
     <View className="flex-1 bg-white">
@@ -355,11 +352,11 @@ const HomeScreen = () => {
                   : "Checking..."}
               </Text>
               <Text className="text-gray-600 text-sm font-hell">
-                {readingLoading
-                  ? "Loading sensor data..."
-                  : reading
-                  ? "Receiving data"
-                  : "No data yet"}
+                {imuDataLoading
+                  ? "Loading wearable data..."
+                  : imuStatus?.online
+                    ? "Wearable online"
+                    : "No recent wearable signal"}
               </Text>
               {/* {modeError && (
                   <Text className="text-red-500 text-xs mt-1 font-hell">{modeError}</Text>
@@ -474,263 +471,162 @@ const HomeScreen = () => {
           </TouchableOpacity>
         </Card>
 
-        {/* Mode-Specific Data Display */}
-        {readingLoading && (
-          <View className="mb-6 items-center py-8">
-            <ActivityIndicator size="large" color="#FF7300" />
-            <Text className="text-gray-600 font-hell mt-4">
-              Loading sensor data...
-            </Text>
-          </View>
-        )}
-
-        {readingError && (
+        {!userId && (
           <Card variant="outlined" className="mb-6">
             <View className="p-4">
-              <Text className="text-red-500 font-hell-round-bold">
-                Error loading data
-              </Text>
-              <Text className="text-gray-600 text-sm font-hell mt-2">
-                {readingError.message || String(readingError)}
-              </Text>
-              <Text className="text-gray-500 text-xs font-hell mt-2">
-                Make sure EXPO_PUBLIC_API_URL is set to your computer's IP
-                (e.g., http://192.168.1.100:8000)
+              <Text className="text-gray-700 font-hell">
+                Sign in to load your wearable and activity data.
               </Text>
             </View>
           </Card>
         )}
 
-        {reading && rawData && (
+        {imuDataLoading && !!userId && (
+          <View className="mb-6 items-center py-8">
+            <ActivityIndicator size="large" color="#FF7300" />
+            <Text className="text-gray-600 font-hell mt-4">
+              Loading wearable data...
+            </Text>
+          </View>
+        )}
+
+        {imuDataError && !!userId && (
+          <Card variant="outlined" className="mb-6">
+            <View className="p-4">
+              <Text className="text-red-500 font-hell-round-bold">
+                Error loading wearable data
+              </Text>
+              <Text className="text-gray-600 text-sm font-hell mt-2">
+                {imuDataError.message || String(imuDataError)}
+              </Text>
+              <Text className="text-gray-500 text-xs font-hell mt-2">
+                Set EXPO_PUBLIC_API_URL to your computer&apos;s LAN IP (same Wi‑Fi as the phone).
+              </Text>
+            </View>
+          </Card>
+        )}
+
+        {!!userId && !imuStatusLoading && !imuDataError && (
           <View className="mb-6">
             <Text className="text-xl font-hell-round-bold text-gray-900 mb-2">
-              {activeMode?.name} Status
+              {activeMode?.name} (IMU)
             </Text>
-            {timestamp && (
+            {activityStatsError && (
+              <Text className="text-orange-600 text-xs font-hell mb-3">
+                Could not load today&apos;s activity breakdown.{" "}
+                {activityStatsError.message || String(activityStatsError)}
+              </Text>
+            )}
+            {imuStatus?.last_seen_at && (
               <Text className="text-gray-500 text-sm font-hell mb-4">
-                Last update: {new Date(timestamp).toLocaleTimeString()}
+                Last signal: {new Date(imuStatus.last_seen_at).toLocaleString()}
               </Text>
             )}
 
-            {activeMode?.id === "sleep" &&
-              rawData &&
-              (rawData.mode === "sleep_detection" ||
-                readingType === "sleep") && (
-                <View className="gap-y-3">
-                  {/* Sleep Quality */}
-                  <Card variant="outlined">
-                    <View className="flex-row items-center justify-between">
-                      <View className="flex-row items-center">
-                        <View className="w-12 h-12 bg-primary-accent rounded-xl items-center justify-center mr-4">
-                          <Moon size={24} color="white" fill="white" />
-                        </View>
-                        <View>
-                          <Text className="text-lg font-hell-round-bold text-gray-900 ">
-                            Sleep Quality
-                          </Text>
-                          <Text className="text-gray-600 text-sm font-hell">
-                            {rawData.quality_rating === 1
-                              ? "Good"
-                              : rawData.quality_rating === 2
-                              ? "Average"
-                              : rawData.quality_rating === 3
-                              ? "Poor"
-                              : "None"}
-                          </Text>
-                        </View>
+            {activeMode?.id === "sleep" && (
+              <View className="gap-y-3">
+                <Card variant="outlined">
+                  <View className="flex-row items-center justify-between">
+                    <View className="flex-row items-center">
+                      <View className="w-12 h-12 bg-primary-accent rounded-xl items-center justify-center mr-4">
+                        <Moon size={24} color="white" fill="white" />
                       </View>
-                      <Text className="text-2xl font-hell-round-bold text-primary-accent ">
-                        {rawData.sleep_quality_score ||
-                          reading.sleep_quality_score ||
-                          0}
-                      </Text>
-                    </View>
-                  </Card>
-
-                  {/* Sleep State */}
-                  <Card variant="outlined">
-                    <View className="flex-row items-center justify-between">
-                      <View className="flex-row items-center">
-                        <View className="w-12 h-12 bg-primary-button rounded-xl items-center justify-center mr-4">
-                          <Activity size={24} color="white" />
-                        </View>
-                        <View>
-                          <Text className="text-lg font-hell-round-bold text-gray-900 ">
-                            Sleep State
-                          </Text>
-                          <Text className="text-gray-600 text-sm font-hell">
-                            {rawData.in_bed === 1 ? "In Bed" : "Out of Bed"}
-                          </Text>
-                        </View>
+                      <View>
+                        <Text className="text-lg font-hell-round-bold text-gray-900 ">
+                          Today&apos;s activity
+                        </Text>
+                        <Text className="text-gray-600 text-sm font-hell">
+                          From MPU6050 events stored for your account
+                        </Text>
                       </View>
-                      <Text className="text-lg font-hell-round-bold text-gray-900 ">
-                        {rawData.comprehensive?.sleep_state === 0
-                          ? "Deep Sleep"
-                          : rawData.comprehensive?.sleep_state === 1
-                          ? "Light Sleep"
-                          : rawData.comprehensive?.sleep_state === 2
-                          ? "Awake"
-                          : rawData.sleep_status === 0
-                          ? "Deep Sleep"
-                          : rawData.sleep_status === 1
-                          ? "Light Sleep"
-                          : rawData.sleep_status === 2
-                          ? "Awake"
-                          : "None"}
-                      </Text>
                     </View>
-                  </Card>
+                    <Text className="text-2xl font-hell-round-bold text-primary-accent ">
+                      {activityStats?.total_events ?? 0}
+                    </Text>
+                  </View>
+                </Card>
 
-                  {/* Sleep Duration */}
-                  <Card variant="outlined">
-                    <View className="flex-row items-center justify-between">
-                      <View className="flex-row items-center">
-                        <View className="w-12 h-12 bg-success rounded-xl items-center justify-center mr-4">
-                          <Heart size={24} color="white" />
-                        </View>
-                        <View>
-                          <Text className="text-lg font-hell-round-bold text-gray-900 ">
-                            Sleep Duration
-                          </Text>
-                          <Text className="text-gray-600 text-sm font-hell">
-                            Deep: {rawData.deep_sleep_duration || 0}min
-                          </Text>
-                        </View>
-                      </View>
-                      <Text className="text-lg font-hell-round-bold text-gray-900 ">
-                        {rawData.awake_duration || 0}min awake
-                      </Text>
-                    </View>
-                  </Card>
-                </View>
-              )}
-
-            {activeMode?.id === "fall" &&
-              rawData &&
-              (rawData.mode === "fall_detection" || readingType === "fall") && (
-                <View className="gap-y-3">
-                  {/* Fall Status */}
-                  <Card variant="outlined">
-                    <View className="flex-row items-center justify-between">
-                      <View className="flex-row items-center">
+                <Card variant="outlined">
+                  <View className="p-4">
+                    <Text className="text-base font-hell-round-bold text-gray-900 mb-3">
+                      Time by posture (today)
+                    </Text>
+                    {activityStats?.by_activity &&
+                    Object.keys(activityStats.by_activity).length > 0 ? (
+                      Object.entries(activityStats.by_activity).map(([name, bucket]) => (
                         <View
-                          className={`w-12 h-12 rounded-xl items-center justify-center mr-4 ${
-                            rawData.fall_status === 1 ||
-                            reading.is_fall_detected
-                              ? "bg-red-500"
-                              : "bg-green-500"
-                          }`}
+                          key={name}
+                          className="flex-row items-center justify-between py-2 border-b border-gray-100"
                         >
-                          <Shield size={24} color="white" fill="white" />
-                        </View>
-                        <View>
-                          <Text className="text-lg font-hell-round-bold text-gray-900 ">
-                            Fall Status
-                          </Text>
-                          <Text className="text-gray-600 text-sm font-hell">
-                            {rawData.presence === 1 ||
-                            (reading && reading.is_person_detected)
-                              ? "Person Present"
-                              : "No Person"}
+                          <Text className="text-gray-700 font-hell capitalize">{name.replace(/_/g, " ")}</Text>
+                          <Text className="text-gray-900 font-hell-round-bold">
+                            {Math.round((bucket.total_seconds ?? 0) / 60)}m
                           </Text>
                         </View>
-                      </View>
-                      <Text
-                        className={`text-lg font-hell-round-bold ${
-                          rawData.fall_status === 1 ||
-                          (reading && reading.is_fall_detected)
-                            ? "text-red-500"
-                            : "text-green-500"
-                        }`}
-                      >
-                        {rawData.fall_status === 1 ||
-                        (reading && reading.is_fall_detected)
-                          ? "FALL DETECTED"
-                          : "Safe"}
+                      ))
+                    ) : (
+                      <Text className="text-gray-500 text-sm font-hell">
+                        No activity changes yet today. Move with the wearable on to populate this list.
                       </Text>
-                    </View>
-                  </Card>
-
-                  {/* Movement Status */}
-                  <Card variant="outlined">
-                    <View className="flex-row items-center justify-between">
-                      <View className="flex-row items-center">
-                        <View className="w-12 h-12 bg-primary-button rounded-xl items-center justify-center mr-4">
-                          <Zap size={24} color="white" />
-                        </View>
-                        <View>
-                          <Text className="text-lg font-hell-round-bold text-gray-900 ">
-                            Movement Status
-                          </Text>
-                          <Text className="text-gray-600 text-sm font-hell">
-                            Motion Level: {rawData.motion || 0}
-                          </Text>
-                        </View>
-                      </View>
-                      <Text className="text-lg font-hell-round-bold text-gray-900 ">
-                        {rawData.motion === 0
-                          ? "None"
-                          : rawData.motion === 1
-                          ? "Still"
-                          : "Active"}
-                      </Text>
-                    </View>
-                  </Card>
-
-                  {/* Body Movement */}
-                  <Card variant="outlined">
-                    <View className="flex-row items-center justify-between">
-                      <View className="flex-row items-center">
-                        <View className="w-12 h-12 bg-primary-accent rounded-xl items-center justify-center mr-4">
-                          <Activity size={24} color="white" />
-                        </View>
-                        <View>
-                          <Text className="text-lg font-hell-round-bold text-gray-900 ">
-                            Body Movement
-                          </Text>
-                          <Text className="text-gray-600 text-sm font-hell">
-                            Range: {rawData.body_movement || 0}
-                          </Text>
-                        </View>
-                      </View>
-                      <Text className="text-lg font-hell-round-bold text-gray-900 ">
-                        {reading && reading.is_movement_detected
-                          ? "Detected"
-                          : "None"}
-                      </Text>
-                    </View>
-                  </Card>
-                </View>
-              )}
-
-            {reading && !rawData && (
-              <Card variant="outlined" className="mb-6">
-                <View className="p-4">
-                  <Text className="text-gray-600 font-hell">
-                    No sensor data available yet
-                  </Text>
-                  <Text className="text-gray-500 text-sm font-hell mt-2">
-                    Waiting for sensor readings...
-                  </Text>
-                  <Text className="text-gray-400 text-xs font-hell mt-2">
-                    Reading ID: {reading.id} | Type: {reading.reading_type}
-                  </Text>
-                </View>
-              </Card>
+                    )}
+                  </View>
+                </Card>
+              </View>
             )}
 
-            {!reading && !readingLoading && !readingError && (
-              <Card variant="outlined" className="mb-6">
-                <View className="p-4">
-                  <Text className="text-gray-600 font-hell">
-                    No readings found
-                  </Text>
-                  <Text className="text-gray-500 text-sm font-hell mt-2">
-                    Make sure the backend is running and receiving data from
-                    ESP32
-                  </Text>
-                </View>
-              </Card>
+            {activeMode?.id === "fall" && (
+              <View className="gap-y-3">
+                <Card variant="outlined">
+                  <View className="flex-row items-center justify-between">
+                    <View className="flex-row items-center">
+                      <View
+                        className={`w-12 h-12 rounded-xl items-center justify-center mr-4 ${
+                          ["f", "af"].includes(imuStatus?.activity_code?.toLowerCase() ?? "")
+                            ? "bg-red-500"
+                            : imuStatus?.activity_code?.toLowerCase() === "nf"
+                              ? "bg-orange-500"
+                              : "bg-green-500"
+                        }`}
+                      >
+                        <Shield size={24} color="white" fill="white" />
+                      </View>
+                      <View>
+                        <Text className="text-lg font-hell-round-bold text-gray-900 ">
+                          IMU safety
+                        </Text>
+                        <Text className="text-gray-600 text-sm font-hell">
+                          Last class:{" "}
+                          {imuStatus?.activity_label ?? "—"}
+                        </Text>
+                      </View>
+                    </View>
+                    <Text
+                      className={`text-sm font-hell-round-bold text-right max-w-[40%] ${
+                        ["f", "af"].includes(imuStatus?.activity_code?.toLowerCase() ?? "")
+                          ? "text-red-500"
+                          : imuStatus?.activity_code?.toLowerCase() === "nf"
+                            ? "text-orange-600"
+                            : "text-green-600"
+                      }`}
+                    >
+                      {["f", "af"].includes(imuStatus?.activity_code?.toLowerCase() ?? "")
+                        ? "Critical"
+                        : imuStatus?.activity_code?.toLowerCase() === "nf"
+                          ? "Unstable"
+                          : "OK"}
+                    </Text>
+                  </View>
+                </Card>
+
+                <Card variant="outlined">
+                  <View className="p-4">
+                    <Text className="text-gray-700 text-sm font-hell">
+                      Critical alerts also appear from the backend when the ESP32 posts to{" "}
+                      <Text className="font-hell-round-bold">/imu/alert</Text>. Check Notifications for history.
+                    </Text>
+                  </View>
+                </Card>
+              </View>
             )}
           </View>
         )}

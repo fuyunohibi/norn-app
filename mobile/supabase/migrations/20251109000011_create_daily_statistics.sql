@@ -41,6 +41,8 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS set_daily_statistics_updated_at ON daily_statistics;
+
 CREATE TRIGGER set_daily_statistics_updated_at
 BEFORE UPDATE ON daily_statistics
 FOR EACH ROW
@@ -48,21 +50,23 @@ EXECUTE FUNCTION public.set_updated_at();
 
 ALTER TABLE daily_statistics ENABLE ROW LEVEL SECURITY;
 
--- Allow service role full access
-CREATE POLICY IF NOT EXISTS "Service role full access to daily_statistics"
+DROP POLICY IF EXISTS "Service role full access to daily_statistics" ON daily_statistics;
+DROP POLICY IF EXISTS "Users can manage own daily statistics" ON daily_statistics;
+DROP POLICY IF EXISTS "Public read demo daily statistics" ON daily_statistics;
+
+CREATE POLICY "Service role full access to daily_statistics"
     ON daily_statistics
     FOR ALL
     USING (auth.role() = 'service_role')
     WITH CHECK (auth.role() = 'service_role');
 
--- Allow authenticated users to manage their own statistics
-CREATE POLICY IF NOT EXISTS "Users can manage own daily statistics"
+CREATE POLICY "Users can manage own daily statistics"
     ON daily_statistics
     FOR ALL
     USING (auth.uid() = user_id)
     WITH CHECK (auth.uid() = user_id);
 
-CREATE POLICY IF NOT EXISTS "Public read demo daily statistics"
+CREATE POLICY "Public read demo daily statistics"
     ON daily_statistics
     FOR SELECT
     USING (

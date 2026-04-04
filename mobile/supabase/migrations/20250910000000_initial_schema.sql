@@ -215,6 +215,28 @@ ALTER TABLE alerts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE monitoring_sessions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_preferences ENABLE ROW LEVEL SECURITY;
 
+-- Idempotent RLS: allow db push on databases that already have these policies
+DROP POLICY IF EXISTS "Users can view own profile" ON users;
+DROP POLICY IF EXISTS "Users can update own profile" ON users;
+DROP POLICY IF EXISTS "Users can insert own profile" ON users;
+DROP POLICY IF EXISTS "Users can view own devices" ON sensor_devices;
+DROP POLICY IF EXISTS "Users can insert own devices" ON sensor_devices;
+DROP POLICY IF EXISTS "Users can update own devices" ON sensor_devices;
+DROP POLICY IF EXISTS "Users can delete own devices" ON sensor_devices;
+DROP POLICY IF EXISTS "Users can view own configurations" ON sensor_configurations;
+DROP POLICY IF EXISTS "Users can insert own configurations" ON sensor_configurations;
+DROP POLICY IF EXISTS "Users can update own configurations" ON sensor_configurations;
+DROP POLICY IF EXISTS "Users can view own readings" ON sensor_readings;
+DROP POLICY IF EXISTS "Users can insert own readings" ON sensor_readings;
+DROP POLICY IF EXISTS "Users can view own alerts" ON alerts;
+DROP POLICY IF EXISTS "Users can update own alerts" ON alerts;
+DROP POLICY IF EXISTS "Users can view own sessions" ON monitoring_sessions;
+DROP POLICY IF EXISTS "Users can insert own sessions" ON monitoring_sessions;
+DROP POLICY IF EXISTS "Users can update own sessions" ON monitoring_sessions;
+DROP POLICY IF EXISTS "Users can view own preferences" ON user_preferences;
+DROP POLICY IF EXISTS "Users can insert own preferences" ON user_preferences;
+DROP POLICY IF EXISTS "Users can update own preferences" ON user_preferences;
+
 -- Users policies
 CREATE POLICY "Users can view own profile" ON users
     FOR SELECT USING (auth.uid() = user_id);
@@ -295,7 +317,13 @@ BEGIN
 END;
 $$ language 'plpgsql';
 
--- Triggers for updated_at
+-- Triggers for updated_at (drop first so migration is re-runnable)
+DROP TRIGGER IF EXISTS update_users_updated_at ON users;
+DROP TRIGGER IF EXISTS update_sensor_devices_updated_at ON sensor_devices;
+DROP TRIGGER IF EXISTS update_sensor_configurations_updated_at ON sensor_configurations;
+DROP TRIGGER IF EXISTS update_monitoring_sessions_updated_at ON monitoring_sessions;
+DROP TRIGGER IF EXISTS update_user_preferences_updated_at ON user_preferences;
+
 CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON users
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
@@ -330,6 +358,8 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Trigger to create profile on user signup
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+
 CREATE TRIGGER on_auth_user_created
     AFTER INSERT ON auth.users
     FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();

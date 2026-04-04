@@ -39,7 +39,12 @@ export const getCurrentUser = async (): Promise<User | null> => {
         console.warn('Error code:', error.code);
         console.warn('Error details:', error);
         // If function doesn't exist (42883) or other recoverable error, fall through to fallback
-        if (error.code !== '42883' && error.code !== 'P0001' && error.code !== '42704') {
+        if (
+          error.code !== '42883' &&
+          error.code !== '42804' &&
+          error.code !== 'P0001' &&
+          error.code !== '42704'
+        ) {
           // For non-recoverable errors, still try fallback
           console.warn('Non-recoverable RPC error, attempting fallback');
         }

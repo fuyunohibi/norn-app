@@ -56,7 +56,7 @@ const SettingsScreen = () => {
     reset,
   } = useForm<SettingsFormData>({
     defaultValues: {
-      deviceName: "C1001 SEN0623",
+      deviceName: "MPU6050 wearable",
       refreshInterval: "5",
       alertThreshold: "80",
       sleepModeEnabled: true,
@@ -65,9 +65,7 @@ const SettingsScreen = () => {
     },
   });
 
-  const fallbackUserId = "0b8baf9c-dcfa-4d11-93d5-a08ce06a3d61";
-
-  const resolvedUserId = useMemo(() => user?.id ?? fallbackUserId, [user?.id]);
+  const resolvedUserId = useMemo(() => user?.id, [user?.id]);
 
   const {
     contacts,

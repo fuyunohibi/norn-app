@@ -54,8 +54,12 @@ export const useLatestSleepSummary = (userId: string | undefined) => {
         const response = await backendAPIService.getSleepSummary(userId);
         return response.summary;
       } catch (error: any) {
-        // If 404, no sleep data available (not an error)
-        if (error.message?.includes('404') || error.message?.includes('No sleep data')) {
+        const msg = error?.message ?? '';
+        if (
+          msg.includes('404') ||
+          msg.includes('No sleep data') ||
+          msg.includes('not available for the IMU')
+        ) {
           return null;
         }
         throw error;

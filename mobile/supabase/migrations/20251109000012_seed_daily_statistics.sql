@@ -220,7 +220,8 @@ $CSV$;
     v_ref_index INTEGER;
     v_offset_minutes INTEGER;
     v_fall_timestamp TIMESTAMPTZ;
-    v_fall_session_count CONSTANT INTEGER := 540;
+    -- Synthetic fall events (keep moderate: full loop is heavy on remote push timeouts)
+    v_fall_session_count CONSTANT INTEGER := 160;
 BEGIN
     CREATE TEMP TABLE tmp_whoop (
         date DATE,
@@ -424,68 +425,71 @@ BEGIN
     END LOOP;
 END IF;
 
-INSERT INTO daily_statistics (
-    user_id,
-    stat_date,
-    total_readings,
-    sleep_readings,
-    fall_readings,
-    respiration_sum,
-    respiration_count,
-    hrv_sum,
-    hrv_count,
-    first_reading_at,
-    last_reading_at,
-    last_sleep_reading_at,
-    last_fall_reading_at,
-    created_at,
-    updated_at
-)
-SELECT
-    v_user_id,
-    stat_date,
-    total_readings,
-    sleep_readings,
-    fall_readings,
-    respiration_sum,
-    respiration_count,
-    hrv_sum,
-    hrv_count,
-    first_reading_at,
-    last_reading_at,
-    last_sleep_reading_at,
-    last_fall_reading_at,
-    NOW(),
-    NOW()
-FROM tmp_stats
-ON CONFLICT (user_id, stat_date) DO UPDATE
-SET
-    total_readings = EXCLUDED.total_readings,
-    sleep_readings = EXCLUDED.sleep_readings,
-    fall_readings = EXCLUDED.fall_readings,
-    respiration_sum = EXCLUDED.respiration_sum,
-    respiration_count = EXCLUDED.respiration_count,
-    hrv_sum = EXCLUDED.hrv_sum,
-    hrv_count = EXCLUDED.hrv_count,
-    first_reading_at = LEAST(
-        COALESCE(daily_statistics.first_reading_at, EXCLUDED.first_reading_at),
-        EXCLUDED.first_reading_at
-    ),
-    last_reading_at = GREATEST(
-        COALESCE(daily_statistics.last_reading_at, EXCLUDED.last_reading_at),
-        EXCLUDED.last_reading_at
-    ),
-    last_sleep_reading_at = CASE
-        WHEN daily_statistics.last_sleep_reading_at IS NULL THEN EXCLUDED.last_sleep_reading_at
-        WHEN EXCLUDED.last_sleep_reading_at IS NULL THEN daily_statistics.last_sleep_reading_at
-        ELSE GREATEST(daily_statistics.last_sleep_reading_at, EXCLUDED.last_sleep_reading_at)
-    END,
-    last_fall_reading_at = CASE
-        WHEN daily_statistics.last_fall_reading_at IS NULL THEN EXCLUDED.last_fall_reading_at
-        WHEN EXCLUDED.last_fall_reading_at IS NULL THEN daily_statistics.last_fall_reading_at
-        ELSE GREATEST(daily_statistics.last_fall_reading_at, EXCLUDED.last_fall_reading_at)
-    END,
-    updated_at = EXCLUDED.updated_at;
+-- FK to auth.users: skip quietly if the demo UUID is not present (fresh Supabase projects).
+IF EXISTS (SELECT 1 FROM auth.users WHERE id = v_user_id) THEN
+    INSERT INTO daily_statistics (
+        user_id,
+        stat_date,
+        total_readings,
+        sleep_readings,
+        fall_readings,
+        respiration_sum,
+        respiration_count,
+        hrv_sum,
+        hrv_count,
+        first_reading_at,
+        last_reading_at,
+        last_sleep_reading_at,
+        last_fall_reading_at,
+        created_at,
+        updated_at
+    )
+    SELECT
+        v_user_id,
+        stat_date,
+        total_readings,
+        sleep_readings,
+        fall_readings,
+        respiration_sum,
+        respiration_count,
+        hrv_sum,
+        hrv_count,
+        first_reading_at,
+        last_reading_at,
+        last_sleep_reading_at,
+        last_fall_reading_at,
+        NOW(),
+        NOW()
+    FROM tmp_stats
+    ON CONFLICT (user_id, stat_date) DO UPDATE
+    SET
+        total_readings = EXCLUDED.total_readings,
+        sleep_readings = EXCLUDED.sleep_readings,
+        fall_readings = EXCLUDED.fall_readings,
+        respiration_sum = EXCLUDED.respiration_sum,
+        respiration_count = EXCLUDED.respiration_count,
+        hrv_sum = EXCLUDED.hrv_sum,
+        hrv_count = EXCLUDED.hrv_count,
+        first_reading_at = LEAST(
+            COALESCE(daily_statistics.first_reading_at, EXCLUDED.first_reading_at),
+            EXCLUDED.first_reading_at
+        ),
+        last_reading_at = GREATEST(
+            COALESCE(daily_statistics.last_reading_at, EXCLUDED.last_reading_at),
+            EXCLUDED.last_reading_at
+        ),
+        last_sleep_reading_at = CASE
+            WHEN daily_statistics.last_sleep_reading_at IS NULL THEN EXCLUDED.last_sleep_reading_at
+            WHEN EXCLUDED.last_sleep_reading_at IS NULL THEN daily_statistics.last_sleep_reading_at
+            ELSE GREATEST(daily_statistics.last_sleep_reading_at, EXCLUDED.last_sleep_reading_at)
+        END,
+        last_fall_reading_at = CASE
+            WHEN daily_statistics.last_fall_reading_at IS NULL THEN EXCLUDED.last_fall_reading_at
+            WHEN EXCLUDED.last_fall_reading_at IS NULL THEN daily_statistics.last_fall_reading_at
+            ELSE GREATEST(daily_statistics.last_fall_reading_at, EXCLUDED.last_fall_reading_at)
+        END,
+        updated_at = EXCLUDED.updated_at;
+END IF;
 
 END $$;
 
