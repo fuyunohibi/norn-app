@@ -9,7 +9,7 @@ export const useC1001Sensor = () => {
   // Update sensor mode when active mode changes
   useEffect(() => {
     if (activeMode) {
-      const sensorMode = activeMode.id === 'sleep' ? 'sleep' : 'fall';
+      const sensorMode = activeMode.id === 'fall' ? 'fall' : 'activity';
       c1001SensorService.setMode(sensorMode);
     }
   }, [activeMode]);

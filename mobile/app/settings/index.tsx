@@ -1,9 +1,9 @@
 import type { EmergencyContact } from "@/database/types";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
+  Activity,
   AlertTriangle,
   LogOut,
-  Moon,
   Pencil,
   PhoneCall,
   Star,
@@ -41,7 +41,7 @@ interface SettingsFormData {
   deviceName: string;
   refreshInterval: string;
   alertThreshold: string;
-  sleepModeEnabled: boolean;
+  activityMonitoringEnabled: boolean;
   fallDetectionEnabled: boolean;
   emergencyContact: string;
 }
@@ -59,7 +59,7 @@ const SettingsScreen = () => {
       deviceName: "MPU6050 wearable",
       refreshInterval: "5",
       alertThreshold: "80",
-      sleepModeEnabled: true,
+      activityMonitoringEnabled: true,
       fallDetectionEnabled: true,
       emergencyContact: "",
     },
@@ -363,20 +363,20 @@ const SettingsScreen = () => {
             <View className="flex-row items-center justify-between p-4 bg-gray-50 rounded-xl">
               <View className="flex-row items-center">
                 <View className="w-10 h-10 bg-primary-accent rounded-lg items-center justify-center mr-3">
-                  <Moon size={20} color="white" fill="white" />
+                  <Activity size={20} color="white" />
                 </View>
                 <View>
                   <Text className="text-base font-hell-round-bold text-gray-900 ">
-                    Sleep Mode
+                    Activity monitoring
                   </Text>
                   <Text className="text-gray-600 text-sm font-hell">
-                    Optimized for sleep monitoring
+                    MPU6050 movement and posture tracking
                   </Text>
                 </View>
               </View>
               <Controller
                 control={control}
-                name="sleepModeEnabled"
+                name="activityMonitoringEnabled"
                 render={({ field: { onChange, value } }) => (
                   <Switch
                     value={value}
@@ -396,7 +396,7 @@ const SettingsScreen = () => {
                 </View>
                 <View>
                   <Text className="text-base font-hell-round-bold text-gray-900 ">
-                    Fall Detection
+                    Fall detection focus
                   </Text>
                   <Text className="text-gray-600 text-sm font-hell">
                     Emergency fall detection

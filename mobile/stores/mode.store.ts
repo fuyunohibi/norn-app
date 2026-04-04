@@ -18,15 +18,15 @@ interface ModeStore {
 
 const defaultModes: Mode[] = [
   {
-    id: 'sleep',
-    name: 'Sleep Mode',
-    description: 'Optimized monitoring for sleep patterns and quality',
+    id: 'activity',
+    name: 'Activity',
+    description: 'Movement and posture from the MPU6050 (state changes & heartbeats)',
     isActive: true,
   },
   {
     id: 'fall',
-    name: 'Fall Detection',
-    description: 'Advanced fall detection with emergency response',
+    name: 'Fall focus',
+    description: 'Highlights safety status, critical classes, and fall alerts',
     isActive: false,
   },
 ];
@@ -46,7 +46,7 @@ export const useModeStore = create<ModeStore>((set, get) => ({
 
     set({ isLoading: true, error: null });
 
-    // IMU firmware has no server mode switch; this only updates in-app focus (sleep vs fall UI).
+    // IMU firmware has no server mode switch; this only updates in-app focus (activity vs fall UI).
     set((state) => {
       const updatedModes = state.modes.map((m) => ({
         ...m,

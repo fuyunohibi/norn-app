@@ -12,6 +12,10 @@ export type Alert = Tables<'alerts'>;
 export type AlertInsert = TablesInsert<'alerts'>;
 export type AlertUpdate = TablesUpdate<'alerts'>;
 
+export type ActivityEvent = Tables<'activity_events'>;
+export type ActivityEventInsert = TablesInsert<'activity_events'>;
+export type ActivityEventUpdate = TablesUpdate<'activity_events'>;
+
 export type DeviceStatus = Tables<'device_status'>;
 
 export type EmergencyContact = Tables<'emergency_contacts'>;
@@ -33,10 +37,6 @@ export type SensorConfigurationUpdate = TablesUpdate<'sensor_configurations'>;
 export type SensorDevice = Tables<'sensor_devices'>;
 export type SensorDeviceInsert = TablesInsert<'sensor_devices'>;
 export type SensorDeviceUpdate = TablesUpdate<'sensor_devices'>;
-
-export type SensorReading = Tables<'sensor_readings'>;
-export type SensorReadingInsert = TablesInsert<'sensor_readings'>;
-export type SensorReadingUpdate = TablesUpdate<'sensor_readings'>;
 
 export type UserDashboard = Tables<'user_dashboard'>;
 

@@ -4,7 +4,7 @@ import { getProfile } from '../services/user.service';
 
 const IS_DEV = __DEV__;
 
-/**p 
+/**
  * Hook to fetch user statistics and profile data
  */
 export const useUserStatistics = (userId?: string) => {
@@ -28,7 +28,6 @@ export const useUserStatistics = (userId?: string) => {
           console.log('✅ Received user data:', {
             hasProfile: !!profile,
             totalReadings: statistics.totalReadings,
-            sleepReadings: statistics.sleepReadings,
             fallReadings: statistics.fallReadings,
           });
         }

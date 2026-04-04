@@ -1,23 +1,29 @@
-import { useQuery } from '@tanstack/react-query';
-import { Activity, Calendar, Moon, Shield, Star, TrendingUp } from 'lucide-react-native';
+import { Activity, Shield, User, Zap } from 'lucide-react-native';
 import React, { useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, Dimensions, PanResponder, Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
-import { fetchDailyStatistics, seedDailyStatisticsFromMock } from '../../actions/statistics.actions';
 import { Card } from '../../components/ui/card';
 import Header from '../../components/ui/header';
 import { useAuth } from '../../contexts/auth-context';
-import { useSleepSummaries } from '../../hooks/useSleepSummaries';
-import { getMockSleepSummaries, USE_MOCK_STATISTICS } from '../../utils/mock-statistics';
+import { useActivityStatistics } from '../../hooks/useActivityStatistics';
+import {
+  bucketActivityEventsByDay,
+  criticalActivityTotals,
+  formatActivityDisplayName,
+} from '../../utils/imu-activity';
 
 const windowWidth = Dimensions.get('window').width;
 
-type ChartLabel = {
-  key: string;
-  weekday: string;
-  day: string;
-};
+function formatMinutesFromSeconds(seconds: number) {
+  const m = Math.round(seconds / 60);
+  if (m < 60) return `${m}m`;
+  const h = Math.floor(m / 60);
+  const rem = m % 60;
+  return `${h}h ${rem}m`;
+}
+
+type ChartLabel = { key: string; weekday: string; day: string };
 
 const LineChart: React.FC<{
   values: number[];
@@ -30,7 +36,7 @@ const LineChart: React.FC<{
 
   const chartData = useMemo(() => {
     const validValues = values.filter(
-      (value) => typeof value === 'number' && value > 0 && !Number.isNaN(value)
+      (value) => typeof value === 'number' && value > 0 && !Number.isNaN(value),
     );
 
     if (validValues.length < 2) {
@@ -53,7 +59,6 @@ const LineChart: React.FC<{
     const minValue = Math.min(...safeValues);
     const maxValue = Math.max(...safeValues);
     const range = maxValue - minValue || 1;
-
     const yRange = chartHeight - verticalPadding * 2;
 
     const points = safeValues.map((value, index) => {
@@ -69,11 +74,7 @@ const LineChart: React.FC<{
 
     const areaPath = `${linePath} L ${points[points.length - 1].x} ${chartHeight} L ${points[0].x} ${chartHeight} Z`;
 
-    return {
-      points,
-      linePath,
-      areaPath,
-    };
+    return { points, linePath, areaPath };
   }, [chartHeight, chartWidth, values]);
 
   const [tooltipIndex, setTooltipIndex] = useState<number | null>(null);
@@ -86,7 +87,7 @@ const LineChart: React.FC<{
       const index = Math.round((clampedX / chartWidth) * (points.length - 1));
       setTooltipIndex(index);
     },
-    [chartData, chartWidth]
+    [chartData, chartWidth],
   );
 
   const panResponder = useMemo(
@@ -99,14 +100,12 @@ const LineChart: React.FC<{
         onPanResponderRelease: () => setTooltipIndex(null),
         onPanResponderTerminate: () => setTooltipIndex(null),
       }),
-    [chartData.points.length, handleGesture]
+    [chartData.points.length, handleGesture],
   );
 
   if (chartData.points.length < 2) {
     return (
-      <Text className="text-xs text-gray-500 font-hell">
-        Not enough data to display trend
-      </Text>
+      <Text className="text-xs text-gray-500 font-hell">Not enough data to display a trend</Text>
     );
   }
 
@@ -120,19 +119,12 @@ const LineChart: React.FC<{
   return (
     <View style={{ height: chartHeight + 40 + (activePoint ? 16 : 0) }}>
       {activePoint && (
-        <View
-          className="absolute left-0 right-0 items-center z-10"
-          style={{ top: 0 }}
-        >
-          <View
-            style={{
-              transform: [{ translateX: activePoint.x - chartWidth / 2 }],
-            }}
-          >
+        <View className="absolute left-0 right-0 items-center z-10" style={{ top: 0 }}>
+          <View style={{ transform: [{ translateX: activePoint.x - chartWidth / 2 }] }}>
             <View className="px-3 py-1.5 bg-gray-900 rounded-full">
               <Text className="text-xs font-hell-round-bold text-white text-center">
                 {activeLabel ? `${activeLabel.weekday} ${activeLabel.day} • ` : ''}
-                {Math.round(activePoint.value * 10) / 10}
+                {Math.round(activePoint.value * 10) / 10} events
               </Text>
             </View>
           </View>
@@ -166,414 +158,120 @@ const StatisticsScreen = () => {
   const userId = user?.id;
   const insets = useSafeAreaInsets();
 
-  const { data: dailyStats = [], isLoading: dailyStatsLoading, refetch: refetchDailyStats } = useQuery({
-    queryKey: ['daily-statistics', userId],
-    queryFn: async () => {
-      if (!userId) return [];
-      let rows = await fetchDailyStatistics(userId, 120);
-      if (!rows.length && __DEV__) {
-        await seedDailyStatisticsFromMock(userId);
-        rows = await fetchDailyStatistics(userId, 120);
-      }
-      return rows;
-    },
-    enabled: !!userId,
-    staleTime: 30000,
-  });
+  const { data: actTodayRes, isLoading: loadToday } = useActivityStatistics(userId, 'today');
+  const { data: act7Res, isLoading: load7 } = useActivityStatistics(userId, '7d');
+  const { data: act30Res, isLoading: load30 } = useActivityStatistics(userId, '30d');
 
-  // Generate dates for the last 7 days to fetch sleep summaries
-  const sleepSummaryDates = useMemo(() => {
-    const dates: string[] = [];
-    const today = new Date();
-    for (let i = 1; i <= 7; i++) {
-      const date = new Date(today);
-      date.setDate(date.getDate() - i);
-      dates.push(date.toISOString().split('T')[0]);
-    }
-    return dates;
-  }, []);
+  const activityToday = actTodayRes?.statistics;
+  const activity7 = act7Res?.statistics;
+  const activity30 = act30Res?.statistics;
 
-  // Fetch sleep summaries for the last 7 days
-  // Backend sleep-summary ML route removed with MPU6050; keep mock-only until a new pipeline exists.
-  const shouldFetchRealSummaries = false;
-  const { data: fetchedSleepSummaries, isLoading: sleepSummariesLoading } = useSleepSummaries(
-    shouldFetchRealSummaries ? userId : undefined,
-    shouldFetchRealSummaries ? sleepSummaryDates : []
-  );
-  const mockSleepSummaries = useMemo(
-    () => (USE_MOCK_STATISTICS ? getMockSleepSummaries() : []),
-    []
-  );
-  const sleepSummaries = USE_MOCK_STATISTICS
-    ? mockSleepSummaries
-    : fetchedSleepSummaries || [];
-
-  const isLoading =
-    dailyStatsLoading || (shouldFetchRealSummaries && sleepSummariesLoading);
-
-  const stats = useMemo(() => {
-    if (!dailyStats || dailyStats.length === 0) {
-      return {
-        totalReadings: 0,
-        sleepReadings: 0,
-        fallReadings: 0,
-        totalHours: 0,
-        latestSleep: null,
-        latestFall: null,
-        dailySummaries: [],
-      };
-    }
-
-    const sortedByDate = [...dailyStats].sort(
-      (a, b) => new Date(b.stat_date).getTime() - new Date(a.stat_date).getTime()
-    );
-
-    let totalReadings = 0;
-    let sleepReadings = 0;
-    let fallReadings = 0;
-    let earliestTimestamp: number | null = null;
-    let latestTimestamp: number | null = null;
-    let latestSleepTimestamp: string | null = null;
-    let latestFallTimestamp: string | null = null;
-
-    const dailySummaries = sortedByDate.map((entry) => {
-      totalReadings += entry.total_readings ?? 0;
-      sleepReadings += entry.sleep_readings ?? 0;
-      fallReadings += entry.fall_readings ?? 0;
-
-      if (entry.first_reading_at) {
-        const value = new Date(entry.first_reading_at).getTime();
-        if (!Number.isNaN(value) && (earliestTimestamp === null || value < earliestTimestamp)) {
-          earliestTimestamp = value;
-        }
-      }
-
-      if (entry.last_reading_at) {
-        const value = new Date(entry.last_reading_at).getTime();
-        if (!Number.isNaN(value) && (latestTimestamp === null || value > latestTimestamp)) {
-          latestTimestamp = value;
-        }
-      }
-
-      if (entry.last_sleep_reading_at) {
-        if (
-          !latestSleepTimestamp ||
-          new Date(entry.last_sleep_reading_at).getTime() > new Date(latestSleepTimestamp).getTime()
-        ) {
-          latestSleepTimestamp = entry.last_sleep_reading_at;
-        }
-      }
-
-      if (entry.last_fall_reading_at) {
-        if (
-          !latestFallTimestamp ||
-          new Date(entry.last_fall_reading_at).getTime() > new Date(latestFallTimestamp).getTime()
-        ) {
-          latestFallTimestamp = entry.last_fall_reading_at;
-        }
-      }
-
-      const statDate = new Date(`${entry.stat_date}T00:00:00Z`);
-      const avgBreath =
-        entry.respiration_count > 0
-          ? Math.round(((Number(entry.respiration_sum ?? 0) / entry.respiration_count) || 0) * 10) / 10
-          : null;
-      const avgHRV =
-        entry.hrv_count > 0
-          ? Math.round(((Number(entry.hrv_sum ?? 0) / entry.hrv_count) || 0) * 10) / 10
-          : null;
-
-      return {
-        key: entry.stat_date,
-        date: statDate,
-        count: entry.total_readings ?? 0,
-        weekday: statDate.toLocaleDateString('en-US', { weekday: 'short' }),
-        day: statDate.toLocaleDateString('en-US', { day: '2-digit' }),
-        breathRate: avgBreath,
-        hrv: avgHRV,
-      };
-    });
-
-    const totalHours =
-      earliestTimestamp !== null && latestTimestamp !== null && latestTimestamp > earliestTimestamp
-        ? Math.round(((latestTimestamp - earliestTimestamp) / (1000 * 60 * 60)) * 10) / 10
-        : 0;
-
-    return {
-      totalReadings,
-      sleepReadings,
-      fallReadings,
-      totalHours,
-      latestSleep: latestSleepTimestamp ? { timestamp: latestSleepTimestamp } : null,
-      latestFall: latestFallTimestamp ? { timestamp: latestFallTimestamp } : null,
-      dailySummaries,
-    };
-  }, [dailyStats]);
+  const isLoading = loadToday || load7 || load30;
+  const hasActivityData = (activity30?.total_events ?? 0) > 0;
 
   const [activeSection, setActiveSection] = useState<'overview' | 'mode' | 'activity'>('activity');
-  const [timeRange, setTimeRange] = useState<'7d' | '30d' | '90d'>('7d');
+  const [timeRange, setTimeRange] = useState<'7d' | '30d'>('7d');
   const [activityMode, setActivityMode] = useState<'trends' | 'today'>('trends');
 
   const sectionTabs = [
     { id: 'activity', label: 'Activity' },
-    { id: 'mode', label: 'Modes' },
+    { id: 'mode', label: 'Safety' },
     { id: 'overview', label: 'Overview' },
   ] as const;
 
   const timeRangeOptions = [
-    { id: '7d', label: '7-day' },
-    { id: '30d', label: '30-day' },
-    { id: '90d', label: '90-day' },
-  ] as const;
+    { id: '7d' as const, label: '7-day' },
+    { id: '30d' as const, label: '30-day' },
+  ];
 
-  const timeRangeToDays: Record<typeof timeRangeOptions[number]['id'], number> = {
-    '7d': 7,
-    '30d': 30,
-    '90d': 90,
-  };
+  const periodStats = timeRange === '7d' ? activity7 : activity30;
+  const chartDayCount = timeRange === '7d' ? 7 : 14;
 
-  const selectedDailySummaries = useMemo(() => {
-    const limit = Math.min(timeRangeToDays[timeRange], 14);
-    return stats.dailySummaries.slice(0, limit);
-  }, [stats.dailySummaries, timeRange]);
+  const imuDailyBuckets = useMemo(() => {
+    if (!periodStats?.events?.length) return [];
+    return bucketActivityEventsByDay(periodStats.events, chartDayCount);
+  }, [periodStats?.events, chartDayCount]);
 
-  const chartData = useMemo(() => [...selectedDailySummaries].reverse(), [selectedDailySummaries]);
-
-  const breathingValues = chartData.map((entry) =>
-    typeof entry.breathRate === 'number' ? entry.breathRate : 0
-  );
-  const hrvValues = chartData.map((entry) =>
-    typeof entry.hrv === 'number' ? entry.hrv : 0
-  );
-
-  const latestBreathing = selectedDailySummaries[0]?.breathRate ?? null;
-  const latestHRV = selectedDailySummaries[0]?.hrv ?? null;
-
-  const chartLabels = chartData.map((entry) => ({
-    key: entry.key,
-    weekday: entry.weekday,
-    day: entry.day,
+  const imuEventValues = imuDailyBuckets.map((b) => b.count);
+  const imuChartLabels = imuDailyBuckets.map((b) => ({
+    key: b.key,
+    weekday: b.weekday,
+    day: b.day,
   }));
 
-  // Calculate average sleep score from summaries
-  const sleepScoreStats = useMemo(() => {
-    if (!sleepSummaries || sleepSummaries.length === 0) {
-      return {
-        averageScore: null,
-        averageGrade: null,
-        latestScore: null,
-        latestGrade: null,
-        latestDate: null,
-      };
-    }
+  const imuCritical30 = useMemo(
+    () => criticalActivityTotals(activity30?.by_activity),
+    [activity30?.by_activity],
+  );
 
-    const validSummaries = sleepSummaries.filter((s) => s.summary !== null);
-    if (validSummaries.length === 0) {
-      return {
-        averageScore: null,
-        averageGrade: null,
-        latestScore: null,
-        latestGrade: null,
-        latestDate: null,
-      };
-    }
+  const imuTrackedMinutes = useMemo(() => {
+    const by = activity30?.by_activity;
+    if (!by) return 0;
+    return Object.values(by).reduce((s, b) => s + (b.total_seconds ?? 0) / 60, 0);
+  }, [activity30?.by_activity]);
 
-    const scores = validSummaries.map((s) => s.summary!.overall_quality);
-    const averageScore = scores.reduce((sum, score) => sum + score, 0) / scores.length;
-
-    // Get grade from average score
-    const getGrade = (score: number): string => {
-      if (score >= 85) return 'A';
-      if (score >= 75) return 'B';
-      if (score >= 65) return 'C';
-      if (score >= 50) return 'D';
-      return 'F';
-    };
-
-    const latest = validSummaries[0]; // First one is the most recent date
-
-    return {
-      averageScore: Math.round(averageScore * 10) / 10,
-      averageGrade: getGrade(averageScore),
-      latestScore: latest.summary!.overall_quality,
-      latestGrade: latest.summary!.sleep_score_grade,
-      latestDate: latest.date,
-    };
-  }, [sleepSummaries]);
+  const topClassToday = useMemo(() => {
+    const by = activityToday?.by_activity;
+    if (!by || !Object.keys(by).length) return null;
+    const sorted = Object.entries(by).sort((a, b) => (b[1].total_seconds ?? 0) - (a[1].total_seconds ?? 0));
+    return sorted[0]?.[0] ?? null;
+  }, [activityToday?.by_activity]);
 
   const renderOverview = () => (
     <View className="mb-6">
       <Text className="text-xl font-hell-round-bold text-gray-900 mb-4 ">Overview</Text>
-      <View className="flex-row gap-3 flex-wrap">
-        <Card variant="outlined" className="flex-1 min-w-[140px]">
-          <View className="p-4">
-            <View className="flex-row items-center mb-2">
-              <View className="w-10 h-10 bg-primary-accent rounded-lg items-center justify-center mr-2">
-                <Activity size={20} color="white" />
-              </View>
-              <Text className="text-2xl font-hell-round-bold text-gray-900 ">
-                {stats.totalReadings}
-              </Text>
-            </View>
-            <Text className="text-xs font-hell font-medium text-gray-600">
-              Total Readings
+      {!hasActivityData ? (
+        <Card variant="outlined" className="mb-4">
+          <View className="p-6">
+            <Text className="text-gray-600 font-hell text-center">
+              No IMU activity events in the last 30 days. When the clip reports class changes (st, si, w, r, nf, f,
+              af), they appear here.
             </Text>
           </View>
         </Card>
-
-        <Card variant="outlined" className="flex-1 min-w-[140px]">
-          <View className="p-4">
-            <View className="flex-row items-center mb-2">
-              <View className="w-10 h-10 bg-primary-button rounded-lg items-center justify-center mr-2">
-                <Calendar size={20} color="white" />
-              </View>
-              <Text className="text-2xl font-hell-round-bold text-gray-900 ">
-                {stats.totalHours}
-              </Text>
-            </View>
-            <Text className="text-xs font-hell font-medium text-gray-600">
-              Hours Monitored
-            </Text>
-          </View>
-        </Card>
-      </View>
-
-      {/* Sleep Score Section */}
-      {sleepScoreStats.latestScore !== null && (
-        <View className="mt-4">
-          <Card variant="outlined" className="overflow-hidden">
+      ) : (
+        <View className="flex-row gap-3 flex-wrap mb-4">
+          <Card variant="outlined" className="flex-1 min-w-[140px]">
             <View className="p-4">
-              <View className="flex-row items-center justify-between mb-3">
-                <View className="flex-row items-center">
-                  <View className="w-12 h-12 bg-primary-accent rounded-xl items-center justify-center mr-3">
-                    <Star size={24} color="white" fill="white" />
-                  </View>
-                  <View>
-                    <Text className="text-lg font-hell-round-bold text-gray-900">
-                      Sleep Score
-                    </Text>
-                    <Text className="text-xs text-gray-600 font-hell">
-                      {sleepScoreStats.latestDate
-                        ? new Date(sleepScoreStats.latestDate).toLocaleDateString('en-US', {
-                            month: 'short',
-                            day: 'numeric',
-                          })
-                        : 'Latest'}
-                    </Text>
-                  </View>
+              <View className="flex-row items-center mb-2">
+                <View className="w-10 h-10 bg-primary-accent rounded-lg items-center justify-center mr-2">
+                  <Activity size={20} color="white" />
                 </View>
-                <View className="items-end">
-                  <View className="flex-row items-baseline">
-                    <Text className="text-3xl font-hell-round-bold text-gray-900 mr-2">
-                      {Math.round(sleepScoreStats.latestScore)}
-                    </Text>
-                    <View
-                      className={`px-3 py-1 rounded-lg ${
-                        sleepScoreStats.latestGrade === 'A'
-                          ? 'bg-green-100'
-                          : sleepScoreStats.latestGrade === 'B'
-                          ? 'bg-blue-100'
-                          : sleepScoreStats.latestGrade === 'C'
-                          ? 'bg-yellow-100'
-                          : sleepScoreStats.latestGrade === 'D'
-                          ? 'bg-orange-100'
-                          : 'bg-red-100'
-                      }`}
-                    >
-                      <Text
-                        className={`text-sm font-hell-round-bold ${
-                          sleepScoreStats.latestGrade === 'A'
-                            ? 'text-green-700'
-                            : sleepScoreStats.latestGrade === 'B'
-                            ? 'text-blue-700'
-                            : sleepScoreStats.latestGrade === 'C'
-                            ? 'text-yellow-700'
-                            : sleepScoreStats.latestGrade === 'D'
-                            ? 'text-orange-700'
-                            : 'text-red-700'
-                        }`}
-                      >
-                        {sleepScoreStats.latestGrade}
-                      </Text>
-                    </View>
-                  </View>
-                  {sleepScoreStats.averageScore !== null && (
-                    <Text className="text-xs text-gray-500 font-hell mt-1">
-                      7-day avg: {Math.round(sleepScoreStats.averageScore)} ({sleepScoreStats.averageGrade})
-                    </Text>
-                  )}
-                </View>
+                <Text className="text-2xl font-hell-round-bold text-gray-900 ">
+                  {activity30?.total_events ?? 0}
+                </Text>
               </View>
+              <Text className="text-xs font-hell font-medium text-gray-600">State changes (30 days)</Text>
             </View>
           </Card>
-        </View>
-      )}
 
-      {/* Daily Sleep Scores List */}
-      {sleepSummaries && sleepSummaries.length > 0 && (
-        <View className="mt-4">
-          <Text className="text-base font-hell-round-bold text-gray-900 mb-3">
-            Daily Sleep Scores
-          </Text>
-          <Card variant="outlined">
+          <Card variant="outlined" className="flex-1 min-w-[140px]">
             <View className="p-4">
-              {sleepSummaries
-                .filter((s) => s.summary !== null)
-                .slice(0, 7)
-                .map((entry, index) => {
-                  const summary = entry.summary!;
-                  const date = new Date(entry.date);
-                  const gradeColor =
-                    summary.sleep_score_grade === 'A'
-                      ? 'text-green-700 bg-green-100'
-                      : summary.sleep_score_grade === 'B'
-                      ? 'text-blue-700 bg-blue-100'
-                      : summary.sleep_score_grade === 'C'
-                      ? 'text-yellow-700 bg-yellow-100'
-                      : summary.sleep_score_grade === 'D'
-                      ? 'text-orange-700 bg-orange-100'
-                      : 'text-red-700 bg-red-100';
+              <View className="flex-row items-center mb-2">
+                <View className="w-10 h-10 bg-warning rounded-lg items-center justify-center mr-2">
+                  <Shield size={20} color="white" />
+                </View>
+                <Text className="text-2xl font-hell-round-bold text-gray-900 ">{imuCritical30.count}</Text>
+              </View>
+              <Text className="text-xs font-hell font-medium text-gray-600">
+                Safety segments (nf · f · af)
+              </Text>
+            </View>
+          </Card>
 
-                  return (
-                    <View
-                      key={entry.date}
-                      className={`flex-row items-center justify-between py-3 ${
-                        index < sleepSummaries.filter((s) => s.summary !== null).length - 1
-                          ? 'border-b border-gray-100'
-                          : ''
-                      }`}
-                    >
-                      <View className="flex-1">
-                        <Text className="text-sm font-hell-round-bold text-gray-900">
-                          {date.toLocaleDateString('en-US', {
-                            weekday: 'short',
-                            month: 'short',
-                            day: 'numeric',
-                          })}
-                        </Text>
-                        <Text className="text-xs text-gray-500 font-hell mt-1">
-                          {Math.round(summary.total_sleep_time_minutes / 60)}h{' '}
-                          {summary.total_sleep_time_minutes % 60}m sleep
-                        </Text>
-                      </View>
-                      <View className="flex-row items-center">
-                        <Text className="text-xl font-hell-round-bold text-gray-900 mr-3">
-                          {Math.round(summary.overall_quality)}
-                        </Text>
-                        <View className={`px-2 py-1 rounded ${gradeColor}`}>
-                          <Text className={`text-xs font-hell-round-bold`}>
-                            {summary.sleep_score_grade}
-                          </Text>
-                        </View>
-                      </View>
-                    </View>
-                  );
-                })}
-              {sleepSummaries.filter((s) => s.summary !== null).length === 0 && (
-                <Text className="text-sm text-gray-500 font-hell text-center py-4">
-                  No sleep data available
+          <Card variant="outlined" className="flex-1 min-w-[140px]">
+            <View className="p-4">
+              <View className="flex-row items-center mb-2">
+                <View className="w-10 h-10 bg-primary-button rounded-lg items-center justify-center mr-2">
+                  <Zap size={20} color="white" />
+                </View>
+                <Text className="text-2xl font-hell-round-bold text-gray-900 ">
+                  {Math.round(imuTrackedMinutes)}
                 </Text>
-              )}
+              </View>
+              <Text className="text-xs font-hell font-medium text-gray-600">
+                Est. tracked minutes (from event spacing)
+              </Text>
             </View>
           </Card>
         </View>
@@ -583,163 +281,85 @@ const StatisticsScreen = () => {
 
   const renderModeBreakdown = () => (
     <View className="mb-6">
-      <Text className="text-xl font-hell-round-bold text-gray-900 mb-4 ">Mode Breakdown</Text>
-      <View className="flex-row gap-3">
-        <Card variant="outlined" className="flex-1">
-          <View className="p-4">
-            <View className="flex-row items-center mb-3">
-              <View className="w-12 h-12 bg-primary-button rounded-xl items-center justify-center mr-3">
-                <Moon size={24} color="white" fill="white" />
+      <Text className="text-xl font-hell-round-bold text-gray-900 mb-4 ">Safety & classes (30 days)</Text>
+      {!hasActivityData ? (
+        <Text className="text-gray-600 font-hell">No class data yet.</Text>
+      ) : (
+        <View className="gap-y-4">
+          <View className="flex-row gap-3">
+            <Card variant="outlined" className="flex-1">
+              <View className="p-4">
+                <View className="flex-row items-center mb-3">
+                  <View className="w-12 h-12 bg-primary-button rounded-xl items-center justify-center mr-3">
+                    <User size={24} color="white" />
+                  </View>
+                  <View className="flex-1">
+                    <Text className="text-lg font-hell-round-bold text-gray-900 ">
+                      {activity30?.total_events ?? 0}
+                    </Text>
+                    <Text className="text-xs text-gray-600 font-hell">Posture / movement changes</Text>
+                  </View>
+                </View>
               </View>
-              <View className="flex-1">
-                <Text className="text-lg font-hell-round-bold text-gray-900 ">
-                  {stats.sleepReadings}
-                </Text>
-                <Text className="text-xs text-gray-600 font-hell">
-                  Sleep Sessions
-                </Text>
-              </View>
-            </View>
-            {stats.latestSleep && (
-              <Text className="text-xs text-gray-500 font-hell">
-                Last: {new Date(stats.latestSleep.timestamp).toLocaleString()}
-              </Text>
-            )}
-          </View>
-        </Card>
+            </Card>
 
-        <Card variant="outlined" className="flex-1">
-          <View className="p-4">
-            <View className="flex-row items-center mb-3">
-              <View className="w-12 h-12 bg-warning rounded-xl items-center justify-center mr-3">
-                <Shield size={24} color="white" fill="white" />
+            <Card variant="outlined" className="flex-1">
+              <View className="p-4">
+                <View className="flex-row items-center mb-3">
+                  <View className="w-12 h-12 bg-warning rounded-xl items-center justify-center mr-3">
+                    <Shield size={24} color="white" fill="white" />
+                  </View>
+                  <View className="flex-1">
+                    <Text className="text-lg font-hell-round-bold text-gray-900 ">{imuCritical30.count}</Text>
+                    <Text className="text-xs text-gray-600 font-hell">Near-fall, falling, after-fall</Text>
+                  </View>
+                </View>
               </View>
-              <View className="flex-1">
-                <Text className="text-lg font-hell-round-bold text-gray-900 ">
-                  {stats.fallReadings}
-                </Text>
-                <Text className="text-xs text-gray-600 font-hell">
-                  Fall Sessions
-                </Text>
-              </View>
-            </View>
-            {stats.latestFall && (
-              <Text className="text-xs text-gray-500 font-hell">
-                Last: {new Date(stats.latestFall.timestamp).toLocaleString()}
-              </Text>
-            )}
+            </Card>
           </View>
-        </Card>
-      </View>
+          {activity30?.by_activity && Object.keys(activity30.by_activity).length > 0 && (
+            <Card variant="outlined">
+              <View className="p-4">
+                <Text className="text-base font-hell-round-bold text-gray-900 mb-3">Time by class</Text>
+                {Object.entries(activity30.by_activity).map(([name, bucket]) => (
+                  <View key={name} className="flex-row justify-between py-2 border-b border-gray-100">
+                    <Text className="text-gray-700 font-hell">{formatActivityDisplayName(name)}</Text>
+                    <Text className="font-hell-round-bold text-gray-900">
+                      {formatMinutesFromSeconds(bucket.total_seconds ?? 0)} · {bucket.count ?? 0} segments
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            </Card>
+          )}
+        </View>
+      )}
     </View>
   );
 
-  const renderDailySummaryList = () => {
-    const items = selectedDailySummaries.slice(0, 7);
-    if (!items.length) return null;
-
-    return (
-      <Card variant="outlined" className="mt-6">
-        <View className="p-4">
-          {items.map((entry, index) => (
-            <View
-              key={entry.key}
-              className={`flex-row items-center justify-between py-3 ${
-                index < items.length - 1 ? 'border-b border-gray-200' : ''
-              }`}
-            >
-              <View className="flex-row items-center">
-                <Calendar size={16} color="#6B7280" />
-                <Text className="text-sm font-hell font-medium text-gray-900 ml-2">
-                  {entry.weekday} {entry.day}
-                </Text>
-              </View>
-              <Text className="text-xs font-hell text-gray-500">
-                {entry.count} readings
-              </Text>
-            </View>
-          ))}
-        </View>
-      </Card>
-    );
-  };
-
-  const renderActivity = () => {
-    if (stats.dailySummaries.length === 0) {
-      return (
-        <Card variant="outlined" className="mb-6">
-          <View className="p-8 items-center">
-            <Activity size={48} color="#9CA3AF" />
-            <Text className="text-lg font-hell-round-bold text-gray-900 mt-4 ">
-              No Activity Yet
-            </Text>
-            <Text className="text-gray-600 text-center mt-2 font-hell">
-              Start using the sensor to see your activity trends.
-            </Text>
-          </View>
-        </Card>
-      );
-    }
-
-    const renderMetricCard = (
-      title: string,
-      subtitle: string,
-      chartNode: React.ReactNode,
-      rationale: string
-    ) => (
-      <Card variant="outlined" className="overflow-hidden">
-        <View className="pt-4 pb-4">
-          <Text className="text-lg font-hell-round-bold text-gray-900">{title}</Text>
-          <Text className="text-sm text-gray-600 font-hell mt-2">{subtitle}</Text>
-        </View>
-        <View className="pb-6">
-          <Text className="text-sm font-hell-round-bold text-gray-900 mb-3">
-            {title === 'Breathing rate (BR)' ? 'Breaths Per Minute' : 'Milliseconds (ms)'}
-          </Text>
-          {chartNode}
-          {chartLabels.length > 0 && (
-            <View className="flex-row justify-between mt-4">
-              {chartLabels.map((label) => (
-                <View key={label.key} className="items-center flex-1">
-                  <Text className="text-xs font-hell text-gray-500">
-                    {label.weekday.charAt(0)}
-                  </Text>
-                  <Text className="text-xs font-hell text-gray-400">{label.day}</Text>
-                </View>
-              ))}
-            </View>
-          )}
-        </View>
-        <View className="px-6 py-4 bg-gray-50 border-t border-gray-100 rounded-xl">
-          <Text className="text-xs text-gray-500 font-hell">{rationale}</Text>
-        </View>
-      </Card>
-    );
-
-    return (
-      <View className="gap-6">
-        <View className="flex-row justify-between items-center mb-4">
-          <View className="flex-row bg-gray-100 rounded-full p-1">
-            {(['trends', 'today'] as const).map((mode) => {
-              const isActive = activityMode === mode;
-              return (
-                <Pressable
-                  key={mode}
-                  onPress={() => setActivityMode(mode)}
-                  className={`px-4 py-2 rounded-full ${isActive ? 'bg-gray-900' : ''}`}
-                  android_ripple={{ color: 'rgba(0,0,0,0.05)', borderless: true }}
+  const renderActivity = () => (
+    <View className="gap-6">
+      <View className="flex-row justify-between items-center mb-4">
+        <View className="flex-row bg-gray-100 rounded-full p-1">
+          {(['trends', 'today'] as const).map((mode) => {
+            const isActive = activityMode === mode;
+            return (
+              <Pressable
+                key={mode}
+                onPress={() => setActivityMode(mode)}
+                className={`px-4 py-2 rounded-full ${isActive ? 'bg-gray-900' : ''}`}
+                android_ripple={{ color: 'rgba(0,0,0,0.05)', borderless: true }}
+              >
+                <Text
+                  className={`text-xs font-hell-round-bold ${isActive ? 'text-white' : 'text-gray-500'}`}
                 >
-                  <Text
-                    className={`text-xs font-hell-round-bold ${
-                      isActive ? 'text-white' : 'text-gray-500'
-                    }`}
-                  >
-                    {mode === 'trends' ? 'Trends' : 'Today'}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
+                  {mode === 'trends' ? 'Trends' : 'Today'}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+        {activityMode === 'trends' && (
           <View className="flex-row bg-gray-100 rounded-full p-1">
             {timeRangeOptions.map((option) => {
               const isActive = timeRange === option.id;
@@ -747,9 +367,7 @@ const StatisticsScreen = () => {
                 <Pressable
                   key={option.id}
                   onPress={() => setTimeRange(option.id)}
-                  className={`px-4 py-2 rounded-full ${
-                    isActive ? 'bg-white' : ''
-                  }`}
+                  className={`px-4 py-2 rounded-full ${isActive ? 'bg-white' : ''}`}
                   android_ripple={{ color: 'rgba(0,0,0,0.05)', borderless: true }}
                 >
                   <Text
@@ -763,59 +381,112 @@ const StatisticsScreen = () => {
               );
             })}
           </View>
-        </View>
+        )}
+      </View>
 
-        {activityMode === 'trends' ? (
-          <>
-            {renderMetricCard(
-              'Breathing rate (BR)',
-              latestBreathing != null
-                ? `Recent sleep: ${latestBreathing} breaths per minute`
-                : 'No recent breathing data',
-              <LineChart values={breathingValues} color="#2563eb" labels={chartLabels} />,
-              'This graph shows your nightly average BR in breaths per minute.'
-            )}
-
-            {renderMetricCard(
-              'Heart rate variability (HRV)',
-              latestHRV != null
-                ? `Recent sleep: ${latestHRV} milliseconds`
-                : 'No recent HRV data',
-              <LineChart values={hrvValues} color="#0ea5e9" labels={chartLabels} />,
-              'This graph shows your nightly heart rate variability in milliseconds.'
-            )}
-
-            {renderDailySummaryList()}
-          </>
-        ) : (
-          <Card variant="outlined">
-            <View className="p-6 items-center">
-              <TrendingUp size={32} color="#6366f1" />
-              <Text className="text-lg font-hell-round-bold text-gray-900 mt-4">
-                Today overview coming soon
-              </Text>
-              <Text className="text-sm text-gray-600 font-hell text-center mt-2">
-                Daily insights will appear here once today's sensor data is available.
+      {activityMode === 'trends' ? (
+        !hasActivityData ? (
+          <Card variant="outlined" className="mb-6">
+            <View className="p-8 items-center">
+              <Activity size={48} color="#9CA3AF" />
+              <Text className="text-lg font-hell-round-bold text-gray-900 mt-4 ">No events yet</Text>
+              <Text className="text-gray-600 text-center mt-2 font-hell">
+                Wearable events will build a daily trend once the device posts activity changes.
               </Text>
             </View>
           </Card>
-        )}
-      </View>
-    );
-  };
+        ) : (
+          <Card variant="outlined" className="overflow-hidden">
+            <View className="pt-4 pb-4 px-4">
+              <Text className="text-lg font-hell-round-bold text-gray-900">Events per day</Text>
+              <Text className="text-sm text-gray-600 font-hell mt-2">
+                IMU class transitions (st, si, w, r, nf, f, af) — last {chartDayCount} days of selected range
+              </Text>
+            </View>
+            <View className="pb-6 px-4">
+              <LineChart values={imuEventValues} color="#2563eb" labels={imuChartLabels} />
+              {imuChartLabels.length > 0 && (
+                <View className="flex-row justify-between mt-4">
+                  {imuChartLabels.map((label) => (
+                    <View key={label.key} className="items-center flex-1">
+                      <Text className="text-xs font-hell text-gray-500">{label.weekday.charAt(0)}</Text>
+                      <Text className="text-xs font-hell text-gray-400">{label.day}</Text>
+                    </View>
+                  ))}
+                </View>
+              )}
+            </View>
+            <View className="px-6 py-4 bg-gray-50 border-t border-gray-100 rounded-xl">
+              <Text className="text-xs text-gray-500 font-hell">
+                30-day view shows up to 14 days on the chart; 7-day view shows the full week.
+              </Text>
+            </View>
+          </Card>
+        )
+      ) : !userId ? (
+        <Card variant="outlined">
+          <View className="p-6">
+            <Text className="text-gray-600 font-hell text-center">Sign in to see today&apos;s activity.</Text>
+          </View>
+        </Card>
+      ) : (
+        <Card variant="outlined">
+          <View className="p-6">
+            <Text className="text-lg font-hell-round-bold text-gray-900 mb-4">Today (IMU)</Text>
+            <View className="flex-row gap-3 flex-wrap">
+              <Card variant="outlined" className="flex-1 min-w-[100px]">
+                <View className="items-center py-2">
+                  <View className="w-12 h-12 bg-primary-button rounded-xl items-center justify-center mb-3">
+                    <User size={24} color="white" />
+                  </View>
+                  <Text className="text-xs font-hell font-medium text-gray-600 mb-2">Events</Text>
+                  <Text className="text-base font-hell-round-bold text-gray-900">
+                    {activityToday?.total_events ?? 0}
+                  </Text>
+                </View>
+              </Card>
+              <Card variant="outlined" className="flex-1 min-w-[100px]">
+                <View className="items-center py-2">
+                  <View className="w-12 h-12 bg-success rounded-xl items-center justify-center mb-3">
+                    <Activity size={24} color="white" />
+                  </View>
+                  <Text className="text-xs font-hell font-medium text-gray-600 mb-2">Top class</Text>
+                  <Text className="text-sm font-hell-round-bold text-gray-900 text-center">
+                    {topClassToday ? formatActivityDisplayName(topClassToday) : '—'}
+                  </Text>
+                </View>
+              </Card>
+              <Card variant="outlined" className="flex-1 min-w-[100px]">
+                <View className="items-center py-2">
+                  <View className="w-12 h-12 bg-primary-accent rounded-xl items-center justify-center mb-3">
+                    <Zap size={24} color="white" />
+                  </View>
+                  <Text className="text-xs font-hell font-medium text-gray-600 mb-2">Tracked time</Text>
+                  <Text className="text-sm font-hell-round-bold text-gray-900 text-center">
+                    {activityToday?.by_activity
+                      ? formatMinutesFromSeconds(
+                          Object.values(activityToday.by_activity).reduce(
+                            (s, b) => s + (b.total_seconds ?? 0),
+                            0,
+                          ),
+                        )
+                      : '—'}
+                  </Text>
+                </View>
+              </Card>
+            </View>
+          </View>
+        </Card>
+      )}
+    </View>
+  );
 
   const renderActiveSection = () => {
-    if (stats.totalReadings === 0) {
+    if (!userId) {
       return (
         <Card variant="outlined" className="mb-6">
           <View className="p-8 items-center">
-            <Activity size={48} color="#9CA3AF" />
-            <Text className="text-lg font-hell-round-bold text-gray-900 mt-4 ">
-              No Statistics Yet
-            </Text>
-            <Text className="text-gray-600 text-center mt-2 font-hell">
-              Start using the sensor to see your usage statistics here.
-            </Text>
+            <Text className="text-gray-600 text-center font-hell">Sign in to view activity statistics.</Text>
           </View>
         </Card>
       );
@@ -834,16 +505,11 @@ const StatisticsScreen = () => {
   };
 
   return (
-    <View className="flex-1 bg-white"
-      style={{
-        paddingTop: insets.top
-      }}
-    >
+    <View className="flex-1 bg-white" style={{ paddingTop: insets.top }}>
       <ScrollView className="flex-1 px-6">
-        {/* Header */}
         <Header
           title="Statistics"
-          subtitle="Your sensor usage history"
+          subtitle="IMU classes: st · si · w · r · nf · f · af"
           showBackButton
         />
 
@@ -851,9 +517,7 @@ const StatisticsScreen = () => {
           <Card variant="outlined" className="mb-6">
             <View className="p-6 items-center">
               <ActivityIndicator size="large" color="#FF7300" />
-              <Text className="text-gray-600 mt-4 font-hell">
-                Loading statistics...
-              </Text>
+              <Text className="text-gray-600 mt-4 font-hell">Loading activity statistics…</Text>
             </View>
           </Card>
         ) : (
@@ -865,9 +529,7 @@ const StatisticsScreen = () => {
                   <Pressable
                     key={tab.id}
                     onPress={() => setActiveSection(tab.id)}
-                    className={`flex-1 py-2 px-4 rounded-full items-center ${
-                      isActive ? 'bg-white' : ''
-                    }`}
+                    className={`flex-1 py-2 px-4 rounded-full items-center ${isActive ? 'bg-white' : ''}`}
                     android_ripple={{ color: 'rgba(0,0,0,0.05)', borderless: true }}
                   >
                     <Text
@@ -886,7 +548,6 @@ const StatisticsScreen = () => {
           </>
         )}
 
-        {/* Bottom spacing */}
         <View className="h-8" />
       </ScrollView>
     </View>
@@ -894,4 +555,3 @@ const StatisticsScreen = () => {
 };
 
 export default StatisticsScreen;
-

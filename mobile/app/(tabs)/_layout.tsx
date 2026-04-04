@@ -28,23 +28,6 @@ export default function TabLayout() {
           ),
         })}
       </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="health">
-        <Label>Health</Label>
-        {Platform.select({
-          // Use outline for inactive, filled for active
-          ios: <Icon sf={{ default: 'heart', selected: 'heart.fill' }} />,
-          android: (
-            <Icon
-              src={
-                <VectorIcon 
-                  family={MaterialIcons} 
-                  name="favorite-border"
-                />
-              }
-            />
-          ),
-        })}
-      </NativeTabs.Trigger>
       <NativeTabs.Trigger name="profile">
         <Label>Profile</Label>
         {Platform.select({

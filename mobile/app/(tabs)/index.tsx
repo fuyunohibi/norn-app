@@ -4,9 +4,9 @@ import {
   Activity,
   AlertTriangle,
   ChevronRight,
-  Heart,
-  Moon,
   Shield,
+  Star,
+  User,
   Zap,
 } from "lucide-react-native";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -31,16 +31,17 @@ import { useImuWearableStatus } from "../../hooks/useImuWearableStatus";
 import { backendAPIService } from "../../services/backend-api.service";
 import { getUnreadAlerts } from "../../services/monitoring.service";
 import { useModeStore } from "../../stores/mode.store";
+import { formatActivityDisplayName } from "../../utils/imu-activity";
 
 // Memoize the mode icon component to prevent re-renders
 const getModeIcon = (modeId: string) => {
   switch (modeId) {
-    case "sleep":
-      return <Moon size={24} color="white" fill="white" />;
+    case "activity":
+      return <Activity size={24} color="white" />;
     case "fall":
       return <AlertTriangle size={24} color="white" />;
     default:
-      return <Moon size={24} color="white" fill="white" />;
+      return <Activity size={24} color="white" />;
   }
 };
 
@@ -66,6 +67,23 @@ const HomeScreen = () => {
   } = useActivityStatistics(userId, "today");
   const activityStats = activityStatsRes?.statistics;
   const imuDataLoading = imuStatusLoading || activityStatsLoading;
+
+  const topClassToday = useMemo(() => {
+    const by = activityStats?.by_activity;
+    if (!by || !Object.keys(by).length) return null;
+    const sorted = Object.entries(by).sort(
+      (a, b) => (b[1].total_seconds ?? 0) - (a[1].total_seconds ?? 0),
+    );
+    return sorted[0]?.[0] ?? null;
+  }, [activityStats?.by_activity]);
+
+  const trackedTodayMinutes = useMemo(() => {
+    const by = activityStats?.by_activity;
+    if (!by) return 0;
+    return Math.round(
+      Object.values(by).reduce((s, b) => s + (b.total_seconds ?? 0), 0) / 60,
+    );
+  }, [activityStats?.by_activity]);
   const imuDataError = imuStatusError ?? null;
   const [showModeSelector, setShowModeSelector] = useState(false);
   const insets = useSafeAreaInsets();
@@ -227,12 +245,9 @@ const HomeScreen = () => {
   // Track shown alerts to prevent duplicate notifications
   const shownAlertIds = useRef<Set<string>>(new Set());
 
-  // Show alert when fall is detected (only in fall detection mode)
+  // IMU / backend fall alerts: show whenever critical alerts arrive (device always monitors).
   useEffect(() => {
     if (!unreadAlerts || unreadAlerts.length === 0) return;
-
-    // Only show fall alerts when in fall detection mode
-    if (activeMode?.id !== "fall") return;
 
     // Find critical fall alerts that haven't been shown yet
     // Also verify they're recent (within last 2 minutes) and actually detected as falls
@@ -240,9 +255,11 @@ const HomeScreen = () => {
     const twoMinutesAgo = now - 2 * 60 * 1000;
 
     const fallAlerts = unreadAlerts.filter((alert) => {
-      // Check basic criteria
-      if (alert.alert_type !== "fall" || alert.severity !== "critical")
-        return false;
+      const isImuSafety =
+        (alert.alert_type === "fall" && alert.severity === "critical") ||
+        (alert.alert_type === "fall_risk" &&
+          (alert.severity === "high" || alert.severity === "critical"));
+      if (!isImuSafety) return false;
       if (shownAlertIds.current.has(alert.id)) return false;
 
       // Check if alert is recent (within last 2 minutes)
@@ -286,7 +303,8 @@ const HomeScreen = () => {
         typeof latestFallDataRaw === "object" && latestFallDataRaw !== null
           ? (latestFallDataRaw as Record<string, unknown>)
           : {};
-      const confidenceSource = latestFallData["ml_confidence"];
+      const confidenceSource =
+        latestFallData["ml_confidence"] ?? latestFallData["confidence"];
       const confidenceValue =
         typeof confidenceSource === "number"
           ? confidenceSource
@@ -297,15 +315,17 @@ const HomeScreen = () => {
         ? `${Math.round(confidenceValue * 100)}%`
         : "High";
 
+      const isNearFall = latestFall.alert_type === "fall_risk";
       presentFallQuickActions(
-        `We detected a fall with ${confidence} confidence. Check in and choose a quick action.`,
+        isNearFall
+          ? `Unstable standing was reported (${confidence} confidence if available). Check in if needed.`
+          : `We detected a fall with ${confidence} confidence. Check in and choose a quick action.`,
       );
     }
-  }, [unreadAlerts, activeMode?.id, presentFallQuickActions]);
+  }, [unreadAlerts, presentFallQuickActions]);
 
-  // Live IMU activity codes from wearable (f / af / nf)
+  // Live IMU critical classes (f / af / nf) from latest activity_events row
   useEffect(() => {
-    if (activeMode?.id !== "fall") return;
     const code = imuStatus?.activity_code?.toLowerCase();
     if (!code || !["f", "af", "nf"].includes(code)) return;
 
@@ -322,7 +342,7 @@ const HomeScreen = () => {
           : "The wearable reports unstable standing — you may be at risk of falling.";
 
     presentFallQuickActions(msg);
-  }, [activeMode?.id, imuStatus?.activity_code, imuStatus?.last_seen_at, presentFallQuickActions]);
+  }, [imuStatus?.activity_code, imuStatus?.last_seen_at, presentFallQuickActions]);
 
   return (
     <View className="flex-1 bg-white">
@@ -433,6 +453,71 @@ const HomeScreen = () => {
           )}
         </Card>
 
+        {userId && backendConnected && !imuStatusLoading && !imuStatusError && (
+          <>
+            <Card variant="outlined" className="mb-6 bg-primary-accent/5 border-primary-accent/20">
+              <View className="p-4">
+                <View className="flex-row items-center mb-3">
+                  <View className="w-12 h-12 bg-primary-accent rounded-xl items-center justify-center mr-3">
+                    <Star size={24} color="white" fill="white" />
+                  </View>
+                  <View className="flex-1">
+                    <Text className="text-lg font-hell-round-bold text-gray-900">Current activity</Text>
+                    <Text className="text-xs text-gray-600 font-hell">
+                      Last class from on-device model (st · si · w · r · nf · f · af)
+                    </Text>
+                  </View>
+                </View>
+                <Text className="text-3xl font-hell-round-bold text-gray-900">
+                  {imuStatus?.online
+                    ? (imuStatus.activity_label ?? "Waiting for first class change…")
+                    : "—"}
+                </Text>
+                {imuStatus?.online && imuStatus.activity_code ? (
+                  <Text className="text-gray-500 text-xs font-hell mt-2">
+                    Code: {imuStatus.activity_code.toUpperCase()}
+                  </Text>
+                ) : null}
+              </View>
+            </Card>
+
+            <Card variant="outlined" className="mb-6">
+              <Text className="text-lg font-hell-round-bold text-gray-900 mb-3">Today</Text>
+              {activityStatsLoading ? (
+                <ActivityIndicator color="#FF7300" />
+              ) : activityStatsError ? (
+                <Text className="text-orange-600 text-sm font-hell">
+                  Could not load today&apos;s summary.
+                </Text>
+              ) : (
+                <View className="flex-row flex-wrap gap-3">
+                  <View className="flex-1 min-w-[100px] bg-gray-50 rounded-xl p-3 items-center">
+                    <User size={20} color="#6B7280" />
+                    <Text className="text-xs text-gray-600 font-hell mt-2">Events</Text>
+                    <Text className="text-lg font-hell-round-bold text-gray-900">
+                      {activityStats?.total_events ?? 0}
+                    </Text>
+                  </View>
+                  <View className="flex-1 min-w-[100px] bg-gray-50 rounded-xl p-3 items-center">
+                    <Activity size={20} color="#6B7280" />
+                    <Text className="text-xs text-gray-600 font-hell mt-2">Top class</Text>
+                    <Text className="text-sm font-hell-round-bold text-gray-900 text-center">
+                      {topClassToday ? formatActivityDisplayName(topClassToday) : "—"}
+                    </Text>
+                  </View>
+                  <View className="flex-1 min-w-[100px] bg-gray-50 rounded-xl p-3 items-center">
+                    <Zap size={20} color="#6B7280" />
+                    <Text className="text-xs text-gray-600 font-hell mt-2">Tracked</Text>
+                    <Text className="text-sm font-hell-round-bold text-gray-900">
+                      {trackedTodayMinutes > 0 ? `${trackedTodayMinutes}m` : "—"}
+                    </Text>
+                  </View>
+                </View>
+              )}
+            </Card>
+          </>
+        )}
+
         {/* Mode Selector */}
         <Text className="text-xl font-hell-round-bold text-gray-900 mb-4">
           Current Mode
@@ -451,7 +536,7 @@ const HomeScreen = () => {
                 ) : activeMode ? (
                   getModeIcon(activeMode.id)
                 ) : (
-                  <Moon size={24} color="white" fill="white" />
+                  <Activity size={24} color="white" />
                 )}
               </View>
               <View className="flex-1">
@@ -523,20 +608,20 @@ const HomeScreen = () => {
               </Text>
             )}
 
-            {activeMode?.id === "sleep" && (
+            {activeMode?.id === "activity" && (
               <View className="gap-y-3">
                 <Card variant="outlined">
                   <View className="flex-row items-center justify-between">
                     <View className="flex-row items-center">
                       <View className="w-12 h-12 bg-primary-accent rounded-xl items-center justify-center mr-4">
-                        <Moon size={24} color="white" fill="white" />
+                        <Activity size={24} color="white" />
                       </View>
                       <View>
                         <Text className="text-lg font-hell-round-bold text-gray-900 ">
                           Today&apos;s activity
                         </Text>
                         <Text className="text-gray-600 text-sm font-hell">
-                          From MPU6050 events stored for your account
+                          State changes from the clip (walking, sitting, …) plus heartbeats
                         </Text>
                       </View>
                     </View>
@@ -549,7 +634,7 @@ const HomeScreen = () => {
                 <Card variant="outlined">
                   <View className="p-4">
                     <Text className="text-base font-hell-round-bold text-gray-900 mb-3">
-                      Time by posture (today)
+                      Time by class (today)
                     </Text>
                     {activityStats?.by_activity &&
                     Object.keys(activityStats.by_activity).length > 0 ? (

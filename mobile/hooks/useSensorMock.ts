@@ -11,7 +11,7 @@ export interface SensorReading {
 
 export interface SensorMode {
   id: string;
-  name: 'Sleep Mode' | 'Fall Mode';
+  name: 'Activity' | 'Fall focus';
   description: string;
   isActive: boolean;
 }
@@ -58,15 +58,15 @@ const generateMockSensorData = (): SensorReading[] => {
 // Mock sensor modes
 const mockSensorModes: SensorMode[] = [
   {
-    id: 'sleep',
-    name: 'Sleep Mode',
-    description: 'Optimized for sleep monitoring and detection',
+    id: 'activity',
+    name: 'Activity',
+    description: 'MPU6050 movement and posture tracking',
     isActive: true,
   },
   {
     id: 'fall',
-    name: 'Fall Mode',
-    description: 'Enhanced fall detection and emergency response',
+    name: 'Fall focus',
+    description: 'Safety status and fall alerts',
     isActive: false,
   },
 ];

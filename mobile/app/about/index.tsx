@@ -34,7 +34,7 @@ const AboutScreen = () => {
               NORN
             </Text>
             <Text className="text-gray-600 text-center mb-4 font-hell">
-              Home Fall & Sleep Monitoring System{'\n'}with Life Sign Detection
+              Home activity and fall safety{'\n'}with MPU6050 wearable sensing
             </Text>
             <View className="bg-gray-100 rounded-lg px-4 py-2">
               <Text className="text-sm font-hell-round-bold text-gray-700 ">
@@ -57,10 +57,10 @@ const AboutScreen = () => {
                 </View>
                 <View className="flex-1">
                   <Text className="text-base font-hell-round-bold text-gray-900 ">
-                    Sleep Monitoring
+                    Activity monitoring
                   </Text>
                   <Text className="text-sm text-gray-600 mt-1 font-hell">
-                    Track heart rate, respiration, and sleep quality
+                    Movement and posture state from the wearable clip
                   </Text>
                 </View>
               </View>

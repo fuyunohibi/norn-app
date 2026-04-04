@@ -27,6 +27,7 @@ export type Database = {
           resolved_at: string | null
           resolved_by: string | null
           severity: string
+          source_device_id: string | null
           title: string
           user_id: string
         }
@@ -42,6 +43,7 @@ export type Database = {
           resolved_at?: string | null
           resolved_by?: string | null
           severity: string
+          source_device_id?: string | null
           title: string
           user_id: string
         }
@@ -57,6 +59,7 @@ export type Database = {
           resolved_at?: string | null
           resolved_by?: string | null
           severity?: string
+          source_device_id?: string | null
           title?: string
           user_id?: string | null
         }
@@ -76,6 +79,36 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      activity_events: {
+        Row: {
+          id: string
+          user_id: string
+          device_id: string | null
+          activity: string
+          timestamp_device: number | null
+          extras: Json
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          device_id?: string | null
+          activity: string
+          timestamp_device?: number | null
+          extras?: Json
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          device_id?: string | null
+          activity?: string
+          timestamp_device?: number | null
+          extras?: Json
+          created_at?: string
+        }
+        Relationships: []
       }
       emergency_contacts: {
         Row: {
@@ -126,54 +159,45 @@ export type Database = {
       }
       daily_statistics: {
         Row: {
+          activity_class_breakdown: Json
           created_at: string | null
           fall_readings: number
           first_reading_at: string | null
-          hrv_count: number
-          hrv_sum: number | null
           id: string
+          imu_activity_event_count: number
+          imu_critical_event_count: number
           last_fall_reading_at: string | null
           last_reading_at: string | null
-          last_sleep_reading_at: string | null
-          respiration_count: number
-          respiration_sum: number | null
-          sleep_readings: number
           stat_date: string
           total_readings: number
           updated_at: string | null
           user_id: string | null
         }
         Insert: {
+          activity_class_breakdown?: Json
           created_at?: string | null
           fall_readings?: number
           first_reading_at?: string | null
-          hrv_count?: number
-          hrv_sum?: number | null
           id?: string
+          imu_activity_event_count?: number
+          imu_critical_event_count?: number
           last_fall_reading_at?: string | null
           last_reading_at?: string | null
-          last_sleep_reading_at?: string | null
-          respiration_count?: number
-          respiration_sum?: number | null
-          sleep_readings?: number
           stat_date: string
           total_readings?: number
           updated_at?: string | null
           user_id?: string | null
         }
         Update: {
+          activity_class_breakdown?: Json
           created_at?: string | null
           fall_readings?: number
           first_reading_at?: string | null
-          hrv_count?: number
-          hrv_sum?: number | null
           id?: string
+          imu_activity_event_count?: number
+          imu_critical_event_count?: number
           last_fall_reading_at?: string | null
           last_reading_at?: string | null
-          last_sleep_reading_at?: string | null
-          respiration_count?: number
-          respiration_sum?: number | null
-          sleep_readings?: number
           stat_date?: string
           total_readings?: number
           updated_at?: string | null
@@ -191,7 +215,6 @@ export type Database = {
       }
       monitoring_sessions: {
         Row: {
-          average_sleep_quality: number | null
           created_at: string | null
           device_id: string | null
           end_time: string | null
@@ -207,7 +230,6 @@ export type Database = {
           user_id: string | null
         }
         Insert: {
-          average_sleep_quality?: number | null
           created_at?: string | null
           device_id?: string | null
           end_time?: string | null
@@ -223,7 +245,6 @@ export type Database = {
           user_id?: string | null
         }
         Update: {
-          average_sleep_quality?: number | null
           created_at?: string | null
           device_id?: string | null
           end_time?: string | null
@@ -265,10 +286,8 @@ export type Database = {
           fall_detection_range: number | null
           fall_sensitivity: number | null
           id: string
+          imu_wearable_device_id: string | null
           notification_enabled: boolean | null
-          sleep_alert_threshold: number | null
-          sleep_detection_range: number | null
-          sleep_sensitivity: number | null
           updated_at: string | null
           user_id: string | null
         }
@@ -281,10 +300,8 @@ export type Database = {
           fall_detection_range?: number | null
           fall_sensitivity?: number | null
           id?: string
+          imu_wearable_device_id?: string | null
           notification_enabled?: boolean | null
-          sleep_alert_threshold?: number | null
-          sleep_detection_range?: number | null
-          sleep_sensitivity?: number | null
           updated_at?: string | null
           user_id?: string | null
         }
@@ -297,10 +314,8 @@ export type Database = {
           fall_detection_range?: number | null
           fall_sensitivity?: number | null
           id?: string
+          imu_wearable_device_id?: string | null
           notification_enabled?: boolean | null
-          sleep_alert_threshold?: number | null
-          sleep_detection_range?: number | null
-          sleep_sensitivity?: number | null
           updated_at?: string | null
           user_id?: string | null
         }
@@ -360,72 +375,6 @@ export type Database = {
         }
         Relationships: []
       }
-      sensor_readings: {
-        Row: {
-          confidence_score: number | null
-          device_id: string | null
-          distance: number | null
-          id: string
-          is_fall_detected: boolean | null
-          is_movement_detected: boolean | null
-          is_person_detected: boolean | null
-          movement_intensity: number | null
-          processed_at: string | null
-          raw_data: Json | null
-          reading_type: string
-          sleep_quality_score: number | null
-          timestamp: string | null
-          user_id: string | null
-        }
-        Insert: {
-          confidence_score?: number | null
-          device_id?: string | null
-          distance?: number | null
-          id?: string
-          is_fall_detected?: boolean | null
-          is_movement_detected?: boolean | null
-          is_person_detected?: boolean | null
-          movement_intensity?: number | null
-          processed_at?: string | null
-          raw_data?: Json | null
-          reading_type: string
-          sleep_quality_score?: number | null
-          timestamp?: string | null
-          user_id?: string | null
-        }
-        Update: {
-          confidence_score?: number | null
-          device_id?: string | null
-          distance?: number | null
-          id?: string
-          is_fall_detected?: boolean | null
-          is_movement_detected?: boolean | null
-          is_person_detected?: boolean | null
-          movement_intensity?: number | null
-          processed_at?: string | null
-          raw_data?: Json | null
-          reading_type?: string
-          sleep_quality_score?: number | null
-          timestamp?: string | null
-          user_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "sensor_readings_device_id_fkey"
-            columns: ["device_id"]
-            isOneToOne: false
-            referencedRelation: "device_status"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "sensor_readings_device_id_fkey"
-            columns: ["device_id"]
-            isOneToOne: false
-            referencedRelation: "sensor_devices"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       user_preferences: {
         Row: {
           auto_backup: boolean | null
@@ -435,7 +384,6 @@ export type Database = {
           fall_alerts_enabled: boolean | null
           id: string
           push_notifications: boolean | null
-          sleep_alerts_enabled: boolean | null
           sms_notifications: boolean | null
           updated_at: string | null
           user_id: string | null
@@ -448,7 +396,6 @@ export type Database = {
           fall_alerts_enabled?: boolean | null
           id?: string
           push_notifications?: boolean | null
-          sleep_alerts_enabled?: boolean | null
           sms_notifications?: boolean | null
           updated_at?: string | null
           user_id?: string | null
@@ -461,7 +408,6 @@ export type Database = {
           fall_alerts_enabled?: boolean | null
           id?: string
           push_notifications?: boolean | null
-          sleep_alerts_enabled?: boolean | null
           sms_notifications?: boolean | null
           updated_at?: string | null
           user_id?: string | null
@@ -510,7 +456,6 @@ export type Database = {
           last_reading: string | null
           last_seen: string | null
           recent_readings: number | null
-          sleep_sensitivity: number | null
           total_readings: number | null
         }
         Relationships: []

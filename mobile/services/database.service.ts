@@ -124,7 +124,6 @@ export class DatabaseService {
       const tables = [
         'alerts',
         'monitoring_sessions',
-        'sensor_readings',
         'sensor_configurations',
         'sensor_devices',
         'user_preferences',

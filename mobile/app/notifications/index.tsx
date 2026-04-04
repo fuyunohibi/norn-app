@@ -79,6 +79,7 @@ const NotificationsScreen = () => {
   const getAlertTypeIcon = (type: string) => {
     switch (type) {
       case 'fall':
+      case 'fall_risk':
         return <Shield size={20} color="white" fill="white" />;
       default:
         return <AlertCircle size={20} color="white" />;
@@ -109,7 +110,7 @@ const NotificationsScreen = () => {
                 <ActivityIndicator size="small" color="#6366f1" />
               ) : (
                 <>
-                  <View className="flex-row items-center justify-between py-3 border-b border-gray-200">
+                  <View className="flex-row items-center justify-between py-3">
                     <View className="flex-1">
                       <Text className="text-base font-hell-round-bold text-gray-900 ">
                         Fall Detection Alerts
@@ -121,23 +122,6 @@ const NotificationsScreen = () => {
                     <Switch
                       value={preferences?.fall_alerts_enabled ?? true}
                       onValueChange={(value) => handleTogglePreference('fall_alerts_enabled', value)}
-                      trackColor={{ false: '#E5E7EB', true: '#FF7300' }}
-                      thumbColor="#FFFFFF"
-                    />
-                  </View>
-
-                  <View className="flex-row items-center justify-between py-3">
-                    <View className="flex-1">
-                      <Text className="text-base font-hell-round-bold text-gray-900 ">
-                        Sleep Quality Alerts
-                      </Text>
-                      <Text className="text-sm text-gray-600 mt-1 font-hell">
-                        Get notified about sleep quality issues
-                      </Text>
-                    </View>
-                    <Switch
-                      value={preferences?.sleep_alerts_enabled ?? true}
-                      onValueChange={(value) => handleTogglePreference('sleep_alerts_enabled', value)}
                       trackColor={{ false: '#E5E7EB', true: '#FF7300' }}
                       thumbColor="#FFFFFF"
                     />
@@ -213,7 +197,9 @@ const NotificationsScreen = () => {
                         </Text>
                         <View className="flex-row items-center justify-between">
                           <Text className="text-xs text-gray-500 font-hell">
-                            {new Date(alert.created_at).toLocaleString()}
+                            {alert.created_at
+                              ? new Date(alert.created_at).toLocaleString()
+                              : ''}
                           </Text>
                           {!alert.is_read && (
                             <TouchableOpacity

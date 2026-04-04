@@ -5,7 +5,7 @@ import type {
 } from '@/database/types';
 import { supabase } from '@/utils/supabase';
 import { aggregateReadingsToDailyStatistics } from '@/utils/statistics-aggregator';
-import { getMockFallData, getMockSleepData } from '@/utils/mock-statistics';
+import { getMockFallData } from '@/utils/mock-statistics';
 
 export const fetchDailyStatistics = async (userId: string, limit = 90): Promise<DailyStatistic[]> => {
   const { data, error } = await supabase
@@ -46,9 +46,8 @@ export const upsertDailyStatistics = async (
 export const seedDailyStatisticsFromMock = async (userId: string): Promise<void> => {
   if (!__DEV__) return;
 
-  const sleepReadings = getMockSleepData(userId).readings || [];
   const fallReadings = getMockFallData(userId).readings || [];
-  const combinedReadings = [...sleepReadings, ...fallReadings];
+  const combinedReadings = [...fallReadings];
 
   if (!combinedReadings.length) {
     return;
@@ -64,15 +63,9 @@ export const seedDailyStatisticsFromMock = async (userId: string): Promise<void>
     user_id: userId,
     stat_date: aggregate.stat_date,
     total_readings: aggregate.total_readings,
-    sleep_readings: aggregate.sleep_readings,
     fall_readings: aggregate.fall_readings,
-    respiration_sum: aggregate.respiration_sum,
-    respiration_count: aggregate.respiration_count,
-    hrv_sum: aggregate.hrv_sum,
-    hrv_count: aggregate.hrv_count,
     first_reading_at: aggregate.first_reading_at,
     last_reading_at: aggregate.last_reading_at,
-    last_sleep_reading_at: aggregate.last_sleep_reading_at,
     last_fall_reading_at: aggregate.last_fall_reading_at,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),

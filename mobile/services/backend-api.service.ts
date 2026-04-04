@@ -1,3 +1,4 @@
+import type { Alert } from '@/database/types';
 import Constants from 'expo-constants';
 
 const API_URL =
@@ -46,43 +47,16 @@ export interface ImuWearableStatusResponse {
   error?: string;
 }
 
-/** Legacy sleep summary shape — backend ML sleep pipeline removed with IMU; mocks may still use this. */
-export interface SleepSummary {
-  overall_quality: number;
-  sleep_score_grade: string;
-  total_sleep_time_minutes: number;
-  time_in_bed_minutes: number;
-  sleep_efficiency_percent: number;
-  sleep_stages: {
-    deep_sleep_minutes: number;
-    deep_sleep_percent: number;
-    light_sleep_minutes: number;
-    light_sleep_percent: number;
-    awake_minutes: number;
-    awake_percent: number;
-  };
-  vital_signs: {
-    avg_heart_rate: number;
-    min_heart_rate: number;
-    max_heart_rate: number;
-    avg_respiration: number;
-    min_respiration: number;
-    max_respiration: number;
-  };
-  sleep_patterns: {
-    avg_body_movement: number;
-    restlessness_score: number;
-    apnea_events: number;
-  };
-  sleep_onset?: string;
-  wake_time?: string;
-  recommendations: string[];
-  ml_model_version: string;
-  user_id: string;
-  date: string;
-  session_start: string;
-  session_end: string;
-  total_readings: number;
+/** IMU + legacy alerts; rows match Supabase `alerts` (served via FastAPI + service role). */
+export interface AlertsListResponse {
+  status: string;
+  count: number;
+  alerts: Alert[];
+}
+
+export interface PatchAlertResponse {
+  status: string;
+  alert: Alert;
 }
 
 class BackendAPIService {
@@ -103,7 +77,7 @@ class BackendAPIService {
   /**
    * MPU6050 firmware has no server-side mode API; we only update app UI state.
    */
-  async changeMode(mode: 'sleep' | 'fall', _userId?: string): Promise<ModeChangeResponse> {
+  async changeMode(mode: 'activity' | 'fall', _userId?: string): Promise<ModeChangeResponse> {
     return {
       status: 'ok',
       mode,
@@ -182,9 +156,72 @@ class BackendAPIService {
     return response.json();
   }
 
+  /**
+   * List alerts for a user (same data as Supabase `alerts`; uses backend service role — avoids client RLS issues).
+   */
+  async listAlerts(
+    userId: string,
+    options?: { limit?: number; isRead?: boolean; isResolved?: boolean },
+  ): Promise<AlertsListResponse> {
+    const url = new URL(`${this.baseUrl}/api/v1/alerts/`);
+    url.searchParams.set('user_id', userId);
+    if (options?.limit != null) {
+      url.searchParams.set('limit', String(options.limit));
+    }
+    if (options?.isRead !== undefined) {
+      url.searchParams.set('is_read', String(options.isRead));
+    }
+    if (options?.isResolved !== undefined) {
+      url.searchParams.set('is_resolved', String(options.isResolved));
+    }
+
+    const response = await fetch(url.toString(), {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      let detail = text;
+      try {
+        const j = JSON.parse(text);
+        detail = j.detail ?? text;
+      } catch {
+        /* keep */
+      }
+      throw new Error(detail || `HTTP ${response.status}`);
+    }
+
+    return response.json();
+  }
+
+  async patchAlert(
+    alertId: string,
+    body: { is_read?: boolean; is_resolved?: boolean },
+  ): Promise<PatchAlertResponse> {
+    const response = await fetch(`${this.baseUrl}/api/v1/alerts/${encodeURIComponent(alertId)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      let detail = text;
+      try {
+        const j = JSON.parse(text);
+        detail = j.detail ?? text;
+      } catch {
+        /* keep */
+      }
+      throw new Error(detail || `HTTP ${response.status}`);
+    }
+
+    return response.json();
+  }
+
   async getUserStatistics(userId: string): Promise<{
     totalReadings: number;
-    sleepReadings: number;
     fallReadings: number;
     latestReading: { timestamp: string | null; activity: string | null } | null;
     lastUpdated: string | null;
@@ -195,11 +232,15 @@ class BackendAPIService {
     ]);
 
     const totalEvents = statsRes?.statistics?.total_events ?? 0;
+    const by = statsRes?.statistics?.by_activity ?? {};
+    let criticalCount = 0;
+    for (const k of ['falling', 'after_fall', 'unstable_standing'] as const) {
+      criticalCount += by[k]?.count ?? 0;
+    }
 
     return {
       totalReadings: totalEvents,
-      sleepReadings: 0,
-      fallReadings: 0,
+      fallReadings: criticalCount,
       latestReading: imu
         ? {
             timestamp: imu.last_seen_at,
@@ -208,13 +249,6 @@ class BackendAPIService {
         : null,
       lastUpdated: imu?.last_seen_at ?? null,
     };
-  }
-
-  /**
-   * @deprecated No sleep-summary route on IMU backend; callers should treat as unavailable.
-   */
-  async getSleepSummary(_userId: string, _date?: string): Promise<{ status: string; summary: SleepSummary }> {
-    throw new Error('Sleep summary API is not available for the IMU wearable backend.');
   }
 }
 
