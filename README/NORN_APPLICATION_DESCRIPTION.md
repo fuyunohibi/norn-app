@@ -190,12 +190,9 @@ The primary objectives of NORN are:
 ### Core Tables
 - **users**: User profiles and authentication data
 - **profiles**: Extended user profile information
-- **sensor_devices**: ESP32 device information and status
-- **sensor_configurations**: Device settings and emergency contacts
-- **sensor_readings**: Real-time sensor data (unified table or mode-specific)
-- **sleep_readings**: Sleep detection data (if separate table)
+- **sensor_devices**: ESP32 / device registry and status
+- **activity_events**: IMU activity timeline (primary wearable pipeline)
 - **alerts**: System alerts and notifications
-- **monitoring_sessions**: Session tracking for analysis
 
 ### Security
 - Row Level Security (RLS) policies enabled

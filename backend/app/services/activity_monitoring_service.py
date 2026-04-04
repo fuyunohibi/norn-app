@@ -9,9 +9,8 @@ from __future__ import annotations
 import logging
 from typing import Any, Dict, Optional, Tuple
 
-from fastapi import BackgroundTasks
-
 from app.models.sensor import ActivityEventData, IMUAlertData
+from fastapi import BackgroundTasks
 
 logger = logging.getLogger(__name__)
 

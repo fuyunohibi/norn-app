@@ -1,7 +1,7 @@
 import json
 from typing import List, Optional
 
-from pydantic import computed_field
+from pydantic import computed_field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -9,11 +9,23 @@ class Settings(BaseSettings):
     """Application settings loaded from environment variables"""
     
     model_config = SettingsConfigDict(
-        env_file=".env.local",
+        env_file=(".env", ".env.local"),
         env_file_encoding="utf-8",
         case_sensitive=True,
-        extra="ignore"
+        extra="ignore",
     )
+
+    @field_validator("SUPABASE_URL", "SUPABASE_SERVICE_KEY", mode="before")
+    @classmethod
+    def strip_whitespace(cls, v: object) -> object:
+        if isinstance(v, str):
+            return v.strip()
+        return v
+
+    @field_validator("SUPABASE_URL", mode="after")
+    @classmethod
+    def supabase_url_no_trailing_slash(cls, v: str) -> str:
+        return v.rstrip("/")
     
     # Server Configuration
     HOST: str = "0.0.0.0"

@@ -1,10 +1,9 @@
 import logging
+from typing import Optional
 
 from app.models.sensor import ActivityEventData, IMUAlertData
 from app.services.monitoring_services import activity_monitoring_service
 from app.services.supabase_service import supabase_service
-from typing import Optional
-
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Query
 
 logger = logging.getLogger(__name__)
@@ -19,7 +18,7 @@ router = APIRouter()
 async def receive_activity_event(
     data: ActivityEventData,
     background_tasks: BackgroundTasks,
-    user_id: str = Query(default="0b8baf9c-dcfa-4d11-93d5-a08ce06a3d61"),
+    user_id: str = Query(default="e3620158-e37a-4d4f-b851-a14fd0e53dc3"),
 ):
     """
     Receive activity change event from ESP32.
@@ -41,7 +40,7 @@ async def receive_activity_event(
 @router.get("/activity/statistics")
 async def get_activity_statistics(
     period: str = Query(..., description="One of: today, 7d, 30d"),
-    user_id: str = Query(default="0b8baf9c-dcfa-4d11-93d5-a08ce06a3d61"),
+    user_id: str = Query(default="e3620158-e37a-4d4f-b851-a14fd0e53dc3"),
 ):
     """
     Get activity statistics for the given period.
@@ -60,7 +59,7 @@ async def get_activity_statistics(
 
 @router.get("/imu/status")
 async def get_imu_live_status(
-    user_id: str = Query(default="0b8baf9c-dcfa-4d11-93d5-a08ce06a3d61"),
+    user_id: str = Query(default="e3620158-e37a-4d4f-b851-a14fd0e53dc3"),
     device_id: Optional[str] = Query(
         default=None,
         description="Optional filter, e.g. esp32-imu-001",
@@ -93,7 +92,7 @@ async def get_imu_live_status(
 async def receive_imu_alert(
     data: IMUAlertData,
     background_tasks: BackgroundTasks,
-    user_id: str = Query(default="0b8baf9c-dcfa-4d11-93d5-a08ce06a3d61"),
+    user_id: str = Query(default="e3620158-e37a-4d4f-b851-a14fd0e53dc3"),
 ):
     """
     Receive IMU-based alert from ESP32 when on-device ML reports a critical activity label.

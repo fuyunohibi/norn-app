@@ -3,9 +3,23 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
 from app.core.config import settings
+from app.utils.supabase_jwt import jwt_payload_role
+
 from supabase import Client, create_client
 
 logger = logging.getLogger(__name__)
+
+
+def _log_auth_user_fk_hint(operation: str, exc: BaseException) -> None:
+    """Postgres 23503: activity_events / alerts reference auth.users(id)."""
+    text = str(exc)
+    if "23503" not in text:
+        return
+    logger.error(
+        "   [%s] user_id must exist in Supabase Auth (Authentication → Users → copy User UID). "
+        "Use that UUID in firmware USER_ID and in ?user_id= on sensor routes — not public.users.id.",
+        operation,
+    )
 
 
 class SupabaseService:
@@ -17,13 +31,38 @@ class SupabaseService:
                 logger.error("❌ SUPABASE_SERVICE_KEY is not set!")
                 raise ValueError("SUPABASE_SERVICE_KEY is required")
 
-            if not settings.SUPABASE_SERVICE_KEY.startswith("eyJ"):
-                logger.warning(
-                    "⚠️  SUPABASE_SERVICE_KEY might not be a valid service_role key (should be a JWT token starting with 'eyJ')"
+            jwt_role = jwt_payload_role(settings.SUPABASE_SERVICE_KEY)
+            if jwt_role is not None and jwt_role != "service_role":
+                logger.error(
+                    "❌ SUPABASE_SERVICE_KEY is not the service_role secret (JWT role=%r). "
+                    "PostgREST will get 401 / RLS failures on inserts.",
+                    jwt_role,
                 )
-                logger.warning(f"   Current key starts with: {settings.SUPABASE_SERVICE_KEY[:10]}...")
+                logger.error(
+                    "   Fix: Supabase Dashboard → Project Settings → API → copy the "
+                    "`service_role` `secret` (JWT), not the anon / publishable key."
+                )
+                logger.error(
+                    "   Env files: `.env` then `.env.local` (later wins). "
+                    "Put the service_role secret in `backend/.env.local` as SUPABASE_SERVICE_KEY."
+                )
+                logger.error(
+                    "   Shell wins over files: if you `export SUPABASE_SERVICE_KEY=...` in the terminal, "
+                    "or Cursor injects it from another .env, that value overrides .env.local. "
+                    "Try: unset SUPABASE_SERVICE_KEY && uvicorn ..."
+                )
+                raise ValueError(
+                    f"SUPABASE_SERVICE_KEY must be the service_role JWT; got role={jwt_role!r}"
+                )
+            if jwt_role == "service_role":
+                logger.info("✅ SUPABASE_SERVICE_KEY JWT role is service_role")
+            elif not settings.SUPABASE_SERVICE_KEY.startswith("eyJ"):
+                logger.warning(
+                    "⚠️  Key is not a legacy eyJ… JWT; skipping role check. "
+                    "If inserts fail with RLS/401, confirm you use the service_role secret from the dashboard."
+                )
             else:
-                logger.info("✅ Service role key format looks correct (JWT token)")
+                logger.warning("⚠️  Could not read JWT role claim; verify service_role key manually")
 
             logger.info("🔌 Initializing Supabase client...")
             self.client: Client = create_client(
@@ -31,8 +70,7 @@ class SupabaseService:
                 settings.SUPABASE_SERVICE_KEY,
             )
             logger.info("✅ Supabase client initialized successfully")
-            logger.info(f"   URL: {settings.SUPABASE_URL}")
-            logger.info(f"   Key type: service_role (first 20 chars: {settings.SUPABASE_SERVICE_KEY[:20]}...)")
+            logger.info("   URL: %s", settings.SUPABASE_URL)
         except Exception as e:
             logger.error(f"❌ Failed to initialize Supabase client: {str(e)}")
             logger.error("   Please check your SUPABASE_URL and SUPABASE_SERVICE_KEY in .env file")
@@ -61,6 +99,7 @@ class SupabaseService:
             return result.data[0] if result.data else None
         except Exception as e:
             logger.error(f"Error storing activity event: {e}")
+            _log_auth_user_fk_hint("store_activity_event", e)
             return None
 
     def get_activity_statistics(
@@ -304,6 +343,7 @@ class SupabaseService:
 
         except Exception as e:
             logger.error(f"❌ Error creating alert: {str(e)}")
+            _log_auth_user_fk_hint("create_alert", e)
             return None
 
     def get_alerts(

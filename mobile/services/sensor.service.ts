@@ -1,8 +1,5 @@
 import type {
     DeviceStatus,
-    SensorConfiguration,
-    SensorConfigurationInsert,
-    SensorConfigurationUpdate,
     SensorDevice,
     SensorDeviceInsert,
     SensorDeviceUpdate,
@@ -133,80 +130,12 @@ export const updateDeviceLastSeen = async (deviceId: string): Promise<boolean> =
 };
 
 // =============================================
-// SENSOR CONFIGURATION ACTIONS
+// DEVICE STATUS (view: rows scoped by auth.uid() in SQL)
 // =============================================
 
-export const getConfiguration = async (deviceId: string): Promise<SensorConfiguration | null> => {
+export const getDeviceStatus = async (_userId: string): Promise<DeviceStatus[]> => {
   try {
-    const { data, error } = await supabase
-      .from('sensor_configurations')
-      .select('*')
-      .eq('device_id', deviceId)
-      .single();
-
-    if (error) {
-      console.error('Error fetching configuration:', error);
-      return null;
-    }
-
-    return data;
-  } catch (error) {
-    console.error('Error fetching configuration:', error);
-    return null;
-  }
-};
-
-export const createConfiguration = async (config: SensorConfigurationInsert): Promise<SensorConfiguration | null> => {
-  try {
-    const { data, error } = await supabase
-      .from('sensor_configurations')
-      .insert(config)
-      .select()
-      .single();
-
-    if (error) {
-      console.error('Error creating configuration:', error);
-      return null;
-    }
-
-    return data;
-  } catch (error) {
-    console.error('Error creating configuration:', error);
-    return null;
-  }
-};
-
-export const updateConfiguration = async (deviceId: string, updates: SensorConfigurationUpdate): Promise<SensorConfiguration | null> => {
-  try {
-    const { data, error } = await supabase
-      .from('sensor_configurations')
-      .update(updates)
-      .eq('device_id', deviceId)
-      .select()
-      .single();
-
-    if (error) {
-      console.error('Error updating configuration:', error);
-      return null;
-    }
-
-    return data;
-  } catch (error) {
-    console.error('Error updating configuration:', error);
-    return null;
-  }
-};
-
-// =============================================
-// DEVICE STATUS ACTIONS
-// =============================================
-
-export const getDeviceStatus = async (userId: string): Promise<DeviceStatus[]> => {
-  try {
-    const { data, error } = await supabase
-      .from('device_status')
-      .select('*')
-      .eq('user_id', userId);
+    const { data, error } = await supabase.from('device_status').select('*');
 
     if (error) {
       console.error('Error fetching device status:', error);

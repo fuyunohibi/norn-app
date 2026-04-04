@@ -22,7 +22,7 @@
     },
     {
       "key": "user_id",
-      "value": "0b8baf9c-dcfa-4d11-93d5-a08ce06a3d61"
+      "value": "e3620158-e37a-4d4f-b851-a14fd0e53dc3"
     },
     {
       "key": "alert_id",
@@ -118,15 +118,8 @@
         },
         "url": {
           "raw": "{{base_url}}/api/v1/sensor/activity?user_id={{user_id}}",
-          "host": [
-            "{{base_url}}"
-          ],
-          "path": [
-            "api",
-            "v1",
-            "sensor",
-            "activity"
-          ],
+          "host": ["{{base_url}}"],
+          "path": ["api", "v1", "sensor", "activity"],
           "query": [
             {
               "key": "user_id",
@@ -160,16 +153,8 @@
         "header": [],
         "url": {
           "raw": "{{base_url}}/api/v1/sensor/activity/statistics?period=today&user_id={{user_id}}",
-          "host": [
-            "{{base_url}}"
-          ],
-          "path": [
-            "api",
-            "v1",
-            "sensor",
-            "activity",
-            "statistics"
-          ],
+          "host": ["{{base_url}}"],
+          "path": ["api", "v1", "sensor", "activity", "statistics"],
           "query": [
             {
               "key": "period",
@@ -212,16 +197,8 @@
         "header": [],
         "url": {
           "raw": "{{base_url}}/api/v1/sensor/activity/statistics?period=7d&user_id={{user_id}}",
-          "host": [
-            "{{base_url}}"
-          ],
-          "path": [
-            "api",
-            "v1",
-            "sensor",
-            "activity",
-            "statistics"
-          ],
+          "host": ["{{base_url}}"],
+          "path": ["api", "v1", "sensor", "activity", "statistics"],
           "query": [
             {
               "key": "period",
@@ -258,16 +235,8 @@
         "header": [],
         "url": {
           "raw": "{{base_url}}/api/v1/sensor/activity/statistics?period=30d&user_id={{user_id}}",
-          "host": [
-            "{{base_url}}"
-          ],
-          "path": [
-            "api",
-            "v1",
-            "sensor",
-            "activity",
-            "statistics"
-          ],
+          "host": ["{{base_url}}"],
+          "path": ["api", "v1", "sensor", "activity", "statistics"],
           "query": [
             {
               "key": "period",
@@ -313,16 +282,8 @@
         },
         "url": {
           "raw": "{{base_url}}/api/v1/sensor/imu/alert?user_id={{user_id}}",
-          "host": [
-            "{{base_url}}"
-          ],
-          "path": [
-            "api",
-            "v1",
-            "sensor",
-            "imu",
-            "alert"
-          ],
+          "host": ["{{base_url}}"],
+          "path": ["api", "v1", "sensor", "imu", "alert"],
           "query": [
             {
               "key": "user_id",
@@ -367,16 +328,8 @@
         },
         "url": {
           "raw": "{{base_url}}/api/v1/sensor/imu/alert?user_id={{user_id}}",
-          "host": [
-            "{{base_url}}"
-          ],
-          "path": [
-            "api",
-            "v1",
-            "sensor",
-            "imu",
-            "alert"
-          ],
+          "host": ["{{base_url}}"],
+          "path": ["api", "v1", "sensor", "imu", "alert"],
           "query": [
             {
               "key": "user_id",
@@ -414,8 +367,18 @@
           "query": [
             { "key": "user_id", "value": "{{user_id}}" },
             { "key": "limit", "value": "50" },
-            { "key": "is_read", "value": "", "disabled": true, "description": "Optional: true/false" },
-            { "key": "is_resolved", "value": "", "disabled": true, "description": "Optional: true/false" }
+            {
+              "key": "is_read",
+              "value": "",
+              "disabled": true,
+              "description": "Optional: true/false"
+            },
+            {
+              "key": "is_resolved",
+              "value": "",
+              "disabled": true,
+              "description": "Optional: true/false"
+            }
           ]
         },
         "description": "List alerts for user. Optionally filter by is_read, is_resolved. Save an alert id to alert_id variable for PATCH."

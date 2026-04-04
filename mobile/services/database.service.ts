@@ -123,8 +123,6 @@ export class DatabaseService {
       // Delete in order to respect foreign key constraints
       const tables = [
         'alerts',
-        'monitoring_sessions',
-        'sensor_configurations',
         'sensor_devices',
         'user_preferences',
         'users',

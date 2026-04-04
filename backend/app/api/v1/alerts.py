@@ -3,10 +3,9 @@
 import logging
 from typing import Optional
 
+from app.services.monitoring_services import alert_application_service
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
-
-from app.services.monitoring_services import alert_application_service
 
 
 class AlertUpdateBody(BaseModel):
@@ -22,7 +21,7 @@ router = APIRouter()
 
 @router.get("/")
 async def list_alerts(
-    user_id: str = Query(default="0b8baf9c-dcfa-4d11-93d5-a08ce06a3d61"),
+    user_id: str = Query(default="e3620158-e37a-4d4f-b851-a14fd0e53dc3"),
     limit: int = Query(default=50, ge=1, le=200),
     is_read: Optional[bool] = Query(default=None, description="Filter by read status"),
     is_resolved: Optional[bool] = Query(default=None, description="Filter by resolved status"),

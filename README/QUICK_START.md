@@ -5,29 +5,36 @@
 ✅ ML models trained on your WHOOP data (194 sleep sessions)  
 ✅ Batch processing system (efficient, accurate)  
 ✅ API endpoint for sleep summaries  
-✅ Comprehensive documentation  
+✅ Comprehensive documentation
 
 ## 🚀 How to Use
 
 ### 1. During Sleep (Automatic)
+
 Your sensor continuously sends data to backend:
+
 ```
 Sensor → POST /api/v1/sensor/data → Database
 ```
+
 **No ML processing** - just stores data.
 
 ### 2. After Waking (On-demand)
+
 User clicks "View Sleep Summary":
+
 ```bash
 GET /api/v1/sensor/sleep-summary/{user_id}
 ```
 
 **Example:**
+
 ```bash
-curl "http://localhost:8000/api/v1/sensor/sleep-summary/0b8baf9c-dcfa-4d11-93d5-a08ce06a3d61"
+curl "http://localhost:8000/api/v1/sensor/sleep-summary/e3620158-e37a-4d4f-b851-a14fd0e53dc3"
 ```
 
 **Returns:**
+
 ```json
 {
   "status": "success",
@@ -58,18 +65,16 @@ curl "http://localhost:8000/api/v1/sensor/sleep-summary/0b8baf9c-dcfa-4d11-93d5-
 ```typescript
 // After user wakes up and taps "View Sleep"
 const getSleepSummary = async (userId: string) => {
-  const response = await fetch(
-    `${API_URL}/sensor/sleep-summary/${userId}`
-  );
+  const response = await fetch(`${API_URL}/sensor/sleep-summary/${userId}`);
   const { summary } = await response.json();
-  
+
   // Display results
   return {
     quality: summary.overall_quality,
     grade: summary.sleep_score_grade,
     totalSleep: summary.total_sleep_time_minutes,
     stages: summary.sleep_stages,
-    recommendations: summary.recommendations
+    recommendations: summary.recommendations,
   };
 };
 ```
@@ -97,12 +102,12 @@ Returns status of all ML models (fall detection + sleep).
 
 ## 📚 Full Documentation
 
-| Document | Purpose |
-|----------|---------|
-| `SLEEP_ML_README.md` | Technical ML details |
-| `SLEEP_WORKFLOW.md` | API integration guide |
-| `IMPLEMENTATION_SUMMARY.md` | What was built |
-| `QUICK_START.md` | This file |
+| Document                    | Purpose               |
+| --------------------------- | --------------------- |
+| `SLEEP_ML_README.md`        | Technical ML details  |
+| `SLEEP_WORKFLOW.md`         | API integration guide |
+| `IMPLEMENTATION_SUMMARY.md` | What was built        |
+| `QUICK_START.md`            | This file             |
 
 ## ⚡ Key Points
 
@@ -117,4 +122,3 @@ Returns status of all ML models (fall detection + sleep).
 The sleep ML system is fully functional and ready to integrate with your mobile app.
 
 Next: Build the frontend UI to display sleep summaries! 🚀
-

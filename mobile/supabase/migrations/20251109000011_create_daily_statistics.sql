@@ -71,6 +71,6 @@ CREATE POLICY "Public read demo daily statistics"
     FOR SELECT
     USING (
         auth.role() = 'anon'
-        AND user_id = '0b8baf9c-dcfa-4d11-93d5-a08ce06a3d61'
+        AND user_id = 'e3620158-e37a-4d4f-b851-a14fd0e53dc3'
     );
 

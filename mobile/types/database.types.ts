@@ -213,129 +213,6 @@ export type Database = {
           },
         ]
       }
-      monitoring_sessions: {
-        Row: {
-          created_at: string | null
-          device_id: string | null
-          end_time: string | null
-          fall_events: number | null
-          id: string
-          is_active: boolean | null
-          movement_events: number | null
-          session_data: Json | null
-          session_type: string
-          start_time: string
-          total_readings: number | null
-          updated_at: string | null
-          user_id: string | null
-        }
-        Insert: {
-          created_at?: string | null
-          device_id?: string | null
-          end_time?: string | null
-          fall_events?: number | null
-          id?: string
-          is_active?: boolean | null
-          movement_events?: number | null
-          session_data?: Json | null
-          session_type: string
-          start_time: string
-          total_readings?: number | null
-          updated_at?: string | null
-          user_id?: string | null
-        }
-        Update: {
-          created_at?: string | null
-          device_id?: string | null
-          end_time?: string | null
-          fall_events?: number | null
-          id?: string
-          is_active?: boolean | null
-          movement_events?: number | null
-          session_data?: Json | null
-          session_type?: string
-          start_time?: string
-          total_readings?: number | null
-          updated_at?: string | null
-          user_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "monitoring_sessions_device_id_fkey"
-            columns: ["device_id"]
-            isOneToOne: false
-            referencedRelation: "device_status"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "monitoring_sessions_device_id_fkey"
-            columns: ["device_id"]
-            isOneToOne: false
-            referencedRelation: "sensor_devices"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      sensor_configurations: {
-        Row: {
-          auto_mode_switch: boolean | null
-          created_at: string | null
-          device_id: string | null
-          emergency_contacts: Json | null
-          fall_alert_delay: number | null
-          fall_detection_range: number | null
-          fall_sensitivity: number | null
-          id: string
-          imu_wearable_device_id: string | null
-          notification_enabled: boolean | null
-          updated_at: string | null
-          user_id: string | null
-        }
-        Insert: {
-          auto_mode_switch?: boolean | null
-          created_at?: string | null
-          device_id?: string | null
-          emergency_contacts?: Json | null
-          fall_alert_delay?: number | null
-          fall_detection_range?: number | null
-          fall_sensitivity?: number | null
-          id?: string
-          imu_wearable_device_id?: string | null
-          notification_enabled?: boolean | null
-          updated_at?: string | null
-          user_id?: string | null
-        }
-        Update: {
-          auto_mode_switch?: boolean | null
-          created_at?: string | null
-          device_id?: string | null
-          emergency_contacts?: Json | null
-          fall_alert_delay?: number | null
-          fall_detection_range?: number | null
-          fall_sensitivity?: number | null
-          id?: string
-          imu_wearable_device_id?: string | null
-          notification_enabled?: boolean | null
-          updated_at?: string | null
-          user_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "sensor_configurations_device_id_fkey"
-            columns: ["device_id"]
-            isOneToOne: false
-            referencedRelation: "device_status"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "sensor_configurations_device_id_fkey"
-            columns: ["device_id"]
-            isOneToOne: false
-            referencedRelation: "sensor_devices"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       sensor_devices: {
         Row: {
           created_at: string | null
@@ -450,7 +327,6 @@ export type Database = {
         Row: {
           device_id: string | null
           device_name: string | null
-          fall_sensitivity: number | null
           id: string | null
           is_active: boolean | null
           last_reading: string | null

@@ -40,7 +40,7 @@ If you want to keep existing data, run:
 
 The migration will create:
 
-- ✅ All required tables (`users`, `sensor_devices`, `sensor_configurations`, etc.)
+- ✅ All required tables (`users`, `sensor_devices`, `activity_events`, etc.)
 - ✅ Row Level Security (RLS) policies
 - ✅ Database indexes for performance
 - ✅ Triggers for automatic user profile creation
@@ -53,12 +53,10 @@ The migration will create:
 | Table                   | Purpose                                       |
 | ----------------------- | --------------------------------------------- |
 | `users`                 | User profiles with username and full name     |
-| `sensor_devices`        | C1001 device information and status           |
-| `sensor_configurations` | Device settings and emergency contacts        |
+| `sensor_devices`        | Registered devices (name, last_seen, etc.)   |
 | `activity_events`       | IMU activity timeline (firmware → FastAPI)    |
 | `daily_statistics`      | Per-day aggregates (IMU + fall counts)        |
 | `alerts`                | System alerts and notifications               |
-| `monitoring_sessions`   | Tracking monitoring sessions                  |
 | `user_preferences`      | User notification and backup settings         |
 
 ### Key Features

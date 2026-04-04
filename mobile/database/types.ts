@@ -26,14 +26,6 @@ export type DailyStatistic = Tables<'daily_statistics'>;
 export type DailyStatisticInsert = TablesInsert<'daily_statistics'>;
 export type DailyStatisticUpdate = TablesUpdate<'daily_statistics'>;
 
-export type MonitoringSession = Tables<'monitoring_sessions'>;
-export type MonitoringSessionInsert = TablesInsert<'monitoring_sessions'>;
-export type MonitoringSessionUpdate = TablesUpdate<'monitoring_sessions'>;
-
-export type SensorConfiguration = Tables<'sensor_configurations'>;
-export type SensorConfigurationInsert = TablesInsert<'sensor_configurations'>;
-export type SensorConfigurationUpdate = TablesUpdate<'sensor_configurations'>;
-
 export type SensorDevice = Tables<'sensor_devices'>;
 export type SensorDeviceInsert = TablesInsert<'sensor_devices'>;
 export type SensorDeviceUpdate = TablesUpdate<'sensor_devices'>;

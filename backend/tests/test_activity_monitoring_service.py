@@ -1,7 +1,6 @@
 """Unit tests for ActivityMonitoringService (V&V / thesis)."""
 
 import pytest
-
 from app.models.sensor import ActivityEventData, IMUAlertData
 from app.services.activity_monitoring_service import ActivityMonitoringService
 

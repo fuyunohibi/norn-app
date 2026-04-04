@@ -7,7 +7,7 @@
 
 DO $$
 DECLARE
-    v_user_id UUID := '0b8baf9c-dcfa-4d11-93d5-a08ce06a3d61';
+    v_user_id UUID := 'e3620158-e37a-4d4f-b851-a14fd0e53dc3';
     v_default_times TEXT[] := ARRAY['02:30:00', '03:15:00', '01:45:00', '04:05:00'];
     v_raw_sleep_timestamps TEXT[] := ARRAY[
         '2025-11-06',

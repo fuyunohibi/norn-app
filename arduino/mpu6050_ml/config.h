@@ -18,8 +18,8 @@
 // ============================================================================
 
 // Your WiFi network credentials
-#define WIFI_SSID "Pochara"
-#define WIFI_PASSWORD "petch123"
+#define WIFI_SSID "MONGKHOLTHAM"
+#define WIFI_PASSWORD "0890025005"
 
 // Connection timeout (seconds)
 #define WIFI_TIMEOUT_SEC 30
@@ -29,14 +29,16 @@
 // ============================================================================
 
 // FastAPI backend base URL (no trailing slash)
-#define BACKEND_BASE_URL "http://192.168.1.9:8000"
+// MONGKHOLTHAM ESP32 IP: 192.168.1.36
+#define BACKEND_BASE_URL "http://192.168.1.36:8000" 
 // Alert endpoint - called when critical state (fall, after_fall, unstable) is detected
 #define BACKEND_ALERT_URL BACKEND_BASE_URL "/api/v1/sensor/imu/alert"
 // Activity endpoint - called on every activity state change (walk, standing, sitting, etc.)
 #define BACKEND_ACTIVITY_URL BACKEND_BASE_URL "/api/v1/sensor/activity"
 
-// User ID for alert association (optional - update if needed)
-#define USER_ID "0b8baf9c-dcfa-4d11-93d5-a08ce06a3d61"
+// Supabase Auth user UUID (Authentication → Users → your user → User UID).
+// Must exist in auth.users or inserts return 409 (FK). Not the same as public.users.id unless you mirror it.
+#define USER_ID "e3620158-e37a-4d4f-b851-a14fd0e53dc3"
 
 // Device ID for this ESP32
 #define DEVICE_ID "esp32-imu-001"
