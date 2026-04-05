@@ -33,11 +33,10 @@ import { formatActivityDisplayName } from "../../utils/imu-activity";
 const DEV_MASCOT_ACTIVITY_OVERRIDE: string | null = __DEV__ ? "s" : null;
 
 const styles = StyleSheet.create({
-  bannerFlipFace: {
+  bannerLayer: {
     ...StyleSheet.absoluteFillObject,
-    backfaceVisibility: "hidden",
   },
-  bannerFlipFaceBack: {
+  bannerLayerMascot: {
     backgroundColor: "#f5f5f5",
   },
 });
@@ -60,34 +59,50 @@ const HomeScreen = () => {
   const lastFallAlertRef = useRef<string | null>(null);
   const [fallQuickActionMessage, setFallQuickActionMessage] = useState<string | null>(null);
   const [showQuickActionsModal, setShowQuickActionsModal] = useState(false);
-  /** When true, banner shows `NornStateMascot` instead of the illustration (both faces stay mounted for the flip). */
+  /** When true, banner shows `NornStateMascot` instead of the illustration. */
   const [bannerShowsMascot, setBannerShowsMascot] = useState(false);
-  const bannerFlipAnim = useRef(new Animated.Value(0)).current;
+  const bannerBlend = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    Animated.timing(bannerFlipAnim, {
+    Animated.timing(bannerBlend, {
       toValue: bannerShowsMascot ? 1 : 0,
-      duration: 520,
-      easing: Easing.inOut(Easing.cubic),
+      duration: 340,
+      easing: Easing.out(Easing.cubic),
       useNativeDriver: true,
     }).start();
-  }, [bannerShowsMascot, bannerFlipAnim]);
+  }, [bannerShowsMascot, bannerBlend]);
 
-  const bannerFlipFrontRotateY = useMemo(
+  const bannerSceneOpacity = useMemo(
     () =>
-      bannerFlipAnim.interpolate({
+      bannerBlend.interpolate({
         inputRange: [0, 1],
-        outputRange: ["0deg", "180deg"],
+        outputRange: [1, 0],
       }),
-    [bannerFlipAnim],
+    [bannerBlend],
   );
-  const bannerFlipBackRotateY = useMemo(
+  const bannerSceneScale = useMemo(
     () =>
-      bannerFlipAnim.interpolate({
+      bannerBlend.interpolate({
         inputRange: [0, 1],
-        outputRange: ["180deg", "360deg"],
+        outputRange: [1, 0.97],
       }),
-    [bannerFlipAnim],
+    [bannerBlend],
+  );
+  const bannerMascotOpacity = useMemo(
+    () =>
+      bannerBlend.interpolate({
+        inputRange: [0, 1],
+        outputRange: [0, 1],
+      }),
+    [bannerBlend],
+  );
+  const bannerMascotScale = useMemo(
+    () =>
+      bannerBlend.interpolate({
+        inputRange: [0, 1],
+        outputRange: [0.97, 1],
+      }),
+    [bannerBlend],
   );
 
   const {
@@ -371,16 +386,15 @@ const HomeScreen = () => {
   return (
     <View className="flex-1 bg-gray-900">
 
-      {/* Banner: card-flip between scene illustration and mascot */}
+      {/* Banner: crossfade + light scale between scene and mascot (native driver). */}
       <View className="relative h-[25rem] w-full overflow-hidden rounded-b-[2.5rem]">
         <Animated.View
+          pointerEvents={bannerShowsMascot ? "none" : "auto"}
           style={[
-            styles.bannerFlipFace,
+            styles.bannerLayer,
             {
-              transform: [
-                { perspective: 1100 },
-                { rotateY: bannerFlipFrontRotateY },
-              ],
+              opacity: bannerSceneOpacity,
+              transform: [{ scale: bannerSceneScale }],
             },
           ]}
         >
@@ -401,14 +415,13 @@ const HomeScreen = () => {
           </ImageBackground>
         </Animated.View>
         <Animated.View
+          pointerEvents={bannerShowsMascot ? "auto" : "none"}
           style={[
-            styles.bannerFlipFace,
-            styles.bannerFlipFaceBack,
+            styles.bannerLayer,
+            styles.bannerLayerMascot,
             {
-              transform: [
-                { perspective: 1100 },
-                { rotateY: bannerFlipBackRotateY },
-              ],
+              opacity: bannerMascotOpacity,
+              transform: [{ scale: bannerMascotScale }],
             },
           ]}
         >
