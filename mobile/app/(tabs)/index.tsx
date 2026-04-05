@@ -2,8 +2,6 @@ import { useQuery } from "@tanstack/react-query";
 import { router } from "expo-router";
 import {
   Activity,
-  AlertTriangle,
-  ChevronRight,
   Shield,
   Star,
   User,
@@ -29,7 +27,6 @@ import { useActivityStatistics } from "../../hooks/useActivityStatistics";
 import { useEmergencyContacts } from "../../hooks/useEmergencyContacts";
 import { useImuWearableStatus } from "../../hooks/useImuWearableStatus";
 import { backendAPIService } from "../../services/backend-api.service";
-import { useModeStore } from "../../stores/mode.store";
 import { formatActivityDisplayName } from "../../utils/imu-activity";
 
 /** Last ML class for UI; pings-only shows an explicit heartbeat line (not “waiting forever”). */
@@ -42,34 +39,12 @@ function imuLiveActivityHeadlineOnline(status: {
   return "Heartbeat (no class change stored yet)";
 }
 
-// Memoize the mode icon component to prevent re-renders
-const getModeIcon = (modeId: string) => {
-  switch (modeId) {
-    case "activity":
-      return <Activity size={24} color="white" />;
-    case "fall":
-      return <AlertTriangle size={24} color="white" />;
-    default:
-      return <Activity size={24} color="white" />;
-  }
-};
-
 const HomeScreen = () => {
   const { user } = useAuth();
   const userId = user?.id;
   const {
-    modes,
-    activeMode,
-    setActiveMode,
-    isLoading: modeLoading,
-    error: modeError,
-  } = useModeStore();
-  const {
     data: imuStatus,
     isLoading: imuStatusLoading,
-    isPending: imuStatusPending,
-    isSuccess: imuStatusFetchOk,
-    isError: imuStatusFetchFailed,
     error: imuStatusError,
   } = useImuWearableStatus(userId);
   const {
@@ -98,7 +73,6 @@ const HomeScreen = () => {
     );
   }, [activityStats?.by_activity]);
   const imuDataError = imuStatusError ?? null;
-  const [showModeSelector, setShowModeSelector] = useState(false);
   const insets = useSafeAreaInsets();
   const lastFallAlertRef = useRef<string | null>(null);
   const [fallQuickActionMessage, setFallQuickActionMessage] = useState<string | null>(null);
@@ -204,82 +178,44 @@ const HomeScreen = () => {
     router.push("/settings");
   };
 
-  const handleModeSelect = async (mode: any) => {
-    try {
-      await setActiveMode(mode.id);
-      setShowModeSelector(false);
-    } catch (error) {
-      Alert.alert("Error", "Failed to change mode. Please try again.");
+  const wearableStatusTitle = useMemo(() => {
+    if (!userId) return "Sign in";
+    if (imuStatusLoading) return "Checking…";
+    if (imuStatusError) return "Status unavailable";
+    return imuStatus?.online ? "Connected" : "Disconnected";
+  }, [userId, imuStatusLoading, imuStatusError, imuStatus?.online]);
+
+  const wearableStatusSubtitle = useMemo(() => {
+    if (!userId) return "Sign in to see whether your clip is reporting.";
+    if (imuStatusLoading) return "Loading wearable status…";
+    if (imuStatusError) return "Could not load wearable status.";
+    return imuStatus?.online
+      ? "Wearable online — recent data from your clip"
+      : "No recent wearable signal (~90s).";
+  }, [userId, imuStatusLoading, imuStatusError, imuStatus?.online]);
+
+  const sensorStatusHint = useMemo(() => {
+    if (!userId || !imuStatusError) return null;
+    const msg =
+      imuStatusError instanceof Error
+        ? imuStatusError.message
+        : String(imuStatusError);
+    if (
+      msg.includes("Network request failed") ||
+      msg.includes("Failed to fetch") ||
+      msg.includes("timed out")
+    ) {
+      return "Check Wi‑Fi and EXPO_PUBLIC_API_URL, or rely on cloud sync if configured.";
     }
-  };
+    return msg;
+  }, [userId, imuStatusError]);
 
-  /** LAN health probe (also when signed out). IMU query below is a stronger signal when signed in. */
-  const [healthReachable, setHealthReachable] = useState<boolean | null>(null);
-  const [healthError, setHealthError] = useState<string | null>(null);
-  React.useEffect(() => {
-    const checkHealth = async () => {
-      try {
-        await backendAPIService.getHealthStatus();
-        setHealthReachable(true);
-        setHealthError(null);
-      } catch (error: unknown) {
-        setHealthReachable(false);
-        const errorMsg =
-          error instanceof Error ? error.message : String(error);
-        if (
-          errorMsg.includes("Network request failed") ||
-          errorMsg.includes("Failed to fetch")
-        ) {
-          setHealthError("Cannot connect to backend. Check network settings.");
-        } else {
-          setHealthError(errorMsg);
-        }
-      }
-    };
-
-    checkHealth();
-    const interval = setInterval(checkHealth, 30_000);
-    return () => clearInterval(interval);
-  }, []);
-
-  /**
-   * Header card: wearable status query success means we have live data (FastAPI or Supabase fallback).
-   * The separate health probe only hits LAN HTTP and may stay false while Supabase still works.
-   */
-  const backendConnected = useMemo(() => {
-    if (!userId) return healthReachable;
-    if (imuStatusFetchOk) return true;
-    if (imuStatusFetchFailed) return false;
-    if (imuStatusPending) return healthReachable === true ? true : null;
-    return healthReachable;
-  }, [
-    userId,
-    imuStatusFetchOk,
-    imuStatusFetchFailed,
-    imuStatusPending,
-    healthReachable,
-  ]);
-
-  const backendError = useMemo(() => {
-    if (userId && imuStatusFetchOk) {
-      return null;
-    }
-    if (userId && imuStatusError) {
-      const msg =
-        imuStatusError instanceof Error
-          ? imuStatusError.message
-          : String(imuStatusError);
-      if (
-        msg.includes("Network request failed") ||
-        msg.includes("Failed to fetch") ||
-        msg.includes("timed out")
-      ) {
-        return "Cannot connect to backend. Check network settings.";
-      }
-      return msg;
-    }
-    return healthError;
-  }, [userId, imuStatusFetchOk, imuStatusError, healthError]);
+  const wearableStatusDot = useMemo(() => {
+    if (!userId) return "neutral" as const;
+    if (imuStatusLoading) return "pending" as const;
+    if (imuStatusError) return "error" as const;
+    return imuStatus?.online ? ("ok" as const) : ("off" as const);
+  }, [userId, imuStatusLoading, imuStatusError, imuStatus?.online]);
 
   // Monitor for fall detection alerts (failures surface to React Query for backoff — avoid 3s spam when backend is down)
   const { data: unreadAlerts = [] } = useQuery({
@@ -416,42 +352,31 @@ const HomeScreen = () => {
         </View>
       </View>
       <ScrollView className="flex-1 bg-white p-6">
-        {/* Connection Status */}
+        {/* Wearable link — from last activity_events / ping, not LAN backend reachability */}
         <Card variant="outlined" className="mb-6">
           <View className="flex-row items-center justify-between">
             <View>
               <Text className="text-lg font-hell-round-bold text-gray-900 ">
-                {backendConnected
-                  ? "Connected"
-                  : backendConnected === false
-                  ? "Disconnected"
-                  : "Checking..."}
+                {wearableStatusTitle}
               </Text>
               <Text className="text-gray-600 text-sm font-hell">
-                {imuStatusLoading
-                  ? "Loading wearable status..."
-                  : activityStatsLoading
-                    ? "Loading today's activity..."
-                    : imuStatus?.online
-                      ? "Wearable online"
-                      : "No recent wearable signal"}
+                {wearableStatusSubtitle}
               </Text>
-              {/* {modeError && (
-                  <Text className="text-red-500 text-xs mt-1 font-hell">{modeError}</Text>
-                )} */}
-              {backendError && (
+              {sensorStatusHint ? (
                 <Text className="text-orange-500 text-xs font-hell mt-1">
-                  {backendError}
+                  {sensorStatusHint}
                 </Text>
-              )}
+              ) : null}
             </View>
             <View
               className={`w-3 h-3 rounded-full ${
-                backendConnected === true
+                wearableStatusDot === "ok"
                   ? "bg-green-500"
-                  : backendConnected === false
+                  : wearableStatusDot === "off" || wearableStatusDot === "error"
                     ? "bg-red-500"
-                    : "bg-amber-400"
+                    : wearableStatusDot === "pending"
+                      ? "bg-amber-400"
+                      : "bg-gray-300"
               }`}
             />
           </View>
@@ -461,13 +386,9 @@ const HomeScreen = () => {
           <Text className="text-lg font-hell-round-bold text-gray-900 mb-2">
             Fall sensor (wearable)
           </Text>
-          {backendConnected === null ? (
-            <View className="py-2">
-              <ActivityIndicator color="#FF7300" />
-            </View>
-          ) : backendConnected === false ? (
+          {!userId ? (
             <Text className="text-gray-600 text-sm font-hell">
-              Connect to the backend to see whether your clip sensor is powered and reporting.
+              Sign in to see whether your clip sensor is powered and reporting.
             </Text>
           ) : imuStatusLoading ? (
             <View className="py-2">
@@ -514,7 +435,7 @@ const HomeScreen = () => {
           )}
         </Card>
 
-        {userId && backendConnected && !imuStatusLoading && !imuStatusError && (
+        {userId && !imuStatusLoading && !imuStatusError && (
           <>
             <Card variant="outlined" className="mb-6 bg-primary-accent/5 border-primary-accent/20">
               <View className="p-4">
@@ -579,44 +500,6 @@ const HomeScreen = () => {
           </>
         )}
 
-        {/* Mode Selector */}
-        <Text className="text-xl font-hell-round-bold text-gray-900 mb-4">
-          Current Mode
-        </Text>
-        <Card variant="outlined" className="mb-6">
-          <TouchableOpacity
-            onPress={() => setShowModeSelector(true)}
-            disabled={modeLoading}
-            className="flex-row items-center"
-            activeOpacity={0.7}
-          >
-            <View className="flex-row items-center flex-1">
-              <View className="w-12 h-12 bg-primary-accent rounded-xl items-center justify-center mr-4">
-                {modeLoading ? (
-                  <ActivityIndicator size="small" color="white" />
-                ) : activeMode ? (
-                  getModeIcon(activeMode.id)
-                ) : (
-                  <Activity size={24} color="white" />
-                )}
-              </View>
-              <View className="flex-1">
-                <Text className="text-lg font-hell-round-bold text-gray-900">
-                  {activeMode?.name || "No Mode Selected"}
-                </Text>
-                {modeLoading && (
-                  <Text className="text-gray-500 text-xs font-hell mt-1">
-                    Changing mode...
-                  </Text>
-                )}
-              </View>
-            </View>
-            <View className="ml-2">
-              <ChevronRight size={24} color="#9E9E9E" strokeWidth={2.5} />
-            </View>
-          </TouchableOpacity>
-        </Card>
-
         {!userId && (
           <Card variant="outlined" className="mb-6">
             <View className="p-4">
@@ -655,7 +538,7 @@ const HomeScreen = () => {
         {!!userId && !imuStatusLoading && !imuDataError && (
           <View className="mb-6">
             <Text className="text-xl font-hell-round-bold text-gray-900 mb-2">
-              {activeMode?.name} (IMU)
+              Wearable details
             </Text>
             {activityStatsError && (
               <Text className="text-orange-600 text-xs font-hell mb-3">
@@ -669,188 +552,115 @@ const HomeScreen = () => {
               </Text>
             )}
 
-            {activeMode?.id === "activity" && (
-              <View className="gap-y-3">
-                <Card variant="outlined">
-                  <View className="flex-row items-center justify-between">
-                    <View className="flex-row items-center">
-                      <View className="w-12 h-12 bg-primary-accent rounded-xl items-center justify-center mr-4">
-                        <Activity size={24} color="white" />
-                      </View>
-                      <View>
-                        <Text className="text-lg font-hell-round-bold text-gray-900 ">
-                          Today&apos;s activity
-                        </Text>
-                        <Text className="text-gray-600 text-sm font-hell">
-                          State changes from the clip (walking, sitting, …) plus heartbeats
-                        </Text>
-                      </View>
+            <View className="gap-y-3">
+              <Card variant="outlined">
+                <View className="flex-row items-center justify-between">
+                  <View className="flex-row items-center">
+                    <View className="w-12 h-12 bg-primary-accent rounded-xl items-center justify-center mr-4">
+                      <Activity size={24} color="white" />
                     </View>
-                    {activityStatsLoading && !activityStats ? (
-                      <ActivityIndicator size="small" color="#FF7300" />
-                    ) : (
-                      <Text className="text-2xl font-hell-round-bold text-primary-accent ">
-                        {activityStats?.total_events ?? 0}
+                    <View>
+                      <Text className="text-lg font-hell-round-bold text-gray-900 ">
+                        Today&apos;s activity
                       </Text>
-                    )}
+                      <Text className="text-gray-600 text-sm font-hell">
+                        State changes from the clip (walking, sitting, …) plus heartbeats
+                      </Text>
+                    </View>
                   </View>
-                </Card>
-
-                <Card variant="outlined">
-                  <View className="p-4">
-                    <Text className="text-base font-hell-round-bold text-gray-900 mb-3">
-                      Time by class (today)
+                  {activityStatsLoading && !activityStats ? (
+                    <ActivityIndicator size="small" color="#FF7300" />
+                  ) : (
+                    <Text className="text-2xl font-hell-round-bold text-primary-accent ">
+                      {activityStats?.total_events ?? 0}
                     </Text>
-                    {activityStats?.by_activity &&
-                    Object.keys(activityStats.by_activity).length > 0 ? (
-                      Object.entries(activityStats.by_activity).map(([name, bucket]) => (
-                        <View
-                          key={name}
-                          className="flex-row items-center justify-between py-2 border-b border-gray-100"
-                        >
-                          <Text className="text-gray-700 font-hell capitalize">{name.replace(/_/g, " ")}</Text>
-                          <Text className="text-gray-900 font-hell-round-bold">
-                            {Math.round((bucket.total_seconds ?? 0) / 60)}m
-                          </Text>
-                        </View>
-                      ))
-                    ) : (
-                      <Text className="text-gray-500 text-sm font-hell">
-                        No activity changes yet today. Move with the wearable on to populate this list.
-                      </Text>
-                    )}
-                  </View>
-                </Card>
-              </View>
-            )}
+                  )}
+                </View>
+              </Card>
 
-            {activeMode?.id === "fall" && (
-              <View className="gap-y-3">
-                <Card variant="outlined">
-                  <View className="flex-row items-center justify-between">
-                    <View className="flex-row items-center">
+              <Card variant="outlined">
+                <View className="p-4">
+                  <Text className="text-base font-hell-round-bold text-gray-900 mb-3">
+                    Time by class (today)
+                  </Text>
+                  {activityStats?.by_activity &&
+                  Object.keys(activityStats.by_activity).length > 0 ? (
+                    Object.entries(activityStats.by_activity).map(([name, bucket]) => (
                       <View
-                        className={`w-12 h-12 rounded-xl items-center justify-center mr-4 ${
-                          ["f", "af"].includes(imuStatus?.activity_code?.toLowerCase() ?? "")
-                            ? "bg-red-500"
-                            : imuStatus?.activity_code?.toLowerCase() === "nf"
-                              ? "bg-orange-500"
-                              : "bg-green-500"
-                        }`}
+                        key={name}
+                        className="flex-row items-center justify-between py-2 border-b border-gray-100"
                       >
-                        <Shield size={24} color="white" fill="white" />
-                      </View>
-                      <View>
-                        <Text className="text-lg font-hell-round-bold text-gray-900 ">
-                          IMU safety
-                        </Text>
-                        <Text className="text-gray-600 text-sm font-hell">
-                          Last class:{" "}
-                          {imuStatus?.activity_label ?? "—"}
+                        <Text className="text-gray-700 font-hell capitalize">{name.replace(/_/g, " ")}</Text>
+                        <Text className="text-gray-900 font-hell-round-bold">
+                          {Math.round((bucket.total_seconds ?? 0) / 60)}m
                         </Text>
                       </View>
-                    </View>
-                    <Text
-                      className={`text-sm font-hell-round-bold text-right max-w-[40%] ${
+                    ))
+                  ) : (
+                    <Text className="text-gray-500 text-sm font-hell">
+                      No activity changes yet today. Move with the wearable on to populate this list.
+                    </Text>
+                  )}
+                </View>
+              </Card>
+
+              <Card variant="outlined">
+                <View className="flex-row items-center justify-between">
+                  <View className="flex-row items-center">
+                    <View
+                      className={`w-12 h-12 rounded-xl items-center justify-center mr-4 ${
                         ["f", "af"].includes(imuStatus?.activity_code?.toLowerCase() ?? "")
-                          ? "text-red-500"
+                          ? "bg-red-500"
                           : imuStatus?.activity_code?.toLowerCase() === "nf"
-                            ? "text-orange-600"
-                            : "text-green-600"
+                            ? "bg-orange-500"
+                            : "bg-green-500"
                       }`}
                     >
-                      {["f", "af"].includes(imuStatus?.activity_code?.toLowerCase() ?? "")
-                        ? "Critical"
+                      <Shield size={24} color="white" fill="white" />
+                    </View>
+                    <View>
+                      <Text className="text-lg font-hell-round-bold text-gray-900 ">
+                        IMU safety
+                      </Text>
+                      <Text className="text-gray-600 text-sm font-hell">
+                        Last class:{" "}
+                        {imuStatus?.online && imuStatus
+                          ? imuLiveActivityHeadlineOnline(imuStatus)
+                          : "—"}
+                      </Text>
+                    </View>
+                  </View>
+                  <Text
+                    className={`text-sm font-hell-round-bold text-right max-w-[40%] ${
+                      ["f", "af"].includes(imuStatus?.activity_code?.toLowerCase() ?? "")
+                        ? "text-red-500"
                         : imuStatus?.activity_code?.toLowerCase() === "nf"
-                          ? "Unstable"
-                          : "OK"}
-                    </Text>
-                  </View>
-                </Card>
+                          ? "text-orange-600"
+                          : "text-green-600"
+                    }`}
+                  >
+                    {["f", "af"].includes(imuStatus?.activity_code?.toLowerCase() ?? "")
+                      ? "Critical"
+                      : imuStatus?.activity_code?.toLowerCase() === "nf"
+                        ? "Unstable"
+                        : "OK"}
+                  </Text>
+                </View>
+              </Card>
 
-                <Card variant="outlined">
-                  <View className="p-4">
-                    <Text className="text-gray-700 text-sm font-hell">
-                      Critical alerts also appear from the backend when the ESP32 posts to{" "}
-                      <Text className="font-hell-round-bold">/imu/alert</Text>. Check Notifications for history.
-                    </Text>
-                  </View>
-                </Card>
-              </View>
-            )}
+              <Card variant="outlined">
+                <View className="p-4">
+                  <Text className="text-gray-700 text-sm font-hell">
+                    Critical alerts also appear when the ESP32 posts to{" "}
+                    <Text className="font-hell-round-bold">/imu/alert</Text>. Check Notifications for history.
+                  </Text>
+                </View>
+              </Card>
+            </View>
           </View>
         )}
       </ScrollView>
 
-      {/* Mode Selector Modal */}
-      <Modal
-        visible={showModeSelector}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowModeSelector(false)}
-      >
-        <View className="flex-1 justify-end bg-black/50 p-7">
-          <View className="bg-white rounded-[2.5rem] p-6 max-h-[70%]">
-            <View className="flex-row items-center justify-between mb-6">
-              <Text className="text-2xl font-hell-round-bold text-gray-900 ">
-                Select Mode
-              </Text>
-              <TouchableOpacity
-                onPress={() => setShowModeSelector(false)}
-                className="w-8 h-8 items-center justify-center"
-              >
-                <Text className="text-2xl text-gray-400 font-hell">×</Text>
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView showsVerticalScrollIndicator={false}>
-              {modes.map((mode) => (
-                <TouchableOpacity
-                  key={mode.id}
-                  onPress={() => handleModeSelect(mode)}
-                  disabled={modeLoading}
-                  className={`mb-4 p-4 rounded-2xl border-2 ${
-                    activeMode?.id === mode.id
-                      ? "border-primary-accent bg-primary-accent/10"
-                      : "border-gray-200 bg-white"
-                  }`}
-                >
-                  <View className="flex-row items-center">
-                    <View
-                      className={`w-12 h-12 rounded-xl items-center justify-center mr-4 ${
-                        activeMode?.id === mode.id
-                          ? "bg-primary-accent"
-                          : "bg-gray-200"
-                      }`}
-                    >
-                      {getModeIcon(mode.id)}
-                    </View>
-                    <View className="flex-1">
-                      <Text
-                        className={`text-lg font-hell-round-bold ${
-                          activeMode?.id === mode.id
-                            ? "text-primary-accent"
-                            : "text-gray-900"
-                        }`}
-                      >
-                        {mode.name}
-                      </Text>
-                      <Text className="text-gray-600 text-sm font-hell mt-1">
-                        {mode.description}
-                      </Text>
-                    </View>
-                    {activeMode?.id === mode.id && (
-                      <View className="w-6 h-6 rounded-full bg-primary-accent items-center justify-center">
-                        <Text className="text-white text-xs font-hell">✓</Text>
-                      </View>
-                    )}
-                  </View>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
       {/* Quick Actions Modal */}
       <Modal
         visible={showQuickActionsModal}
