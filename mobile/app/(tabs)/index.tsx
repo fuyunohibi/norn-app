@@ -1,33 +1,46 @@
+import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { useQuery } from "@tanstack/react-query";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Animated,
+  Easing,
+  ImageBackground,
   Linking,
   ScrollView,
+  StyleSheet,
   Text,
-  View
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { EmergencyQuickActionsModal } from "../../components/emergency-quick-actions-modal";
 import { NornIcon } from "../../components/norn-icon";
+import { NornStateMascot } from "../../components/norn-state-mascot";
 import { Card } from "../../components/ui/card";
 import { useAuth } from "../../contexts/auth-context";
+import { useActivityStatistics } from "../../hooks/useActivityStatistics";
 import { useEmergencyContacts } from "../../hooks/useEmergencyContacts";
 import { useImuWearableStatus } from "../../hooks/useImuWearableStatus";
 import { backendAPIService } from "../../services/backend-api.service";
 import { formatActivityDisplayName } from "../../utils/imu-activity";
+/**
+ * Dev-only: set to a short code (e.g. `"r"`) to preview the mascot; `null` uses live IMU class.
+ * Ignored in production builds.
+ */
+const DEV_MASCOT_ACTIVITY_OVERRIDE: string | null = __DEV__ ? "s" : null;
 
-/** Last ML class for UI; pings-only shows an explicit heartbeat line (not “waiting forever”). */
-function imuLiveActivityHeadlineOnline(status: {
-  activity_label?: string | null;
-  activity_code?: string | null;
-}): string {
-  if (status.activity_label) return status.activity_label;
-  if (status.activity_code) return formatActivityDisplayName(status.activity_code);
-  return "Heartbeat (no class change stored yet)";
-}
+const styles = StyleSheet.create({
+  bannerFlipFace: {
+    ...StyleSheet.absoluteFillObject,
+    backfaceVisibility: "hidden",
+  },
+  bannerFlipFaceBack: {
+    backgroundColor: "#f5f5f5",
+  },
+});
 
 const HomeScreen = () => {
   const { user } = useAuth();
@@ -37,10 +50,45 @@ const HomeScreen = () => {
     isLoading: imuStatusLoading,
     error: imuStatusError,
   } = useImuWearableStatus(userId);
+  const {
+    data: todayStatsRes,
+    isLoading: todayStatsLoading,
+    isError: todayStatsError,
+  } = useActivityStatistics(userId, "today");
+  const activityToday = todayStatsRes?.statistics;
   const insets = useSafeAreaInsets();
   const lastFallAlertRef = useRef<string | null>(null);
   const [fallQuickActionMessage, setFallQuickActionMessage] = useState<string | null>(null);
   const [showQuickActionsModal, setShowQuickActionsModal] = useState(false);
+  /** When true, banner shows `NornStateMascot` instead of the illustration (both faces stay mounted for the flip). */
+  const [bannerShowsMascot, setBannerShowsMascot] = useState(false);
+  const bannerFlipAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.timing(bannerFlipAnim, {
+      toValue: bannerShowsMascot ? 1 : 0,
+      duration: 520,
+      easing: Easing.inOut(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  }, [bannerShowsMascot, bannerFlipAnim]);
+
+  const bannerFlipFrontRotateY = useMemo(
+    () =>
+      bannerFlipAnim.interpolate({
+        inputRange: [0, 1],
+        outputRange: ["0deg", "180deg"],
+      }),
+    [bannerFlipAnim],
+  );
+  const bannerFlipBackRotateY = useMemo(
+    () =>
+      bannerFlipAnim.interpolate({
+        inputRange: [0, 1],
+        outputRange: ["180deg", "360deg"],
+      }),
+    [bannerFlipAnim],
+  );
 
   const {
     contacts,
@@ -130,37 +178,14 @@ const HomeScreen = () => {
     router.push("/settings");
   }, [dismissFallQuickActions]);
 
-  const wearableStatusTitle = useMemo(() => {
+  /** Short label for the banner status chip (detail copy lives on /sensor). */
+  const wearableChipLabel = useMemo(() => {
     if (!userId) return "Sign in";
-    if (imuStatusLoading) return "Checking…";
-    if (imuStatusError) return "Status unavailable";
-    return imuStatus?.online ? "Connected" : "Disconnected";
+    if (imuStatusLoading) return "Updating…";
+    if (imuStatusError) return "Unavailable";
+    if (imuStatus?.online) return "Live";
+    return "Offline";
   }, [userId, imuStatusLoading, imuStatusError, imuStatus?.online]);
-
-  const wearableStatusSubtitle = useMemo(() => {
-    if (!userId) return "Sign in to see whether your clip is reporting.";
-    if (imuStatusLoading) return "Loading wearable status…";
-    if (imuStatusError) return "Could not load wearable status.";
-    return imuStatus?.online
-      ? "Wearable online — recent data from your clip"
-      : "No recent wearable signal (~90s).";
-  }, [userId, imuStatusLoading, imuStatusError, imuStatus?.online]);
-
-  const sensorStatusHint = useMemo(() => {
-    if (!userId || !imuStatusError) return null;
-    const msg =
-      imuStatusError instanceof Error
-        ? imuStatusError.message
-        : String(imuStatusError);
-    if (
-      msg.includes("Network request failed") ||
-      msg.includes("Failed to fetch") ||
-      msg.includes("timed out")
-    ) {
-      return "Check Wi‑Fi and EXPO_PUBLIC_API_URL, or rely on cloud sync if configured.";
-    }
-    return msg;
-  }, [userId, imuStatusError]);
 
   const wearableStatusDot = useMemo(() => {
     if (!userId) return "neutral" as const;
@@ -168,6 +193,38 @@ const HomeScreen = () => {
     if (imuStatusError) return "error" as const;
     return imuStatus?.online ? ("ok" as const) : ("off" as const);
   }, [userId, imuStatusLoading, imuStatusError, imuStatus?.online]);
+
+  const myDayDateLabel = useMemo(
+    () =>
+      new Date().toLocaleDateString(undefined, {
+        weekday: "long",
+        month: "long",
+        day: "numeric",
+      }),
+    [],
+  );
+
+  const todayTrackedMinutes = useMemo(() => {
+    const by = activityToday?.by_activity;
+    if (!by) return 0;
+    return Object.values(by).reduce((s, b) => s + (b.total_seconds ?? 0) / 60, 0);
+  }, [activityToday?.by_activity]);
+
+  const todayActivityBreakdown = useMemo(() => {
+    const by = activityToday?.by_activity;
+    if (!by) return [];
+    return Object.entries(by)
+      .filter(([, v]) => (v.count ?? 0) > 0 || (v.total_seconds ?? 0) > 0)
+      .sort((a, b) => (b[1].total_seconds ?? 0) - (a[1].total_seconds ?? 0))
+      .slice(0, 6);
+  }, [activityToday?.by_activity]);
+
+  const todayTimelineEvents = useMemo(() => {
+    const list = activityToday?.events ?? [];
+    return [...list]
+      .filter((e) => e.activity && String(e.activity).toLowerCase() !== "ping")
+      .slice(0, 24);
+  }, [activityToday?.events]);
 
   // Monitor for fall detection alerts (failures surface to React Query for backoff — avoid 3s spam when backend is down)
   const { data: unreadAlerts = [] } = useQuery({
@@ -288,90 +345,265 @@ const HomeScreen = () => {
     presentFallQuickActions(msg);
   }, [imuStatus?.activity_code, imuStatus?.last_seen_at, presentFallQuickActions]);
 
+  const mascotProps = {
+    signedIn: Boolean(userId),
+    activityCode: DEV_MASCOT_ACTIVITY_OVERRIDE ?? imuStatus?.activity_code ?? null,
+    loading: Boolean(userId) && imuStatusLoading,
+    statusError: Boolean(userId) && Boolean(imuStatusError),
+  };
+
+  const chipShadow = {
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.12,
+    shadowRadius: 4,
+    elevation: 6,
+  } as const;
+
+  const fabShadow = {
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.14,
+    shadowRadius: 5,
+    elevation: 8,
+  } as const;
+
   return (
-    <View className="flex-1 bg-white">
-      <View
-        className="w-full justify-center items-center h-[11rem] bg-gray-900 rounded-b-[4rem]"
-        style={{
-          paddingTop: insets.top,
-        }}
-      >
-        <View className="flex-row items-center justify-center">
-          <NornIcon size={48} />
-          <Text className="text-lg font-hell-round-bold text-white ml-1.5">
-            NORN
-          </Text>
-        </View>
-      </View>
-      <ScrollView className="flex-1 bg-white p-6">
-        {/* IMU clip: connected / disconnected from recent activity_events (incl. ping), plus live details */}
-        <Card variant="outlined" className="mb-6">
-          <View className="flex-row items-center justify-between">
-            <View className="flex-1 pr-3">
-              <Text className="text-sm text-gray-500 font-hell mb-1">Wearable</Text>
-              {userId && imuStatusLoading ? (
-                <View className="flex-row items-center gap-2">
-                  <ActivityIndicator color="#FF7300" />
-                  <Text className="text-lg font-hell-round-bold text-gray-900">
-                    Checking…
-                  </Text>
-                </View>
-              ) : (
-                <Text className="text-lg font-hell-round-bold text-gray-900">
-                  {wearableStatusTitle}
-                </Text>
-              )}
-              <Text
-                className={`text-sm font-hell mt-1 ${
-                  userId && imuStatusError ? "text-orange-600" : "text-gray-600"
-                }`}
-              >
-                {wearableStatusSubtitle}
+    <View className="flex-1 bg-gray-900">
+
+      {/* Banner: card-flip between scene illustration and mascot */}
+      <View className="relative h-[25rem] w-full overflow-hidden rounded-b-[2.5rem]">
+        <Animated.View
+          style={[
+            styles.bannerFlipFace,
+            {
+              transform: [
+                { perspective: 1100 },
+                { rotateY: bannerFlipFrontRotateY },
+              ],
+            },
+          ]}
+        >
+          <ImageBackground
+            source={require("../../assets/images/backgrounds/daytime-bg.png")}
+            resizeMode="cover"
+            className="h-full w-full justify-center items-center"
+            style={{
+              paddingTop: insets.top,
+            }}
+          >
+            <View className="mb-4 mt-2 flex-row items-center justify-center">
+              <NornIcon size={48} />
+              <Text className="ml-[0.5rem] text-lg font-hell-round-bold text-white">
+                NORN
               </Text>
-              {sensorStatusHint ? (
-                <Text className="text-orange-500 text-xs font-hell mt-1">
-                  {sensorStatusHint}
-                </Text>
-              ) : null}
-              {userId && !imuStatusLoading && !imuStatusError && imuStatus?.online ? (
-                <>
-                  <Text className="text-gray-700 text-sm font-hell mt-3">
-                    Current activity:{" "}
-                    <Text className="font-hell-round-bold">
-                      {imuLiveActivityHeadlineOnline(imuStatus)}
-                    </Text>
-                  </Text>
-                  {imuStatus.last_seen_at ? (
-                    <Text className="text-gray-500 text-xs font-hell mt-2">
-                      Last signal: {new Date(imuStatus.last_seen_at).toLocaleString()}
-                      {typeof imuStatus.age_seconds === "number"
-                        ? ` (${imuStatus.age_seconds}s ago)`
-                        : ""}
-                    </Text>
-                  ) : null}
-                </>
-              ) : null}
-              {userId && !imuStatusLoading && !imuStatusError && !imuStatus?.online ? (
-                <Text className="text-gray-600 text-sm font-hell mt-3">
-                  The clip may be off, out of Wi‑Fi range, or has not reported in the last ~90
-                  seconds.
-                </Text>
-              ) : null}
             </View>
+          </ImageBackground>
+        </Animated.View>
+        <Animated.View
+          style={[
+            styles.bannerFlipFace,
+            styles.bannerFlipFaceBack,
+            {
+              transform: [
+                { perspective: 1100 },
+                { rotateY: bannerFlipBackRotateY },
+              ],
+            },
+          ]}
+        >
+          <NornStateMascot {...mascotProps} />
+        </Animated.View>
+
+        <TouchableOpacity
+          accessibilityRole="button"
+          accessibilityLabel={`Wearable status: ${wearableChipLabel}. Opens sensor details.`}
+          onPress={() => router.push("/sensor")}
+          activeOpacity={0.88}
+          className="absolute z-20 flex-row items-center gap-2 rounded-full border border-white/70 bg-white px-3 py-2"
+          style={{
+            right: 14,
+            top: insets.top + 8,
+            ...chipShadow,
+          }}
+        >
+          {userId && imuStatusLoading ? (
+            <ActivityIndicator size="small" color="#FF7300" />
+          ) : (
             <View
-              className={`w-3 h-3 rounded-full shrink-0 ${
+              className={`h-2 w-2 rounded-full ${
                 wearableStatusDot === "ok"
                   ? "bg-green-500"
                   : wearableStatusDot === "off" || wearableStatusDot === "error"
                     ? "bg-red-500"
                     : wearableStatusDot === "pending"
                       ? "bg-amber-400"
-                      : "bg-gray-300"
+                      : "bg-gray-400"
               }`}
             />
+          )}
+          <Text className="text-xs font-hell-round-bold text-gray-900">
+            {wearableChipLabel}
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          accessibilityRole="button"
+          accessibilityLabel={
+            bannerShowsMascot
+              ? "Show scene banner with NORN logo"
+              : "Show activity mascot in the banner"
+          }
+          onPress={() => setBannerShowsMascot((v) => !v)}
+          activeOpacity={0.88}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          className="absolute z-30 h-11 w-11 items-center justify-center rounded-full border border-white/80 bg-white"
+          style={{
+            right: 14,
+            bottom: 16,
+            ...fabShadow,
+          }}
+        >
+          <MaterialIcons
+            name={bannerShowsMascot ? "landscape" : "pets"}
+            size={22}
+            color="#111827"
+          />
+        </TouchableOpacity>
+      </View>
+
+      <View className="flex-1 bg-gray-900">
+        <ScrollView
+          className="flex-1 rounded-t-[2.5rem] bg-white p-6 mt-6"
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{
+            paddingBottom: insets.bottom + 28,
+          }}
+          keyboardShouldPersistTaps="handled"
+        >
+          <Text className="text-2xl font-hell-round-bold text-gray-900">My day</Text>
+          <Text className="mt-1 text-sm font-hell text-gray-500">{myDayDateLabel}</Text>
+
+          <Card variant="outlined" className="mt-4">
+            <View className="p-4">
+              {!userId ? (
+                <Text className="text-center font-hell text-gray-600">
+                  Sign in to see a summary of your clip activity for today.
+                </Text>
+              ) : todayStatsLoading ? (
+                <View className="items-center py-4">
+                  <ActivityIndicator color="#FF7300" />
+                </View>
+              ) : todayStatsError ? (
+                <Text className="text-center font-hell text-orange-600">
+                  Could not load today&apos;s summary. Open Statistics when your connection is
+                  back.
+                </Text>
+              ) : (
+                <>
+                  <View className="flex-row flex-wrap gap-4">
+                    <View className="min-w-[100px] flex-1">
+                      <Text className="text-2xl font-hell-round-bold text-gray-900">
+                        {activityToday?.total_events ?? 0}
+                      </Text>
+                      <Text className="text-xs font-hell text-gray-600">
+                        State changes today
+                      </Text>
+                    </View>
+                    <View className="min-w-[100px] flex-1">
+                      <Text className="text-2xl font-hell-round-bold text-gray-900">
+                        {Math.round(todayTrackedMinutes)}
+                      </Text>
+                      <Text className="text-xs font-hell text-gray-600">
+                        Est. tracked minutes
+                      </Text>
+                    </View>
+                  </View>
+                  {todayActivityBreakdown.length > 0 ? (
+                    <View className="mt-4 flex-row flex-wrap gap-2">
+                      {todayActivityBreakdown.map(([key, bucket]) => (
+                        <View
+                          key={key}
+                          className="rounded-full bg-gray-100 px-3 py-1.5"
+                        >
+                          <Text className="text-xs font-hell-round-bold text-gray-800">
+                            {formatActivityDisplayName(key)}{" "}
+                            <Text className="font-hell text-gray-600">
+                              · {bucket.count ?? 0}
+                            </Text>
+                          </Text>
+                        </View>
+                      ))}
+                    </View>
+                  ) : (
+                    <Text className="mt-3 text-sm font-hell text-gray-500">
+                      No class breakdown yet — your clip will add walking, sitting, and other
+                      states as it reports.
+                    </Text>
+                  )}
+                </>
+              )}
+            </View>
+          </Card>
+
+          <View className="mb-3 mt-8 flex-row items-center justify-between">
+            <Text className="text-lg font-hell-round-bold text-gray-900">
+              Today&apos;s activities
+            </Text>
+            <TouchableOpacity
+              onPress={() => router.push("/statistics")}
+              activeOpacity={0.7}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Text className="text-sm font-hell-round-bold text-[#FF7300]">See all</Text>
+            </TouchableOpacity>
           </View>
-        </Card>
-      </ScrollView>
+
+          {!userId ? (
+            <Text className="font-hell text-gray-600">
+              Sign in to see a live timeline from your wearable.
+            </Text>
+          ) : todayStatsLoading ? (
+            <View className="items-center py-8">
+              <ActivityIndicator color="#FF7300" />
+            </View>
+          ) : todayStatsError ? (
+            <Text className="font-hell text-gray-600">
+              Timeline unavailable right now. Try again from the Statistics screen.
+            </Text>
+          ) : todayTimelineEvents.length === 0 ? (
+            <Card variant="outlined">
+              <View className="p-4">
+                <Text className="text-center font-hell text-gray-600">
+                  No activity events yet today. When your clip sends class changes, they will
+                  show up here.
+                </Text>
+              </View>
+            </Card>
+          ) : (
+            <View className="gap-0">
+              {todayTimelineEvents.map((ev, index) => (
+                <View
+                  key={`${ev.created_at ?? ""}-${index}`}
+                  className="flex-row items-center border-b border-gray-100 py-3"
+                >
+                  <View className="mr-3 h-2 w-2 rounded-full bg-[#FF7300]" />
+                  <View className="flex-1">
+                    <Text className="font-hell-round-bold text-gray-900">
+                      {formatActivityDisplayName(ev.activity)}
+                    </Text>
+                    {ev.created_at ? (
+                      <Text className="mt-0.5 text-xs font-hell text-gray-500">
+                        {new Date(ev.created_at).toLocaleString()}
+                      </Text>
+                    ) : null}
+                  </View>
+                </View>
+              ))}
+            </View>
+          )}
+        </ScrollView>
+      </View>
 
       <EmergencyQuickActionsModal
         visible={showQuickActionsModal}

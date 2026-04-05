@@ -31,6 +31,16 @@ const CODE_TO_LABEL: Record<string, string> = {
   nf: 'Near-fall (unstable)',
 };
 
+/** Latest IMU row headline: label, short code, or ping-only hint. */
+export function imuLiveActivityHeadlineOnline(status: {
+  activity_label?: string | null;
+  activity_code?: string | null;
+}): string {
+  if (status.activity_label) return status.activity_label;
+  if (status.activity_code) return formatActivityDisplayName(status.activity_code);
+  return 'Heartbeat (no class change stored yet)';
+}
+
 /** Human-readable label for backend snake_case keys or raw short codes. */
 export function formatActivityDisplayName(key: string): string {
   const k = key.trim().toLowerCase().replace(/\s+/g, '_');
