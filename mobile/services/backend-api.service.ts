@@ -1,10 +1,54 @@
 import type { Alert } from '@/database/types';
 import Constants from 'expo-constants';
 
-const API_URL =
-  Constants.expoConfig?.extra?.apiUrl ||
+function trimTrailingSlash(url: string) {
+  return url.replace(/\/$/, '');
+}
+
+/** Same machine as Metro in dev when you omit EXPO_PUBLIC_API_URL (LAN IP, not localhost). */
+function devBackendHostFromExpo(): string | null {
+  const dbg =
+    Constants.expoGoConfig?.debuggerHost ??
+    (typeof Constants.expoConfig?.hostUri === 'string' ? Constants.expoConfig.hostUri : undefined);
+  if (!dbg) return null;
+  const host = dbg.split(':')[0];
+  if (!host || host === 'localhost' || host === '127.0.0.1') return null;
+  return host;
+}
+
+const resolvedApiUrlRaw =
+  (Constants.expoConfig?.extra?.apiUrl as string | undefined) ||
   process.env.EXPO_PUBLIC_API_URL ||
+  (() => {
+    const h = __DEV__ ? devBackendHostFromExpo() : null;
+    return h ? `http://${h}:8000` : '';
+  })() ||
   'http://localhost:8000';
+
+const API_URL = trimTrailingSlash(resolvedApiUrlRaw);
+
+const DEFAULT_FETCH_TIMEOUT_MS = 18_000;
+
+async function fetchWithTimeout(
+  url: string,
+  init: RequestInit = {},
+  timeoutMs: number = DEFAULT_FETCH_TIMEOUT_MS,
+): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } catch (e) {
+    if (controller.signal.aborted) {
+      throw new Error(
+        `Backend request timed out (${Math.round(timeoutMs / 1000)}s). Check EXPO_PUBLIC_API_URL and that the phone can reach your computer on the same Wi‑Fi.`,
+      );
+    }
+    throw e;
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 /** Backend no longer exposes mmWave mode switching; kept for UI compatibility. */
 export interface ModeChangeResponse {
@@ -93,7 +137,7 @@ class BackendAPIService {
     url.searchParams.set('user_id', userId);
     url.searchParams.set('period', period);
 
-    const response = await fetch(url.toString(), {
+    const response = await fetchWithTimeout(url.toString(), {
       method: 'GET',
       headers: { 'Content-Type': 'application/json' },
     });
@@ -125,7 +169,7 @@ class BackendAPIService {
     }
     url.searchParams.set('stale_seconds', String(staleSeconds));
 
-    const response = await fetch(url.toString(), {
+    const response = await fetchWithTimeout(url.toString(), {
       method: 'GET',
       headers: { 'Content-Type': 'application/json' },
     });
@@ -146,7 +190,7 @@ class BackendAPIService {
   }
 
   async getHealthStatus(): Promise<unknown> {
-    const response = await fetch(`${this.baseUrl}/api/v1/health/status`, {
+    const response = await fetchWithTimeout(`${this.baseUrl}/api/v1/health/status`, {
       method: 'GET',
       headers: { 'Content-Type': 'application/json' },
     });
@@ -175,7 +219,7 @@ class BackendAPIService {
       url.searchParams.set('is_resolved', String(options.isResolved));
     }
 
-    const response = await fetch(url.toString(), {
+    const response = await fetchWithTimeout(url.toString(), {
       method: 'GET',
       headers: { 'Content-Type': 'application/json' },
     });
@@ -199,11 +243,14 @@ class BackendAPIService {
     alertId: string,
     body: { is_read?: boolean; is_resolved?: boolean },
   ): Promise<PatchAlertResponse> {
-    const response = await fetch(`${this.baseUrl}/api/v1/alerts/${encodeURIComponent(alertId)}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
+    const response = await fetchWithTimeout(
+      `${this.baseUrl}/api/v1/alerts/${encodeURIComponent(alertId)}`,
+      {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      },
+    );
 
     if (!response.ok) {
       const text = await response.text();

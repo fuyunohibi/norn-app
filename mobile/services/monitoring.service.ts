@@ -2,9 +2,21 @@ import type { Alert, AlertInsert } from '@/database/types';
 import { supabase } from '@/utils/supabase';
 import { backendAPIService } from './backend-api.service';
 
+const alertLogThrottleMs = 25_000;
+const lastAlertLogAt = new Map<string, number>();
+
 function logAlertError(context: string, error: unknown) {
   const e = error as { message?: string; code?: string; details?: string; hint?: string };
-  console.error(`Error ${context}:`, e?.message ?? error, e?.code ? `code=${e.code}` : '', e?.details ?? '');
+  const now = Date.now();
+  const prev = lastAlertLogAt.get(context) ?? 0;
+  if (now - prev < alertLogThrottleMs) return;
+  lastAlertLogAt.set(context, now);
+  console.warn(
+    `[alerts] ${context}:`,
+    e?.message ?? error,
+    e?.code ? `code=${e.code}` : '',
+    e?.details ?? '',
+  );
 }
 
 // =============================================

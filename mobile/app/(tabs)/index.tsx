@@ -29,9 +29,18 @@ import { useActivityStatistics } from "../../hooks/useActivityStatistics";
 import { useEmergencyContacts } from "../../hooks/useEmergencyContacts";
 import { useImuWearableStatus } from "../../hooks/useImuWearableStatus";
 import { backendAPIService } from "../../services/backend-api.service";
-import { getUnreadAlerts } from "../../services/monitoring.service";
 import { useModeStore } from "../../stores/mode.store";
 import { formatActivityDisplayName } from "../../utils/imu-activity";
+
+/** Last ML class for UI; pings-only shows an explicit heartbeat line (not “waiting forever”). */
+function imuLiveActivityHeadlineOnline(status: {
+  activity_label?: string | null;
+  activity_code?: string | null;
+}): string {
+  if (status.activity_label) return status.activity_label;
+  if (status.activity_code) return formatActivityDisplayName(status.activity_code);
+  return "Heartbeat (no class change stored yet)";
+}
 
 // Memoize the mode icon component to prevent re-renders
 const getModeIcon = (modeId: string) => {
@@ -58,6 +67,9 @@ const HomeScreen = () => {
   const {
     data: imuStatus,
     isLoading: imuStatusLoading,
+    isPending: imuStatusPending,
+    isSuccess: imuStatusFetchOk,
+    isError: imuStatusFetchFailed,
     error: imuStatusError,
   } = useImuWearableStatus(userId);
   const {
@@ -66,7 +78,8 @@ const HomeScreen = () => {
     error: activityStatsError,
   } = useActivityStatistics(userId, "today");
   const activityStats = activityStatsRes?.statistics;
-  const imuDataLoading = imuStatusLoading || activityStatsLoading;
+  /** Only IMU status gates the main wearable block; activity stats load in the section below. */
+  const wearableMainLoading = imuStatusLoading;
 
   const topClassToday = useMemo(() => {
     const by = activityStats?.by_activity;
@@ -200,46 +213,89 @@ const HomeScreen = () => {
     }
   };
 
-  // Check backend health
-  const [backendConnected, setBackendConnected] = useState<boolean | null>(
-    null
-  );
-  const [backendError, setBackendError] = useState<string | null>(null);
+  /** LAN health probe (also when signed out). IMU query below is a stronger signal when signed in. */
+  const [healthReachable, setHealthReachable] = useState<boolean | null>(null);
+  const [healthError, setHealthError] = useState<string | null>(null);
   React.useEffect(() => {
     const checkHealth = async () => {
       try {
         await backendAPIService.getHealthStatus();
-        setBackendConnected(true);
-        setBackendError(null);
-      } catch (error: any) {
-        setBackendConnected(false);
-        const errorMsg = error.message || String(error);
+        setHealthReachable(true);
+        setHealthError(null);
+      } catch (error: unknown) {
+        setHealthReachable(false);
+        const errorMsg =
+          error instanceof Error ? error.message : String(error);
         if (
           errorMsg.includes("Network request failed") ||
           errorMsg.includes("Failed to fetch")
         ) {
-          setBackendError("Cannot connect to backend. Check network settings.");
+          setHealthError("Cannot connect to backend. Check network settings.");
         } else {
-          setBackendError(errorMsg);
+          setHealthError(errorMsg);
         }
       }
     };
 
     checkHealth();
-    // Recheck every 60 seconds (reduced frequency)
-    const interval = setInterval(checkHealth, 60000);
+    const interval = setInterval(checkHealth, 30_000);
     return () => clearInterval(interval);
   }, []);
 
-  // Monitor for fall detection alerts
+  /**
+   * Header card: wearable status query success means we have live data (FastAPI or Supabase fallback).
+   * The separate health probe only hits LAN HTTP and may stay false while Supabase still works.
+   */
+  const backendConnected = useMemo(() => {
+    if (!userId) return healthReachable;
+    if (imuStatusFetchOk) return true;
+    if (imuStatusFetchFailed) return false;
+    if (imuStatusPending) return healthReachable === true ? true : null;
+    return healthReachable;
+  }, [
+    userId,
+    imuStatusFetchOk,
+    imuStatusFetchFailed,
+    imuStatusPending,
+    healthReachable,
+  ]);
+
+  const backendError = useMemo(() => {
+    if (userId && imuStatusFetchOk) {
+      return null;
+    }
+    if (userId && imuStatusError) {
+      const msg =
+        imuStatusError instanceof Error
+          ? imuStatusError.message
+          : String(imuStatusError);
+      if (
+        msg.includes("Network request failed") ||
+        msg.includes("Failed to fetch") ||
+        msg.includes("timed out")
+      ) {
+        return "Cannot connect to backend. Check network settings.";
+      }
+      return msg;
+    }
+    return healthError;
+  }, [userId, imuStatusFetchOk, imuStatusError, healthError]);
+
+  // Monitor for fall detection alerts (failures surface to React Query for backoff — avoid 3s spam when backend is down)
   const { data: unreadAlerts = [] } = useQuery({
     queryKey: ["unread-alerts", userId],
     queryFn: async () => {
       if (!userId) return [];
-      return await getUnreadAlerts(userId);
+      const res = await backendAPIService.listAlerts(userId, {
+        limit: 100,
+        isRead: false,
+      });
+      return res.alerts ?? [];
     },
     enabled: !!userId,
-    refetchInterval: 3000, // Check every 3 seconds for new alerts
+    retry: 2,
+    retryDelay: 4_000,
+    refetchInterval: (query) => (query.state.error ? 45_000 : 3_000),
   });
 
   // Track shown alerts to prevent duplicate notifications
@@ -372,11 +428,13 @@ const HomeScreen = () => {
                   : "Checking..."}
               </Text>
               <Text className="text-gray-600 text-sm font-hell">
-                {imuDataLoading
-                  ? "Loading wearable data..."
-                  : imuStatus?.online
-                    ? "Wearable online"
-                    : "No recent wearable signal"}
+                {imuStatusLoading
+                  ? "Loading wearable status..."
+                  : activityStatsLoading
+                    ? "Loading today's activity..."
+                    : imuStatus?.online
+                      ? "Wearable online"
+                      : "No recent wearable signal"}
               </Text>
               {/* {modeError && (
                   <Text className="text-red-500 text-xs mt-1 font-hell">{modeError}</Text>
@@ -389,7 +447,11 @@ const HomeScreen = () => {
             </View>
             <View
               className={`w-3 h-3 rounded-full ${
-                backendConnected ? "bg-green-500" : "bg-red-500"
+                backendConnected === true
+                  ? "bg-green-500"
+                  : backendConnected === false
+                    ? "bg-red-500"
+                    : "bg-amber-400"
               }`}
             />
           </View>
@@ -424,8 +486,7 @@ const HomeScreen = () => {
               <Text className="text-gray-700 text-sm font-hell">
                 Current activity:{" "}
                 <Text className="font-hell-round-bold">
-                  {imuStatus.activity_label ??
-                    "No activity change yet (sensor is running)"}
+                  {imuLiveActivityHeadlineOnline(imuStatus)}
                 </Text>
               </Text>
               {imuStatus.last_seen_at ? (
@@ -470,7 +531,7 @@ const HomeScreen = () => {
                 </View>
                 <Text className="text-3xl font-hell-round-bold text-gray-900">
                   {imuStatus?.online
-                    ? (imuStatus.activity_label ?? "Waiting for first class change…")
+                    ? imuLiveActivityHeadlineOnline(imuStatus)
                     : "—"}
                 </Text>
                 {imuStatus?.online && imuStatus.activity_code ? (
@@ -566,11 +627,11 @@ const HomeScreen = () => {
           </Card>
         )}
 
-        {imuDataLoading && !!userId && (
+        {wearableMainLoading && !!userId && (
           <View className="mb-6 items-center py-8">
             <ActivityIndicator size="large" color="#FF7300" />
             <Text className="text-gray-600 font-hell mt-4">
-              Loading wearable data...
+              Loading wearable status...
             </Text>
           </View>
         )}
@@ -625,9 +686,13 @@ const HomeScreen = () => {
                         </Text>
                       </View>
                     </View>
-                    <Text className="text-2xl font-hell-round-bold text-primary-accent ">
-                      {activityStats?.total_events ?? 0}
-                    </Text>
+                    {activityStatsLoading && !activityStats ? (
+                      <ActivityIndicator size="small" color="#FF7300" />
+                    ) : (
+                      <Text className="text-2xl font-hell-round-bold text-primary-accent ">
+                        {activityStats?.total_events ?? 0}
+                      </Text>
+                    )}
                   </View>
                 </Card>
 

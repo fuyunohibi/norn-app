@@ -221,7 +221,7 @@ class SupabaseService:
     ) -> Dict[str, Any]:
         """
         Last event time (including heartbeat ``ping``) determines if the wearable is powered and online.
-        Latest non-ping activity is the last reported movement class from the IMU.
+        Latest non-ping row (separate query) is the last movement class — pings need not crowd out class.
         """
         activity_labels: Dict[str, str] = {
             "w": "Walking",
@@ -232,18 +232,45 @@ class SupabaseService:
             "af": "After fall",
             "nf": "Unstable",
         }
+        long_to_short: Dict[str, str] = {
+            "walking": "w",
+            "standing": "st",
+            "sitting": "si",
+            "running": "r",
+            "falling": "f",
+            "after_fall": "af",
+            "unstable_standing": "nf",
+        }
+
+        def _short_code(raw: str) -> str:
+            a = raw.strip().lower()
+            if not a or a == "ping":
+                return ""
+            return long_to_short.get(a, a)
+
         try:
-            q = (
+            q_any = (
                 self.client.table("activity_events")
                 .select("activity, created_at, device_id")
                 .eq("user_id", user_id)
                 .order("created_at", desc=True)
-                .limit(50)
+                .limit(1)
+            )
+            q_class = (
+                self.client.table("activity_events")
+                .select("activity, created_at, device_id")
+                .eq("user_id", user_id)
+                .neq("activity", "ping")
+                .order("created_at", desc=True)
+                .limit(1)
             )
             if device_id:
-                q = q.eq("device_id", device_id)
-            result = q.execute()
-            rows = result.data or []
+                q_any = q_any.eq("device_id", device_id)
+                q_class = q_class.eq("device_id", device_id)
+            res_any = q_any.execute()
+            res_class = q_class.execute()
+            row_any = (res_any.data or [None])[0]
+            row_class = (res_class.data or [None])[0]
         except Exception as e:
             logger.error("Error fetching IMU live status: %s", e)
             return {
@@ -256,7 +283,7 @@ class SupabaseService:
                 "error": str(e),
             }
 
-        if not rows:
+        if not row_any:
             return {
                 "online": False,
                 "last_seen_at": None,
@@ -268,7 +295,7 @@ class SupabaseService:
             }
 
         now = datetime.now(timezone.utc)
-        last_ts_str = rows[0].get("created_at")
+        last_ts_str = row_any.get("created_at")
         try:
             last_dt = datetime.fromisoformat(str(last_ts_str).replace("Z", "+00:00"))
             age_sec = max(0.0, (now - last_dt).total_seconds())
@@ -277,27 +304,21 @@ class SupabaseService:
 
         online = age_sec <= float(stale_seconds)
 
-        last_activity_code: Optional[str] = None
-        for r in rows:
-            a = str(r.get("activity", "")).strip().lower()
-            if a and a != "ping":
-                last_activity_code = a
-                break
-
+        raw_class = (
+            str(row_class.get("activity", "")).strip().lower() if row_class else ""
+        )
+        short = _short_code(raw_class) if raw_class and raw_class != "ping" else ""
         activity_label: Optional[str] = None
-        if last_activity_code:
-            activity_label = activity_labels.get(
-                last_activity_code,
-                last_activity_code,
-            )
+        if short:
+            activity_label = activity_labels.get(short, raw_class)
 
         return {
             "online": online,
             "last_seen_at": last_ts_str,
             "age_seconds": int(age_sec) if age_sec != float("inf") else None,
-            "activity_code": last_activity_code,
+            "activity_code": short or None,
             "activity_label": activity_label,
-            "device_id": device_id or rows[0].get("device_id"),
+            "device_id": device_id or row_any.get("device_id"),
             "reason": None,
         }
 
