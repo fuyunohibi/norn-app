@@ -352,14 +352,28 @@ const HomeScreen = () => {
         </View>
       </View>
       <ScrollView className="flex-1 bg-white p-6">
-        {/* Wearable link — from last activity_events / ping, not LAN backend reachability */}
+        {/* IMU clip: connected / disconnected from recent activity_events (incl. ping), plus live details */}
         <Card variant="outlined" className="mb-6">
           <View className="flex-row items-center justify-between">
-            <View>
-              <Text className="text-lg font-hell-round-bold text-gray-900 ">
-                {wearableStatusTitle}
-              </Text>
-              <Text className="text-gray-600 text-sm font-hell">
+            <View className="flex-1 pr-3">
+              <Text className="text-sm text-gray-500 font-hell mb-1">Wearable</Text>
+              {userId && imuStatusLoading ? (
+                <View className="flex-row items-center gap-2">
+                  <ActivityIndicator color="#FF7300" />
+                  <Text className="text-lg font-hell-round-bold text-gray-900">
+                    Checking…
+                  </Text>
+                </View>
+              ) : (
+                <Text className="text-lg font-hell-round-bold text-gray-900">
+                  {wearableStatusTitle}
+                </Text>
+              )}
+              <Text
+                className={`text-sm font-hell mt-1 ${
+                  userId && imuStatusError ? "text-orange-600" : "text-gray-600"
+                }`}
+              >
                 {wearableStatusSubtitle}
               </Text>
               {sensorStatusHint ? (
@@ -367,9 +381,33 @@ const HomeScreen = () => {
                   {sensorStatusHint}
                 </Text>
               ) : null}
+              {userId && !imuStatusLoading && !imuStatusError && imuStatus?.online ? (
+                <>
+                  <Text className="text-gray-700 text-sm font-hell mt-3">
+                    Current activity:{" "}
+                    <Text className="font-hell-round-bold">
+                      {imuLiveActivityHeadlineOnline(imuStatus)}
+                    </Text>
+                  </Text>
+                  {imuStatus.last_seen_at ? (
+                    <Text className="text-gray-500 text-xs font-hell mt-2">
+                      Last signal: {new Date(imuStatus.last_seen_at).toLocaleString()}
+                      {typeof imuStatus.age_seconds === "number"
+                        ? ` (${imuStatus.age_seconds}s ago)`
+                        : ""}
+                    </Text>
+                  ) : null}
+                </>
+              ) : null}
+              {userId && !imuStatusLoading && !imuStatusError && !imuStatus?.online ? (
+                <Text className="text-gray-600 text-sm font-hell mt-3">
+                  The clip may be off, out of Wi‑Fi range, or has not reported in the last ~90
+                  seconds.
+                </Text>
+              ) : null}
             </View>
             <View
-              className={`w-3 h-3 rounded-full ${
+              className={`w-3 h-3 rounded-full shrink-0 ${
                 wearableStatusDot === "ok"
                   ? "bg-green-500"
                   : wearableStatusDot === "off" || wearableStatusDot === "error"
@@ -380,59 +418,6 @@ const HomeScreen = () => {
               }`}
             />
           </View>
-        </Card>
-
-        <Card variant="outlined" className="mb-6">
-          <Text className="text-lg font-hell-round-bold text-gray-900 mb-2">
-            Fall sensor (wearable)
-          </Text>
-          {!userId ? (
-            <Text className="text-gray-600 text-sm font-hell">
-              Sign in to see whether your clip sensor is powered and reporting.
-            </Text>
-          ) : imuStatusLoading ? (
-            <View className="py-2">
-              <ActivityIndicator color="#FF7300" />
-            </View>
-          ) : imuStatusError ? (
-            <Text className="text-orange-600 text-sm font-hell">
-              Could not load sensor status. Check the API and database.
-            </Text>
-          ) : imuStatus?.online ? (
-            <View>
-              <View className="flex-row items-center mb-2">
-                <View className="w-3 h-3 rounded-full bg-green-500 mr-2" />
-                <Text className="text-gray-800 font-hell-round-bold">On</Text>
-              </View>
-              <Text className="text-gray-700 text-sm font-hell">
-                Current activity:{" "}
-                <Text className="font-hell-round-bold">
-                  {imuLiveActivityHeadlineOnline(imuStatus)}
-                </Text>
-              </Text>
-              {imuStatus.last_seen_at ? (
-                <Text className="text-gray-500 text-xs font-hell mt-2">
-                  Last signal: {new Date(imuStatus.last_seen_at).toLocaleString()}
-                  {typeof imuStatus.age_seconds === "number"
-                    ? ` (${imuStatus.age_seconds}s ago)`
-                    : ""}
-                </Text>
-              ) : null}
-            </View>
-          ) : (
-            <View>
-              <View className="flex-row items-center mb-2">
-                <View className="w-3 h-3 rounded-full bg-gray-400 mr-2" />
-                <Text className="text-gray-800 font-hell-round-bold">
-                  Not available
-                </Text>
-              </View>
-              <Text className="text-gray-600 text-sm font-hell">
-                The sensor may be switched off, out of Wi-Fi range, or has not
-                reported in the last ~90 seconds.
-              </Text>
-            </View>
-          )}
         </Card>
 
         {userId && !imuStatusLoading && !imuStatusError && (
