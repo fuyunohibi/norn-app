@@ -1,20 +1,50 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertCircle, Bell, Shield } from 'lucide-react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { router } from 'expo-router';
+import { AlertCircle, Bell, ChevronLeft, Shield } from 'lucide-react-native';
 import React from 'react';
-import { ActivityIndicator, Alert, ScrollView, Switch, Text, TouchableOpacity, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import {
+  ActivityIndicator,
+  Alert,
+  ImageBackground,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Card } from '../../components/ui/card';
-import Header from '../../components/ui/header';
 import { useAuth } from '../../contexts/auth-context';
+import type { UserPreferencesUpdate } from '../../database/types';
 import { getAlerts, markAlertAsRead, markAllAlertsAsRead } from '../../services/monitoring.service';
 import { getPreferences, updatePreferences } from '../../services/user.service';
+
+const HERO_MIN_HEIGHT = 200;
+
+const heroTextShadow = {
+  textShadowColor: 'rgba(0,0,0,0.35)',
+  textShadowOffset: { width: 0, height: 1 },
+  textShadowRadius: 6,
+} as const;
+
+const sheetStyles = StyleSheet.create({
+  groupCard: {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    elevation: 3,
+  },
+});
 
 const NotificationsScreen = () => {
   const { user } = useAuth();
   const userId = user?.id;
+  const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
 
-  // Fetch alerts
   const { data: alerts = [], isLoading: alertsLoading, refetch: refetchAlerts } = useQuery({
     queryKey: ['alerts', userId],
     queryFn: async () => {
@@ -24,7 +54,6 @@ const NotificationsScreen = () => {
     enabled: !!userId,
   });
 
-  // Fetch preferences
   const { data: preferences, isLoading: prefsLoading } = useQuery({
     queryKey: ['preferences', userId],
     queryFn: async () => {
@@ -34,7 +63,6 @@ const NotificationsScreen = () => {
     enabled: !!userId,
   });
 
-  // Mark alert as read mutation
   const markAsReadMutation = useMutation({
     mutationFn: markAlertAsRead,
     onSuccess: () => {
@@ -42,7 +70,6 @@ const NotificationsScreen = () => {
     },
   });
 
-  // Mark all as read mutation
   const markAllAsReadMutation = useMutation({
     mutationFn: () => markAllAlertsAsRead(userId!),
     onSuccess: () => {
@@ -51,9 +78,8 @@ const NotificationsScreen = () => {
     },
   });
 
-  // Update preferences mutation
   const updatePrefsMutation = useMutation({
-    mutationFn: (updates: any) => updatePreferences(userId!, updates),
+    mutationFn: (updates: UserPreferencesUpdate) => updatePreferences(userId!, updates),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['preferences', userId] });
     },
@@ -68,7 +94,7 @@ const NotificationsScreen = () => {
       case 'high':
         return 'bg-orange-500';
       case 'medium':
-        return 'bg-yellow-500';
+        return 'bg-amber-400';
       case 'low':
         return 'bg-blue-500';
       default:
@@ -92,142 +118,212 @@ const NotificationsScreen = () => {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-white">
-      <ScrollView className="flex-1 px-6">
-        {/* Header */}
-        <Header
-          title="Notifications"
-          subtitle="Manage alerts and preferences"
-          showBackButton
+    <View className="flex-1 bg-gray-900">
+      <ImageBackground
+        source={require('../../assets/images/backgrounds/daytime-bg.png')}
+        resizeMode="cover"
+        className="w-full overflow-hidden rounded-b-[2.5rem]"
+        style={{ minHeight: HERO_MIN_HEIGHT + insets.top }}
+      >
+        <LinearGradient
+          colors={['rgba(0,0,0,0.12)', 'rgba(0,0,0,0.38)']}
+          start={{ x: 0.5, y: 0.2 }}
+          end={{ x: 0.5, y: 1 }}
+          style={{
+            position: 'absolute',
+            left: 0,
+            right: 0,
+            top: 0,
+            bottom: 0,
+          }}
         />
+        <View
+          className="flex-1 justify-end px-6 pb-6"
+          style={{ paddingTop: insets.top + 8 }}
+        >
+          <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityLabel="Go back"
+            onPress={() => router.back()}
+            activeOpacity={0.88}
+            className="h-12 w-12 items-center justify-center rounded-xl bg-white"
+          >
+            <ChevronLeft size={24} color="#666" strokeWidth={2.5} />
+          </TouchableOpacity>
 
-        {/* Preferences Section */}
-        <View className="mb-6">
-          <Text className="text-xl font-hell-round-bold text-gray-900 mb-4 ">Alert Preferences</Text>
-          <Card variant="outlined">
-            <View className="p-4">
-              {prefsLoading ? (
-                <ActivityIndicator size="small" color="#6366f1" />
-              ) : (
-                <>
-                  <View className="flex-row items-center justify-between py-3">
-                    <View className="flex-1">
-                      <Text className="text-base font-hell-round-bold text-gray-900 ">
-                        Fall Detection Alerts
-                      </Text>
-                      <Text className="text-sm text-gray-600 mt-1 font-hell">
-                        Receive notifications for fall events
-                      </Text>
-                    </View>
+          <Text
+            className="mt-5 text-3xl font-hell-round-bold text-white"
+            style={heroTextShadow}
+          >
+            Notifications
+          </Text>
+          <Text
+            className="mt-2 max-w-[92%] text-base font-hell leading-6 text-white/95"
+            style={heroTextShadow}
+          >
+            Fall alerts, preferences, and recent activity from NORN.
+          </Text>
+        </View>
+      </ImageBackground>
+
+      <View className="flex-1 bg-gray-900">
+        <ScrollView
+          className="mt-6 flex-1 rounded-t-[2.5rem] bg-white px-6 pt-6"
+          contentContainerStyle={{
+            paddingBottom: insets.bottom + 28,
+          }}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          {!userId ? (
+            <Card variant="outlined" className="border-gray-100 bg-gray-50/80">
+              <Text className="text-center font-hell text-base leading-6 text-gray-600">
+                Sign in to manage notification preferences and view alerts.
+              </Text>
+            </Card>
+          ) : (
+            <>
+              <Text className="text-xs font-hell-round-bold uppercase tracking-wide text-gray-400">
+                Preferences
+              </Text>
+              <Text className="mt-1 text-lg font-hell-round-bold text-gray-900">
+                Alert types
+              </Text>
+              <Text className="mt-1 text-sm font-hell leading-5 text-gray-500">
+                Choose what we can notify you about.
+              </Text>
+
+              <View
+                className="mt-4 overflow-hidden rounded-3xl border border-gray-200/90 bg-white"
+                style={sheetStyles.groupCard}
+              >
+                <View className="flex-row items-center justify-between px-4 py-4">
+                  <View className="min-w-0 flex-1 pr-3">
+                    <Text className="text-base font-hell-round-bold text-gray-900">
+                      Fall detection
+                    </Text>
+                    <Text className="mt-1 font-hell text-sm leading-5 text-gray-500">
+                      Notifications when a fall or high-risk event is reported.
+                    </Text>
+                  </View>
+                  {prefsLoading ? (
+                    <ActivityIndicator size="small" color="#FF7300" />
+                  ) : (
                     <Switch
                       value={preferences?.fall_alerts_enabled ?? true}
-                      onValueChange={(value) => handleTogglePreference('fall_alerts_enabled', value)}
+                      onValueChange={(value) =>
+                        handleTogglePreference('fall_alerts_enabled', value)
+                      }
                       trackColor={{ false: '#E5E7EB', true: '#FF7300' }}
                       thumbColor="#FFFFFF"
                     />
-                  </View>
-                </>
-              )}
-            </View>
-          </Card>
-        </View>
-
-        {/* Alerts Section */}
-        <View className="mb-6">
-          <View className="flex-row items-center justify-between mb-4">
-            <Text className="text-xl font-hell-round-bold text-gray-900 ">Recent Alerts</Text>
-            {unreadCount > 0 && (
-              <TouchableOpacity
-                onPress={() => markAllAsReadMutation.mutate()}
-                disabled={markAllAsReadMutation.isPending}
-                className="px-3 py-2 bg-gray-900 rounded-xl"
-              >
-                <Text className="text-xs font-hell-round-bold text-white ">
-                  Mark all read ({unreadCount})
-                </Text>
-              </TouchableOpacity>
-            )}
-          </View>
-
-          {alertsLoading ? (
-            <Card variant="outlined">
-              <View className="p-6 items-center">
-                <ActivityIndicator size="large" color="#FF7300" />
-                <Text className="text-gray-600 mt-4 font-hell">Loading alerts...</Text>
+                  )}
+                </View>
               </View>
-            </Card>
-          ) : alerts.length === 0 ? (
-            <Card variant="outlined">
-              <View className="p-8 items-center">
-                <Bell size={48} color="#9CA3AF" />
-                <Text className="text-lg font-hell-round-bold text-gray-900 mt-4 ">
-                  No Alerts
-                </Text>
-                <Text className="text-gray-600 text-center mt-2 font-hell">
-                  You're all caught up! No alerts to display.
-                </Text>
+
+              <View className="mb-2 mt-10 flex-row items-center justify-between">
+                <View>
+                  <Text className="text-xs font-hell-round-bold uppercase tracking-wide text-gray-400">
+                    Inbox
+                  </Text>
+                  <Text className="mt-1 text-lg font-hell-round-bold text-gray-900">
+                    Recent alerts
+                  </Text>
+                </View>
+                {unreadCount > 0 ? (
+                  <TouchableOpacity
+                    onPress={() => markAllAsReadMutation.mutate()}
+                    disabled={markAllAsReadMutation.isPending}
+                    activeOpacity={0.88}
+                    className="rounded-full bg-gray-900 px-3 py-2"
+                  >
+                    <Text className="text-xs font-hell-round-bold text-white">
+                      Mark all read ({unreadCount})
+                    </Text>
+                  </TouchableOpacity>
+                ) : null}
               </View>
-            </Card>
-          ) : (
-            <View className="gap-3">
-              {alerts.map((alert) => (
-                <Card
-                  key={alert.id}
-                  variant="outlined"
-                  className={alert.is_read ? 'opacity-75' : ''}
-                >
-                  <View className="p-4">
-                    <View className="flex-row items-start">
-                      <View
-                        className={`w-10 h-10 ${getSeverityColor(alert.severity)} rounded-lg items-center justify-center mr-3`}
-                      >
-                        {getAlertTypeIcon(alert.alert_type)}
-                      </View>
-                      <View className="flex-1">
-                        <View className="flex-row items-center justify-between mb-1">
-                          <Text className="text-base font-hell-round-bold text-gray-900 ">
-                            {alert.title}
-                          </Text>
-                          {!alert.is_read && (
-                            <View className="w-2 h-2 bg-primary-accent rounded-full" />
-                          )}
-                        </View>
-                        <Text className="text-sm text-gray-600 mb-2 font-hell">
-                          {alert.message}
-                        </Text>
-                        <View className="flex-row items-center justify-between">
-                          <Text className="text-xs text-gray-500 font-hell">
-                            {alert.created_at
-                              ? new Date(alert.created_at).toLocaleString()
-                              : ''}
-                          </Text>
-                          {!alert.is_read && (
-                            <TouchableOpacity
-                              onPress={() => markAsReadMutation.mutate(alert.id)}
-                              disabled={markAsReadMutation.isPending}
-                              className="px-2 py-1 bg-gray-100 rounded"
-                            >
-                              <Text className="text-xs font-hell font-medium text-gray-700">
-                                Mark read
-                              </Text>
-                            </TouchableOpacity>
-                          )}
-                        </View>
-                      </View>
-                    </View>
+
+              {alertsLoading ? (
+                <Card variant="outlined" className="border-gray-100 bg-gray-50/80">
+                  <View className="items-center py-10">
+                    <ActivityIndicator size="large" color="#FF7300" />
+                    <Text className="mt-4 font-hell text-sm text-gray-600">
+                      Loading alerts…
+                    </Text>
                   </View>
                 </Card>
-              ))}
-            </View>
+              ) : alerts.length === 0 ? (
+                <Card variant="outlined" className="border-gray-100 bg-gray-50/80">
+                  <View className="items-center px-2 py-10">
+                    <View className="h-14 w-14 items-center justify-center rounded-2xl bg-gray-100">
+                      <Bell size={28} color="#9CA3AF" strokeWidth={2} />
+                    </View>
+                    <Text className="mt-4 text-center text-lg font-hell-round-bold text-gray-900">
+                      No alerts
+                    </Text>
+                    <Text className="mt-2 text-center font-hell text-sm leading-5 text-gray-600">
+                      You are all caught up. We will show fall and safety alerts here.
+                    </Text>
+                  </View>
+                </Card>
+              ) : (
+                <View className="gap-3">
+                  {alerts.map((alert) => (
+                    <Card
+                      key={alert.id}
+                      variant="outlined"
+                      className={`border-gray-100 bg-white ${alert.is_read ? 'opacity-80' : ''}`}
+                    >
+                      <View className="flex-row items-start">
+                        <View
+                          className={`mr-3 h-11 w-11 items-center justify-center rounded-2xl ${getSeverityColor(alert.severity)}`}
+                        >
+                          {getAlertTypeIcon(alert.alert_type)}
+                        </View>
+                        <View className="min-w-0 flex-1">
+                          <View className="flex-row items-start justify-between gap-2">
+                            <Text className="flex-1 text-base font-hell-round-bold text-gray-900">
+                              {alert.title}
+                            </Text>
+                            {!alert.is_read ? (
+                              <View className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-[#FF7300]" />
+                            ) : null}
+                          </View>
+                          <Text className="mt-1 font-hell text-sm leading-5 text-gray-600">
+                            {alert.message}
+                          </Text>
+                          <View className="mt-3 flex-row flex-wrap items-center justify-between gap-2">
+                            <Text className="font-hell text-xs text-gray-500">
+                              {alert.created_at
+                                ? new Date(alert.created_at).toLocaleString()
+                                : ''}
+                            </Text>
+                            {!alert.is_read ? (
+                              <TouchableOpacity
+                                onPress={() => markAsReadMutation.mutate(alert.id)}
+                                disabled={markAsReadMutation.isPending}
+                                activeOpacity={0.88}
+                                className="rounded-full border border-gray-200 bg-gray-50 px-3 py-1.5"
+                              >
+                                <Text className="text-xs font-hell-round-bold text-gray-800">
+                                  Mark read
+                                </Text>
+                              </TouchableOpacity>
+                            ) : null}
+                          </View>
+                        </View>
+                      </View>
+                    </Card>
+                  ))}
+                </View>
+              )}
+            </>
           )}
-        </View>
-
-        {/* Bottom spacing */}
-        <View className="h-8" />
-      </ScrollView>
-    </SafeAreaView>
+        </ScrollView>
+      </View>
+    </View>
   );
 };
 
 export default NotificationsScreen;
-
