@@ -1,8 +1,9 @@
 import type { EmergencyContact } from "@/database/types";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { LinearGradient } from "expo-linear-gradient";
+import { router } from "expo-router";
 import {
-  Activity,
-  AlertTriangle,
+  ChevronLeft,
   LogOut,
   Pencil,
   PhoneCall,
@@ -15,20 +16,22 @@ import { Controller, useForm } from "react-hook-form";
 import {
   ActivityIndicator,
   Alert,
+  ImageBackground,
   KeyboardAvoidingView,
   Linking,
   Modal,
   Platform,
   ScrollView,
+  StyleSheet,
   Switch,
   Text,
   TouchableOpacity,
   TouchableWithoutFeedback,
-  View
+  View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Button } from "../../components/ui/button";
 import { Card } from "../../components/ui/card";
-import Header from "../../components/ui/header";
 import { Input } from "../../components/ui/input";
 import { useAuth } from "../../contexts/auth-context";
 import { useEmergencyContacts } from "../../hooks/useEmergencyContacts";
@@ -37,33 +40,27 @@ import {
   EmergencyContactFormValues,
 } from "../../schemas/emergency-contact.schema";
 
-interface SettingsFormData {
-  deviceName: string;
-  refreshInterval: string;
-  alertThreshold: string;
-  activityMonitoringEnabled: boolean;
-  fallDetectionEnabled: boolean;
-  emergencyContact: string;
-}
+const HERO_MIN_HEIGHT = 200;
+
+const heroTextShadow = {
+  textShadowColor: "rgba(0,0,0,0.35)",
+  textShadowOffset: { width: 0, height: 1 },
+  textShadowRadius: 6,
+} as const;
+
+const sheetStyles = StyleSheet.create({
+  cardShadow: {
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    elevation: 3,
+  },
+});
 
 const SettingsScreen = () => {
   const { user, signOut } = useAuth();
-  
-  const {
-    control,
-    handleSubmit,
-    formState: { errors, isSubmitting },
-    reset,
-  } = useForm<SettingsFormData>({
-    defaultValues: {
-      deviceName: "MPU6050 wearable",
-      refreshInterval: "5",
-      alertThreshold: "80",
-      activityMonitoringEnabled: true,
-      fallDetectionEnabled: true,
-      emergencyContact: "",
-    },
-  });
+  const insets = useSafeAreaInsets();
 
   const resolvedUserId = useMemo(() => user?.id, [user?.id]);
 
@@ -272,38 +269,6 @@ const SettingsScreen = () => {
     }
   };
 
-  const onSubmit = async (data: SettingsFormData) => {
-    try {
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      
-      Alert.alert(
-        "Settings Saved",
-        "Your sensor configuration has been updated successfully.",
-        [{ text: "OK" }]
-      );
-    } catch (error) {
-      Alert.alert("Error", "Failed to save settings. Please try again.", [
-        { text: "OK" },
-      ]);
-    }
-  };
-
-  const handleReset = () => {
-    Alert.alert(
-      "Reset Settings",
-      "Are you sure you want to reset all settings to default values?",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Reset",
-          style: "destructive",
-          onPress: () => reset(),
-        },
-      ]
-    );
-  };
-
   const handleLogout = () => {
     Alert.alert("Sign Out", "Are you sure you want to sign out?", [
       { text: "Cancel", style: "cancel" },
@@ -321,126 +286,128 @@ const SettingsScreen = () => {
   };
 
   return (
-    <View className="flex-1 bg-white">
-      <ScrollView className="flex-1 px-6" keyboardShouldPersistTaps="handled">
-        {/* Header */}
-        <Header
-          title="Settings"
-          subtitle="Configure your sensor preferences"
-          showBackButton={true}
+    <View className="flex-1 bg-gray-900">
+      <ImageBackground
+        source={require("../../assets/images/backgrounds/daytime-bg.png")}
+        resizeMode="cover"
+        className="w-full overflow-hidden rounded-b-[2.5rem]"
+        style={{ minHeight: HERO_MIN_HEIGHT + insets.top }}
+      >
+        <LinearGradient
+          colors={["rgba(0,0,0,0.12)", "rgba(0,0,0,0.38)"]}
+          start={{ x: 0.5, y: 0.2 }}
+          end={{ x: 0.5, y: 1 }}
+          style={{
+            position: "absolute",
+            left: 0,
+            right: 0,
+            top: 0,
+            bottom: 0,
+          }}
         />
+        <View
+          className="flex-1 justify-end px-6 pb-6"
+          style={{ paddingTop: insets.top + 8 }}
+        >
+          <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityLabel="Go back"
+            onPress={() => router.back()}
+            activeOpacity={0.88}
+            className="h-12 w-12 items-center justify-center rounded-xl bg-white"
+          >
+            <ChevronLeft size={24} color="#666" strokeWidth={2.5} />
+          </TouchableOpacity>
+          <Text
+            className="mt-5 text-3xl font-hell-round-bold text-white"
+            style={heroTextShadow}
+          >
+            Settings
+          </Text>
+          <Text
+            className="mt-2 max-w-[92%] text-base font-hell leading-6 text-white/95"
+            style={heroTextShadow}
+          >
+            Account and who to reach when you need help.
+          </Text>
+        </View>
+      </ImageBackground>
 
-        {/* User Info */}
-        <Card variant="outlined" className="mb-6">
-          <View className="flex-row items-center justify-between">
-            <View>
-              <Text className="text-lg font-hell-round-bold text-gray-900 ">
-                {user?.email || "Guest User"}
-              </Text>
-              <Text className="text-gray-600 text-sm font-hell">
-                {user ? "Authenticated" : "Not signed in"}
-              </Text>
-            </View>
-            <TouchableOpacity
-              onPress={handleLogout}
-              className="flex-row items-center bg-red-50 px-6 py-4 rounded-xl"
-            >
-              <LogOut size={16} color="#dc2626" />
-              <Text className="text-red-600 font-hell font-medium ml-2">
-                Sign Out
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </Card>
-
-        {/* Monitoring Modes */}
-        <Card variant="outlined" className="mb-6">
-          <Text className="text-lg font-hell-round-bold text-gray-900 mb-4 ">
-            Monitoring Modes
+      <View className="flex-1 bg-gray-900">
+        <ScrollView
+          className="mt-6 flex-1 rounded-t-[2.5rem] bg-white px-6 pt-6"
+          contentContainerStyle={{ paddingBottom: insets.bottom + 28 }}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <Text className="text-xs font-hell-round-bold uppercase tracking-wide text-gray-400">
+            Account
+          </Text>
+          <Text className="mt-1 text-lg font-hell-round-bold text-gray-900">
+            Signed in as
           </Text>
 
-          <View className="gap-y-4">
-            <View className="flex-row items-center justify-between p-4 bg-gray-50 rounded-xl">
-              <View className="flex-row items-center">
-                <View className="w-10 h-10 bg-primary-accent rounded-lg items-center justify-center mr-3">
-                  <Activity size={20} color="white" />
-                </View>
-                <View>
-                  <Text className="text-base font-hell-round-bold text-gray-900 ">
-                    Activity monitoring
-                  </Text>
-                  <Text className="text-gray-600 text-sm font-hell">
-                    MPU6050 movement and posture tracking
-                  </Text>
-                </View>
+          <Card
+            variant="outlined"
+            className="mt-4 border-gray-100 bg-white"
+            style={sheetStyles.cardShadow}
+          >
+            <View className="flex-row gap-4">
+              <View className="flex-1 justify-center items-start">
+                <Text
+                  className="text-base font-hell-round-bold text-gray-900"
+                  numberOfLines={2}
+                >
+                  {user?.email || "Guest"}
+                </Text>
               </View>
-              <Controller
-                control={control}
-                name="activityMonitoringEnabled"
-                render={({ field: { onChange, value } }) => (
-                  <Switch
-                    value={value}
-                    onValueChange={onChange}
-                    trackColor={{ false: "#E5E7EB", true: "#FF7300" }}
-                    thumbColor={value ? "#FFFFFF" : "#F3F4F6"}
-                    ios_backgroundColor="#E5E7EB"
-                  />
-                )}
-              />
+              <TouchableOpacity
+                onPress={handleLogout}
+                className="flex-row items-center justify-center self-start rounded-2xl border border-red-200 bg-white px-4 py-3 active:opacity-90"
+                activeOpacity={0.88}
+              >
+                <LogOut size={18} color="#dc2626" strokeWidth={2.2} />
+                <Text className="ml-2 font-hell-round-bold text-sm text-red-600">
+                  Sign out
+                </Text>
+              </TouchableOpacity>
             </View>
+          </Card>
 
-            <View className="flex-row items-center justify-between p-4 bg-gray-50 rounded-xl">
-              <View className="flex-row items-center">
-                <View className="w-10 h-10 bg-primary-button rounded-lg items-center justify-center mr-3">
-                  <AlertTriangle size={20} color="white" />
-                </View>
-                <View>
-                  <Text className="text-base font-hell-round-bold text-gray-900 ">
-                    Fall detection focus
-                  </Text>
-                  <Text className="text-gray-600 text-sm font-hell">
-                    Emergency fall detection
-                  </Text>
-                </View>
-              </View>
-              <Controller
-                control={control}
-                name="fallDetectionEnabled"
-                render={({ field: { onChange, value } }) => (
-                  <Switch
-                    value={value}
-                    onValueChange={onChange}
-                    trackColor={{ false: "#E5E7EB", true: "#FF7300" }}
-                    thumbColor={value ? "#FFFFFF" : "#F3F4F6"}
-                    ios_backgroundColor="#E5E7EB"
-                  />
-                )}
-              />
-            </View>
-          </View>
-        </Card>
+          <Text className="mb-2 mt-10 text-xs font-hell-round-bold uppercase tracking-[0.08em] text-gray-400">
+            Safety
+          </Text>
+          <Text className="text-lg font-hell-round-bold text-gray-900">
+            Emergency contacts
+          </Text>
+          <Text className="mt-1 font-hell text-sm leading-5 text-gray-500">
+            People we suggest for quick call when a fall or alert needs a human.
+          </Text>
 
-        <Card variant="outlined" className="mb-6">
-          <View className="flex-row items-start justify-between mb-4">
-            <View className="flex-1 pr-4">
-              <Text className="text-lg font-hell-round-bold text-gray-900 ">
-                Emergency Contacts
+          <Card
+            variant="outlined"
+            className="mt-4 border-gray-100"
+            style={sheetStyles.cardShadow}
+          >
+          <View className="flex-row items-start justify-between gap-3 mb-4">
+            <View className="min-w-0 flex-1">
+              <Text className="text-base font-hell-round-bold text-gray-900">
+                Your list
               </Text>
-              <Text className="text-gray-600 text-sm font-hell mt-1">
-                Quick actions will call or notify these contacts when a fall is
-                detected.
+              <Text className="text-gray-600 text-sm font-hell mt-1 leading-5">
+                Used from home quick actions and fall flows.
               </Text>
             </View>
             <TouchableOpacity
               onPress={() => openContactModal()}
               disabled={contactsMutating}
-              className="flex-row items-center bg-primary-accent px-4 py-3 rounded-2xl"
-              activeOpacity={0.8}
+              className="flex-row items-center rounded-2xl bg-[#FF7300] px-4 py-3 active:opacity-90"
+              activeOpacity={0.88}
             >
               <UserPlus size={18} color="#FFFFFF" strokeWidth={2.5} />
               <Text className="text-white font-hell-round-bold text-sm ml-2">
                 Add
-          </Text>
+              </Text>
             </TouchableOpacity>
           </View>
 
@@ -555,30 +522,8 @@ const SettingsScreen = () => {
             </View>
           )}
         </Card>
-
-        {/* Action Buttons */}
-        <View className="gap-y-3 mb-8">
-          <Button
-            title="Save Settings"
-            onPress={handleSubmit(onSubmit)}
-            variant="primary"
-            size="lg"
-            className="w-full"
-            disabled={isSubmitting}
-          />
-
-          <Button
-            title="Reset to Defaults"
-            onPress={handleReset}
-            variant="outline"
-            size="lg"
-            className="w-full"
-          />
-        </View>
-
-        {/* Bottom spacing */}
-        <View className="h-8" />
-      </ScrollView>
+        </ScrollView>
+      </View>
 
       <Modal
         visible={isContactModalVisible}

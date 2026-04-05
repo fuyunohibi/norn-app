@@ -17,7 +17,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Card } from '../../components/ui/card';
 import { useAuth } from '../../contexts/auth-context';
-import type { UserPreferencesUpdate } from '../../database/types';
+import type { Alert as AlertRow, UserPreferencesUpdate } from '../../database/types';
 import { getAlerts, markAlertAsRead, markAllAlertsAsRead } from '../../services/monitoring.service';
 import { getPreferences, updatePreferences } from '../../services/user.service';
 
@@ -39,13 +39,78 @@ const sheetStyles = StyleSheet.create({
   },
 });
 
+/**
+ * Dev-only sample rows so an empty inbox still shows how alert cards look.
+ * Set to `false` to use the normal empty state while developing.
+ */
+const DEV_SHOW_MOCK_ALERTS_PREVIEW = __DEV__ && false;
+
+const MOCK_USER_ID = '00000000-0000-0000-0000-000000000000';
+
+const MOCK_PREVIEW_ALERTS: AlertRow[] = [
+  {
+    id: 'mock-preview-fall',
+    user_id: MOCK_USER_ID,
+    title: 'Fall may have occurred',
+    message:
+      'Your clip reported a sudden orientation change. Check in when you can, or use quick actions on the home screen.',
+    severity: 'critical',
+    alert_type: 'fall',
+    is_read: false,
+    is_resolved: false,
+    created_at: new Date(Date.now() - 12 * 60 * 1000).toISOString(),
+    alert_data: null,
+    device_id: null,
+    resolved_at: null,
+    resolved_by: null,
+    source_device_id: null,
+  },
+  {
+    id: 'mock-preview-fall-risk',
+    user_id: MOCK_USER_ID,
+    title: 'Unstable standing',
+    message:
+      'Movement patterns suggest you may be at higher risk of a fall. Consider sitting down or using support.',
+    severity: 'high',
+    alert_type: 'fall_risk',
+    is_read: false,
+    is_resolved: false,
+    created_at: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(),
+    alert_data: null,
+    device_id: null,
+    resolved_at: null,
+    resolved_by: null,
+    source_device_id: null,
+  },
+  {
+    id: 'mock-preview-info',
+    user_id: MOCK_USER_ID,
+    title: 'Clip back online',
+    message: 'Your NORN clip started reporting again after a short gap.',
+    severity: 'low',
+    alert_type: 'device_status',
+    is_read: true,
+    is_resolved: false,
+    created_at: new Date(Date.now() - 26 * 60 * 60 * 1000).toISOString(),
+    alert_data: null,
+    device_id: null,
+    resolved_at: null,
+    resolved_by: null,
+    source_device_id: null,
+  },
+];
+
+function isMockPreviewAlert(id: string) {
+  return id.startsWith('mock-preview-');
+}
+
 const NotificationsScreen = () => {
   const { user } = useAuth();
   const userId = user?.id;
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
 
-  const { data: alerts = [], isLoading: alertsLoading, refetch: refetchAlerts } = useQuery({
+  const { data: alerts = [], isLoading: alertsLoading } = useQuery({
     queryKey: ['alerts', userId],
     queryFn: async () => {
       if (!userId) return [];
@@ -85,7 +150,12 @@ const NotificationsScreen = () => {
     },
   });
 
-  const unreadCount = alerts.filter((alert) => !alert.is_read).length;
+  const showMockAlertPreview =
+    DEV_SHOW_MOCK_ALERTS_PREVIEW && !!userId && !alertsLoading && alerts.length === 0;
+
+  const displayAlerts = showMockAlertPreview ? MOCK_PREVIEW_ALERTS : alerts;
+
+  const unreadCount = displayAlerts.filter((a) => !a.is_read).length;
 
   const getSeverityColor = (severity: string) => {
     switch (severity) {
@@ -230,7 +300,7 @@ const NotificationsScreen = () => {
                     Recent alerts
                   </Text>
                 </View>
-                {unreadCount > 0 ? (
+                {unreadCount > 0 && !showMockAlertPreview ? (
                   <TouchableOpacity
                     onPress={() => markAllAsReadMutation.mutate()}
                     disabled={markAllAsReadMutation.isPending}
@@ -253,7 +323,7 @@ const NotificationsScreen = () => {
                     </Text>
                   </View>
                 </Card>
-              ) : alerts.length === 0 ? (
+              ) : displayAlerts.length === 0 ? (
                 <Card variant="outlined" className="border-gray-100 bg-gray-50/80">
                   <View className="items-center px-2 py-10">
                     <View className="h-14 w-14 items-center justify-center rounded-2xl bg-gray-100">
@@ -263,13 +333,20 @@ const NotificationsScreen = () => {
                       No alerts
                     </Text>
                     <Text className="mt-2 text-center font-hell text-sm leading-5 text-gray-600">
-                      You are all caught up. We will show fall and safety alerts here.
+                      You are up to date.
                     </Text>
                   </View>
                 </Card>
               ) : (
                 <View className="gap-3">
-                  {alerts.map((alert) => (
+                  {showMockAlertPreview ? (
+                    <View className="mb-1 rounded-2xl border border-dashed border-orange-200 bg-orange-50/60 px-3 py-2">
+                      <Text className="text-center font-hell text-xs leading-5 text-orange-800">
+                        Sample alerts (dev only) — your inbox is empty.
+                      </Text>
+                    </View>
+                  ) : null}
+                  {displayAlerts.map((alert) => (
                     <Card
                       key={alert.id}
                       variant="outlined"
@@ -301,7 +378,16 @@ const NotificationsScreen = () => {
                             </Text>
                             {!alert.is_read ? (
                               <TouchableOpacity
-                                onPress={() => markAsReadMutation.mutate(alert.id)}
+                                onPress={() => {
+                                  if (isMockPreviewAlert(alert.id)) {
+                                    Alert.alert(
+                                      'Sample alert',
+                                      'This card is mock data so you can preview the layout. It is not saved.',
+                                    );
+                                    return;
+                                  }
+                                  markAsReadMutation.mutate(alert.id);
+                                }}
                                 disabled={markAsReadMutation.isPending}
                                 activeOpacity={0.88}
                                 className="rounded-full border border-gray-200 bg-gray-50 px-3 py-1.5"
