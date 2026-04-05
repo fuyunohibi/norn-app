@@ -7,6 +7,7 @@ import {
   ImageBackground,
   RefreshControl,
   ScrollView,
+  StyleSheet,
   Text,
   TouchableOpacity,
   View,
@@ -23,6 +24,20 @@ const HERO_MIN_HEIGHT = 350;
 /** Diameter; half overlaps hero, half sits on the white sheet. */
 const AVATAR_SIZE = 128;
 const AVATAR_RADIUS = AVATAR_SIZE / 2;
+
+const menuStyles = StyleSheet.create({
+  groupCard: {
+    borderCurve: 'continuous',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    elevation: 3,
+  },
+  iconTile: {
+    borderCurve: 'continuous',
+  },
+});
 
 const ProfileScreen = () => {
   const { user, loading: authLoading } = useAuth();
@@ -153,50 +168,63 @@ const ProfileScreen = () => {
             ) : null}
           </View>
 
-          <Text className="mb-3 mt-8 text-xs font-hell-round-bold uppercase tracking-wide text-gray-400">
+          <Text className="mb-2 mt-10 text-xs font-hell-round-bold uppercase tracking-[0.08em] text-gray-400">
             More
           </Text>
 
-          <View className="gap-3">
-            <Card variant="outlined" className="border-gray-100">
-              <TouchableOpacity
-                className="flex-row items-center active:opacity-90"
-                onPress={() => router.push('/notifications')}
+          <View
+            className="overflow-hidden rounded-3xl border border-gray-200/90 bg-white"
+            style={menuStyles.groupCard}
+          >
+            <TouchableOpacity
+              className="flex-row items-center px-4 py-4 active:bg-gray-50"
+              onPress={() => router.push('/notifications')}
+              activeOpacity={0.92}
+            >
+              <View
+                className="mr-3.5 h-[3.25rem] w-[3.25rem] items-center justify-center rounded-2xl border border-orange-100 bg-orange-50/90"
+                style={menuStyles.iconTile}
               >
-                <View className="mr-4 h-12 w-12 items-center justify-center rounded-xl bg-orange-50">
-                  <Bell size={22} color="#FF7300" strokeWidth={2.2} />
-                </View>
-                <View className="min-w-0 flex-1">
-                  <Text className="text-lg font-hell-round-bold text-gray-900">
-                    Notifications
-                  </Text>
-                  <Text className="text-sm font-hell leading-5 text-gray-600">
-                    Manage alert preferences
-                  </Text>
-                </View>
-                <ChevronRight size={22} color="#9CA3AF" strokeWidth={2.5} />
-              </TouchableOpacity>
-            </Card>
+                <Bell size={22} color="#FF7300" strokeWidth={2.2} />
+              </View>
+              <View className="min-w-0 flex-1 pr-2">
+                <Text className="text-base font-hell-round-bold text-gray-900">
+                  Notifications
+                </Text>
+                <Text className="mt-0.5 font-hell text-sm leading-5 text-gray-500">
+                  Manage alert preferences
+                </Text>
+              </View>
+              <View className="h-9 w-9 items-center justify-center">
+                <ChevronRight size={24} color="#9CA3AF" strokeWidth={2.5} />
+              </View>
+            </TouchableOpacity>
 
-            <Card variant="outlined" className="border-gray-100">
-              <TouchableOpacity
-                className="flex-row items-center active:opacity-90"
-                onPress={() => router.push('/about')}
+            <View className="mx-4 h-px bg-gray-100" />
+
+            <TouchableOpacity
+              className="flex-row items-center px-4 py-4 active:bg-gray-50"
+              onPress={() => router.push('/about')}
+              activeOpacity={0.92}
+            >
+              <View
+                className="mr-3.5 h-[3.25rem] w-[3.25rem] items-center justify-center rounded-2xl border border-gray-200/80 bg-gray-50"
+                style={menuStyles.iconTile}
               >
-                <View className="mr-4 h-12 w-12 items-center justify-center rounded-xl bg-gray-100">
-                  <Info size={22} color="#4B5563" strokeWidth={2.2} />
-                </View>
-                <View className="min-w-0 flex-1">
-                  <Text className="text-lg font-hell-round-bold text-gray-900">
-                    About NORN
-                  </Text>
-                  <Text className="text-sm font-hell leading-5 text-gray-600">
-                    App version and information
-                  </Text>
-                </View>
-                <ChevronRight size={22} color="#9CA3AF" strokeWidth={2.5} />
-              </TouchableOpacity>
-            </Card>
+                <Info size={22} color="#52525B" strokeWidth={2.2} />
+              </View>
+              <View className="min-w-0 flex-1 pr-2">
+                <Text className="text-base font-hell-round-bold text-gray-900">
+                  About NORN
+                </Text>
+                <Text className="mt-0.5 font-hell text-sm leading-5 text-gray-500">
+                  App version and information
+                </Text>
+              </View>
+              <View className="h-9 w-9 items-center justify-center rounded-full">
+                <ChevronRight size={24} color="#9CA3AF" strokeWidth={2.5} />
+              </View>
+            </TouchableOpacity>
           </View>
 
           <View className="mt-8">
