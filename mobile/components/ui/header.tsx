@@ -35,7 +35,7 @@ const Header = ({
             onPress={handleBackPress}
             className="w-12 h-12 bg-gray-100 rounded-xl items-center justify-center mr-4"
           >
-            <ChevronLeft size={24} color="#666" />
+            <ChevronLeft size={24} color="#666" strokeWidth={3} />
           </TouchableOpacity>
         )}
         
