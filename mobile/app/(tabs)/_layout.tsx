@@ -14,32 +14,39 @@ export default function TabLayout() {
       <NativeTabs.Trigger name="index">
         <Label>Home</Label>
         {Platform.select({
-          // Use outline for inactive, filled for active
           ios: <Icon sf={{ default: 'house', selected: 'house.fill' }} />,
           android: (
             <Icon
               src={
-                <VectorIcon 
-                  family={MaterialIcons} 
-                  name="home"
-                />
+                <VectorIcon family={MaterialIcons} name="home" />
               }
             />
           ),
         })}
       </NativeTabs.Trigger>
+
+      <NativeTabs.Trigger name="statistics">
+        <Label>Statistics</Label>
+        {Platform.select({
+          ios: <Icon sf={{ default: 'chart.bar', selected: 'chart.bar.fill' }} />,
+          android: (
+            <Icon
+              src={
+                <VectorIcon family={MaterialIcons} name="bar-chart" />
+              }
+            />
+          ),
+        })}
+      </NativeTabs.Trigger>
+
       <NativeTabs.Trigger name="profile">
         <Label>Profile</Label>
         {Platform.select({
-          // Use outline for inactive, filled for active
           ios: <Icon sf={{ default: 'person', selected: 'person.fill' }} />,
           android: (
             <Icon
               src={
-                <VectorIcon 
-                  family={MaterialIcons} 
-                  name="person-outline"
-                />
+                <VectorIcon family={MaterialIcons} name="person-outline" />
               }
             />
           ),

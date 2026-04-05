@@ -510,7 +510,6 @@ const StatisticsScreen = () => {
         <Header
           title="Statistics"
           subtitle="IMU classes: st · si · w · r · nf · f · af"
-          showBackButton
         />
 
         {isLoading ? (
