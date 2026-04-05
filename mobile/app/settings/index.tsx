@@ -10,6 +10,7 @@ import {
   Star,
   Trash2,
   UserPlus,
+  X,
 } from "lucide-react-native";
 import React, { useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
@@ -55,6 +56,15 @@ const sheetStyles = StyleSheet.create({
     shadowOpacity: 0.06,
     shadowRadius: 10,
     elevation: 3,
+  },
+  modalSheet: {
+    borderTopLeftRadius: 36,
+    borderTopRightRadius: 36,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -6 },
+    shadowOpacity: 0.18,
+    shadowRadius: 24,
+    elevation: 28,
   },
 });
 
@@ -536,28 +546,51 @@ const SettingsScreen = () => {
           style={{ flex: 1 }}
         >
           <TouchableWithoutFeedback onPress={closeContactModal}>
-            <View className="flex-1 bg-black/50 justify-end">
+            <View className="flex-1 justify-end bg-black/45">
               <TouchableWithoutFeedback onPress={() => {}}>
-                <View className="bg-white rounded-[2.5rem] p-6 max-h-[85%]">
-                  <View className="flex-row items-center justify-between mb-4">
-                    <Text className="text-xl font-hell-round-bold text-gray-900 ">
-                      {editingContact
-                        ? "Edit Emergency Contact"
-                        : "Add Emergency Contact"}
-                    </Text>
+                <View
+                  className="max-h-[96%] min-h-[52%] overflow-hidden border-t border-gray-100 bg-white"
+                  style={sheetStyles.modalSheet}
+                >
+                  <View className="items-center pt-3 pb-1">
+                    <View className="h-1 w-12 rounded-full bg-gray-300/90" />
+                  </View>
+
+                  <View className="flex-row items-start justify-between gap-3 px-5 pb-4 pt-2">
+                    <View className="min-w-0 flex-1">
+                      <Text className="text-xl font-hell-round-bold text-gray-900">
+                        {editingContact ? "Edit contact" : "New contact"}
+                      </Text>
+                      <Text className="mt-1 font-hell text-sm leading-5 text-gray-500">
+                        {editingContact
+                          ? "Update details or change who is primary."
+                          : "Someone NORN can suggest when you need help fast."}
+                      </Text>
+                    </View>
                     <TouchableOpacity
                       onPress={closeContactModal}
-                      className="w-8 h-8 items-center justify-center rounded-full"
+                      accessibilityRole="button"
+                      accessibilityLabel="Close"
+                      hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                      className="h-10 w-10 items-center justify-center rounded-2xl bg-gray-100 active:bg-gray-200"
+                      activeOpacity={0.85}
                     >
-                      <Text className="text-2xl text-gray-400 font-hell">×</Text>
+                      <X size={20} color="#4B5563" strokeWidth={2.5} />
                     </TouchableOpacity>
                   </View>
 
                   <ScrollView
                     showsVerticalScrollIndicator={false}
-                    className="max-h-[70vh]"
+                    className="max-h-[84vh]"
                     keyboardShouldPersistTaps="handled"
+                    contentContainerStyle={{
+                      paddingHorizontal: 20,
+                      paddingBottom: Math.max(insets.bottom, 16) + 20,
+                    }}
                   >
+                    <Text className="mb-3 text-xs font-hell-round-bold uppercase tracking-wide text-gray-400">
+                      Details
+                    </Text>
                     <Controller
                       control={contactControl}
                       name="full_name"
@@ -622,28 +655,30 @@ const SettingsScreen = () => {
                       )}
                     />
 
-                    <View className="bg-gray-50 rounded-2xl px-4 py-4 flex-row items-center justify-between mb-4">
-                      <View className="flex-1 pr-4">
-                        <Text className="text-base font-hell-round-bold text-gray-900 ">
-                          Set as primary contact
-                        </Text>
-                        <Text className="text-gray-500 text-xs font-hell mt-1">
-                          The primary contact is called first during fall alerts.
-                        </Text>
+                    <View className="mb-4 mt-1 overflow-hidden rounded-3xl border border-gray-200/90 bg-gray-50/80">
+                      <View className="flex-row items-center justify-between px-4 py-4">
+                        <View className="min-w-0 flex-1 pr-3">
+                          <Text className="text-base font-hell-round-bold text-gray-900">
+                            Primary contact
+                          </Text>
+                          <Text className="mt-1 font-hell text-xs leading-4 text-gray-500">
+                            Called first from fall quick actions on home.
+                          </Text>
+                        </View>
+                        <Controller
+                          control={contactControl}
+                          name="is_primary"
+                          render={({ field: { value, onChange } }) => (
+                            <Switch
+                              value={value}
+                              onValueChange={onChange}
+                              trackColor={{ false: "#E5E7EB", true: "#FF7300" }}
+                              thumbColor={value ? "#FFFFFF" : "#F3F4F6"}
+                              ios_backgroundColor="#E5E7EB"
+                            />
+                          )}
+                        />
                       </View>
-                      <Controller
-                        control={contactControl}
-                        name="is_primary"
-                        render={({ field: { value, onChange } }) => (
-                          <Switch
-                            value={value}
-                            onValueChange={onChange}
-                            trackColor={{ false: "#E5E7EB", true: "#FF7300" }}
-                            thumbColor={value ? "#FFFFFF" : "#F3F4F6"}
-                            ios_backgroundColor="#E5E7EB"
-                          />
-                        )}
-                      />
                     </View>
 
                     <Controller
@@ -664,9 +699,9 @@ const SettingsScreen = () => {
                       )}
                     />
 
-                    <View className="gap-y-3 mt-2">
+                    <View className="mt-4 border-t border-gray-100 pt-5">
                       <Button
-                        title={editingContact ? "Save Changes" : "Save Contact"}
+                        title={editingContact ? "Save changes" : "Save contact"}
                         onPress={handleContactFormSubmit(onSubmitEmergencyContact)}
                         variant="primary"
                         size="lg"

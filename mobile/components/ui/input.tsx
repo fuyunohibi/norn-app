@@ -27,7 +27,7 @@ export const Input: React.FC<InputProps> = ({
       )}
       <TextInput
         className={cn(
-          'border border-gray-300 rounded-2xl px-4 py-4 text-base bg-white',
+          'border border-gray-300 rounded-3xl px-4 py-4 text-base bg-white',
           error && 'border-primary-accent',
           className
         )}
