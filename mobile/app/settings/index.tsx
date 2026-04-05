@@ -9,6 +9,7 @@ import {
   PhoneCall,
   Star,
   Trash2,
+  User,
   UserPlus,
   X,
 } from "lucide-react-native";
@@ -447,82 +448,89 @@ const SettingsScreen = () => {
               />
             </View>
           ) : (
-            <View className="gap-y-3">
+            <View className="gap-y-4">
               {contacts.map((contact) => (
                 <View
                   key={contact.id}
-                  className="bg-gray-50 rounded-2xl p-4 border border-gray-100"
+                  className="overflow-hidden rounded-3xl border border-gray-200/90 bg-white"
+                  style={sheetStyles.cardShadow}
                 >
-                  <View className="flex-row items-start justify-between">
-                    <View className="flex-1 pr-4">
-                      <View className="flex-row items-center">
-                        <Text className="text-base font-hell-round-bold text-gray-900 ">
+                  <View className="flex-row gap-3 p-4">
+                    <View className="h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-orange-100/90 bg-orange-50/90">
+                      <User size={26} color="#FF7300" fill="#FF7300" strokeWidth={2.2} />
+                    </View>
+                    <View className="min-w-0 flex-1">
+                      <View className="flex-row flex-wrap items-center gap-2">
+                        <Text className="text-lg font-hell-round-bold text-gray-900">
                           {contact.full_name}
                         </Text>
-                        {contact.is_primary && (
-                          <View className="flex-row items-center bg-primary-accent/10 px-2 py-1 rounded-full ml-2">
-                            <Star size={14} color="#FF7300" fill="#FF7300" />
-                            <Text className="text-primary-accent text-xs font-hell ml-1">
+                        {contact.is_primary ? (
+                          <View className="flex-row items-center rounded-full border border-orange-200/60 bg-orange-50 px-2.5 py-1">
+                            <Star size={12} color="#FF7300" fill="#FF7300" />
+                            <Text className="ml-1 text-xs font-hell-round-bold text-[#FF7300]">
                               Primary
                             </Text>
                           </View>
-                        )}
+                        ) : null}
                       </View>
                       {!!contact.relationship && (
-                        <Text className="text-gray-500 text-xs font-hell uppercase mt-1">
-                          {contact.relationship}
-                        </Text>
+                        <View className="mt-2 self-start rounded-full bg-gray-100 px-2.5 py-1">
+                          <Text className="text-xs font-hell text-gray-600">
+                            {contact.relationship}
+                          </Text>
+                        </View>
                       )}
                       <TouchableOpacity
                         onPress={() => handleCallContact(contact.phone_number)}
-                        className="flex-row items-center mt-3"
-                        activeOpacity={0.8}
+                        className="mt-3 flex-row items-center rounded-2xl border border-gray-200/80 bg-gray-50/90 px-3 py-2.5 active:bg-gray-100/90"
+                        activeOpacity={0.85}
                       >
-                        <PhoneCall size={16} color="#FF7300" />
-                        <Text className="text-primary-accent text-sm font-hell ml-2">
+                        <View className="h-9 w-9 items-center justify-center rounded-xl bg-white">
+                          <PhoneCall size={18} color="#FF7300" strokeWidth={2.2} />
+                        </View>
+                        <Text className="ml-3 flex-1 text-sm font-hell-round-bold text-gray-900">
                           {contact.phone_number}
                         </Text>
+                        <Text className="text-xs font-hell-round-bold text-[#FF7300]">Call</Text>
                       </TouchableOpacity>
                       {!!contact.notes && (
-                        <Text className="text-gray-500 text-xs font-hell mt-3 leading-4">
-                          {contact.notes}
-                        </Text>
+                        <View className="mt-3 rounded-2xl border border-gray-100 bg-gray-50/80 px-3 py-2.5">
+                          <Text className="text-xs font-hell leading-4 text-gray-600">
+                            {contact.notes}
+                          </Text>
+                        </View>
                       )}
                     </View>
                   </View>
 
-                  <View className="flex-row flex-wrap items-center gap-2 mt-4">
+                  <View className="flex-row flex-wrap gap-2 border-t border-gray-100 bg-gray-50/70 px-3 py-3">
                     <TouchableOpacity
                       onPress={() => openContactModal(contact)}
-                      className="flex-row items-center px-3 py-2 rounded-full border border-gray-200 bg-white"
-                      activeOpacity={0.8}
+                      className="flex-row items-center rounded-full border border-gray-200 bg-white px-3.5 py-2 shadow-sm"
+                      activeOpacity={0.85}
                     >
                       <Pencil size={14} color="#111827" strokeWidth={2.5} />
-                      <Text className="text-gray-900 text-xs font-hell-round-bold ml-2">
-                        Edit
-                      </Text>
+                      <Text className="ml-2 text-xs font-hell-round-bold text-gray-900">Edit</Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity
                       onPress={() => handleDeleteContact(contact)}
-                      className="flex-row items-center px-3 py-2 rounded-full border border-gray-200 bg-white"
-                      activeOpacity={0.8}
+                      className="flex-row items-center rounded-full border border-red-100 bg-white px-3.5 py-2 shadow-sm"
+                      activeOpacity={0.85}
                     >
                       <Trash2 size={14} color="#DC2626" strokeWidth={2.5} />
-                      <Text className="text-red-600 text-xs font-hell-round-bold ml-2">
-                        Remove
-                      </Text>
+                      <Text className="ml-2 text-xs font-hell-round-bold text-red-600">Remove</Text>
                     </TouchableOpacity>
 
                     {!contact.is_primary && (
                       <TouchableOpacity
                         onPress={() => handleSetPrimaryContact(contact.id)}
-                        className="flex-row items-center px-3 py-2 rounded-full border border-gray-200 bg-white"
-                        activeOpacity={0.8}
+                        className="flex-row items-center rounded-full border border-orange-200/70 bg-white px-3.5 py-2 shadow-sm"
+                        activeOpacity={0.85}
                       >
                         <Star size={14} color="#FF7300" strokeWidth={2.5} />
-                        <Text className="text-primary-accent text-xs font-hell-round-bold ml-2">
-                          Make Primary
+                        <Text className="ml-2 text-xs font-hell-round-bold text-[#FF7300]">
+                          Make primary
                         </Text>
                       </TouchableOpacity>
                     )}

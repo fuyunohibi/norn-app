@@ -1,4 +1,5 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
+import { LinearGradient } from "expo-linear-gradient";
 import { useQuery } from "@tanstack/react-query";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -19,18 +20,30 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { EmergencyQuickActionsModal } from "../../components/emergency-quick-actions-modal";
 import { NornIcon } from "../../components/norn-icon";
 import { NornStateMascot } from "../../components/norn-state-mascot";
-import { Card } from "../../components/ui/card";
 import { useAuth } from "../../contexts/auth-context";
 import { useActivityStatistics } from "../../hooks/useActivityStatistics";
 import { useEmergencyContacts } from "../../hooks/useEmergencyContacts";
 import { useImuWearableStatus } from "../../hooks/useImuWearableStatus";
 import { backendAPIService } from "../../services/backend-api.service";
 import { formatActivityDisplayName } from "../../utils/imu-activity";
+import {
+  MOCK_HOME_ACTIVITY_STATISTICS,
+  MOCK_HOME_EMERGENCY_CONTACTS,
+  MOCK_HOME_IMU_STATUS,
+} from "../../utils/mock-home-screen-data";
 /**
  * Dev-only: set to a short code (e.g. `"r"`) to preview the mascot; `null` uses live IMU class.
  * Ignored in production builds.
  */
-const DEV_MASCOT_ACTIVITY_OVERRIDE: string | null = __DEV__ ? "s" : null;
+const DEV_MASCOT_ACTIVITY_OVERRIDE: string | null = __DEV__ ? "f" : null;
+
+/**
+ * Dev-only: when true, home uses local mock stats / IMU / contacts and skips those network calls.
+ * Flip to `true` to preview the signed-in layout without a backend.
+ */
+const HOME_SCREEN_USE_MOCK_DATA = __DEV__ && true;
+
+const BRAND_ORANGE = "#FF7300";
 
 const styles = StyleSheet.create({
   bannerLayer: {
@@ -39,26 +52,99 @@ const styles = StyleSheet.create({
   bannerLayerMascot: {
     backgroundColor: "#f5f5f5",
   },
+  myDaySheet: {
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.07,
+    shadowRadius: 14,
+    elevation: 4,
+  },
+  timelineStripe: {
+    width: 4,
+    alignSelf: "stretch",
+    borderRadius: 4,
+  },
 });
+
+/** Map raw activity / short codes → icon + accent for home timeline & chips. */
+function homeActivityVisual(raw: string): {
+  icon: React.ComponentProps<typeof MaterialIcons>["name"];
+  accent: string;
+  chipBg: string;
+} {
+  const k = raw.trim().toLowerCase().replace(/\s+/g, "_");
+  const kind =
+    (
+      {
+        w: "walking",
+        st: "standing",
+        si: "sitting",
+        r: "running",
+        f: "falling",
+        af: "after_fall",
+        nf: "unstable_standing",
+      } as Record<string, string>
+    )[k] ?? k;
+
+  const table: Record<
+    string,
+    { icon: React.ComponentProps<typeof MaterialIcons>["name"]; accent: string; chipBg: string }
+  > = {
+    walking: { icon: "directions-walk", accent: "#2563EB", chipBg: "bg-blue-50" },
+    standing: { icon: "accessibility-new", accent: "#0D9488", chipBg: "bg-teal-50" },
+    sitting: { icon: "weekend", accent: "#7C3AED", chipBg: "bg-violet-50" },
+    running: { icon: "directions-run", accent: "#DC2626", chipBg: "bg-red-50" },
+    falling: { icon: "personal-injury", accent: "#B45309", chipBg: "bg-amber-50" },
+    after_fall: { icon: "medical-services", accent: "#C2410C", chipBg: "bg-orange-50" },
+    unstable_standing: { icon: "balance", accent: "#CA8A04", chipBg: "bg-yellow-50" },
+  };
+
+  return (
+    table[kind] ?? {
+      icon: "motion-photos-on",
+      accent: BRAND_ORANGE,
+      chipBg: "bg-orange-50",
+    }
+  );
+}
+
+function formatTimelineTime(iso: string | null | undefined): string {
+  if (!iso) return "";
+  try {
+    return new Date(iso).toLocaleTimeString(undefined, {
+      hour: "numeric",
+      minute: "2-digit",
+    });
+  } catch {
+    return "";
+  }
+}
 
 const HomeScreen = () => {
   const { user } = useAuth();
   const userId = user?.id;
+  const mockHome = HOME_SCREEN_USE_MOCK_DATA;
+  const dataUserId = mockHome ? undefined : userId;
+  const showAsSignedIn = Boolean(userId || mockHome);
+
   const {
     data: imuStatus,
     isLoading: imuStatusLoading,
     error: imuStatusError,
-  } = useImuWearableStatus(userId);
+  } = useImuWearableStatus(dataUserId);
   const {
     data: todayStatsRes,
     isLoading: todayStatsLoading,
     isError: todayStatsError,
-  } = useActivityStatistics(userId, "today");
-  const activityToday = todayStatsRes?.statistics;
+  } = useActivityStatistics(dataUserId, "today");
+  const imuStatusEffective = mockHome ? MOCK_HOME_IMU_STATUS : imuStatus;
+  const imuStatusLoadingEffective = mockHome ? false : imuStatusLoading;
+  const imuStatusErrorEffective = mockHome ? false : Boolean(imuStatusError);
+  const activityToday = mockHome ? MOCK_HOME_ACTIVITY_STATISTICS : todayStatsRes?.statistics;
   const insets = useSafeAreaInsets();
   const lastFallAlertRef = useRef<string | null>(null);
   const [fallQuickActionMessage, setFallQuickActionMessage] = useState<string | null>(null);
-  const [showQuickActionsModal, setShowQuickActionsModal] = useState(false);
+  const [showQuickActionsModal, setShowQuickActionsModal] = useState(true);
   /** When true, banner shows `NornStateMascot` instead of the illustration. */
   const [bannerShowsMascot, setBannerShowsMascot] = useState(false);
   const bannerBlend = useRef(new Animated.Value(0)).current;
@@ -106,9 +192,11 @@ const HomeScreen = () => {
   );
 
   const {
-    contacts,
+    contacts: contactsRemote,
     isLoading: contactsLoading,
-  } = useEmergencyContacts(userId);
+  } = useEmergencyContacts(dataUserId);
+  const contacts = mockHome ? MOCK_HOME_EMERGENCY_CONTACTS : contactsRemote;
+  const contactsLoadingEffective = mockHome ? false : contactsLoading;
 
   const primaryContact = useMemo(
     () => contacts.find((contact) => contact.is_primary) ?? contacts[0] ?? null,
@@ -195,19 +283,29 @@ const HomeScreen = () => {
 
   /** Short label for the banner status chip (detail copy lives on /sensor). */
   const wearableChipLabel = useMemo(() => {
-    if (!userId) return "Sign in";
-    if (imuStatusLoading) return "Updating…";
-    if (imuStatusError) return "Unavailable";
-    if (imuStatus?.online) return "Live";
+    if (!showAsSignedIn) return "Sign in";
+    if (imuStatusLoadingEffective) return "Updating…";
+    if (imuStatusErrorEffective) return "Unavailable";
+    if (imuStatusEffective?.online) return "Live";
     return "Offline";
-  }, [userId, imuStatusLoading, imuStatusError, imuStatus?.online]);
+  }, [
+    showAsSignedIn,
+    imuStatusLoadingEffective,
+    imuStatusErrorEffective,
+    imuStatusEffective?.online,
+  ]);
 
   const wearableStatusDot = useMemo(() => {
-    if (!userId) return "neutral" as const;
-    if (imuStatusLoading) return "pending" as const;
-    if (imuStatusError) return "error" as const;
-    return imuStatus?.online ? ("ok" as const) : ("off" as const);
-  }, [userId, imuStatusLoading, imuStatusError, imuStatus?.online]);
+    if (!showAsSignedIn) return "neutral" as const;
+    if (imuStatusLoadingEffective) return "pending" as const;
+    if (imuStatusErrorEffective) return "error" as const;
+    return imuStatusEffective?.online ? ("ok" as const) : ("off" as const);
+  }, [
+    showAsSignedIn,
+    imuStatusLoadingEffective,
+    imuStatusErrorEffective,
+    imuStatusEffective?.online,
+  ]);
 
   const myDayDateLabel = useMemo(
     () =>
@@ -234,6 +332,29 @@ const HomeScreen = () => {
       .slice(0, 6);
   }, [activityToday?.by_activity]);
 
+  /** Up to four activity keys for the home 2×2 grid: real data first, then common defaults. */
+  const myDayGridKeys = useMemo(() => {
+    const fromData = todayActivityBreakdown.map(([k]) => k);
+    const preferred = ["walking", "sitting", "standing", "running"];
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const k of fromData) {
+      if (out.length >= 4) break;
+      if (!seen.has(k)) {
+        seen.add(k);
+        out.push(k);
+      }
+    }
+    for (const k of preferred) {
+      if (out.length >= 4) break;
+      if (!seen.has(k)) {
+        seen.add(k);
+        out.push(k);
+      }
+    }
+    return out;
+  }, [todayActivityBreakdown]);
+
   const todayTimelineEvents = useMemo(() => {
     const list = activityToday?.events ?? [];
     return [...list]
@@ -252,7 +373,7 @@ const HomeScreen = () => {
       });
       return res.alerts ?? [];
     },
-    enabled: !!userId,
+    enabled: !!userId && !mockHome,
     retry: 2,
     retryDelay: 4_000,
     refetchInterval: (query) => (query.state.error ? 45_000 : 3_000),
@@ -342,10 +463,11 @@ const HomeScreen = () => {
 
   // Live IMU critical classes (f / af / nf) from latest activity_events row
   useEffect(() => {
-    const code = imuStatus?.activity_code?.toLowerCase();
+    if (mockHome) return;
+    const code = imuStatusEffective?.activity_code?.toLowerCase();
     if (!code || !["f", "af", "nf"].includes(code)) return;
 
-    const fallIdentifier = `${code}-${imuStatus?.last_seen_at ?? ""}`;
+    const fallIdentifier = `${code}-${imuStatusEffective?.last_seen_at ?? ""}`;
     if (lastFallAlertRef.current === fallIdentifier) return;
 
     lastFallAlertRef.current = fallIdentifier;
@@ -358,13 +480,19 @@ const HomeScreen = () => {
           : "The wearable reports unstable standing — you may be at risk of falling.";
 
     presentFallQuickActions(msg);
-  }, [imuStatus?.activity_code, imuStatus?.last_seen_at, presentFallQuickActions]);
+  }, [
+    mockHome,
+    imuStatusEffective?.activity_code,
+    imuStatusEffective?.last_seen_at,
+    presentFallQuickActions,
+  ]);
 
   const mascotProps = {
-    signedIn: Boolean(userId),
-    activityCode: DEV_MASCOT_ACTIVITY_OVERRIDE ?? imuStatus?.activity_code ?? null,
-    loading: Boolean(userId) && imuStatusLoading,
-    statusError: Boolean(userId) && Boolean(imuStatusError),
+    signedIn: showAsSignedIn,
+    activityCode:
+      DEV_MASCOT_ACTIVITY_OVERRIDE ?? imuStatusEffective?.activity_code ?? null,
+    loading: showAsSignedIn && imuStatusLoadingEffective,
+    statusError: showAsSignedIn && imuStatusErrorEffective,
   };
 
   const chipShadow = {
@@ -440,7 +568,7 @@ const HomeScreen = () => {
             ...chipShadow,
           }}
         >
-          {userId && imuStatusLoading ? (
+          {showAsSignedIn && imuStatusLoadingEffective ? (
             <ActivityIndicator size="small" color="#FF7300" />
           ) : (
             <View
@@ -494,125 +622,204 @@ const HomeScreen = () => {
           }}
           keyboardShouldPersistTaps="handled"
         >
-          <Text className="text-2xl font-hell-round-bold text-gray-900">My day</Text>
-          <Text className="mt-1 text-sm font-hell text-gray-500">{myDayDateLabel}</Text>
+          <View>
+            <Text className="text-2xl font-hell-round-bold text-gray-900">My day</Text>
+            <Text className="mt-0.5 text-sm font-hell text-gray-500">{myDayDateLabel}</Text>
+          </View>
 
-          <Card variant="outlined" className="mt-4">
-            <View className="p-4">
-              {!userId ? (
-                <Text className="text-center font-hell text-gray-600">
+          <View className="mt-4 rounded-[28px] bg-[#FAF8F4] px-4 pb-5 pt-4">
+            {!showAsSignedIn ? (
+              <View className="items-center rounded-[24px] bg-[#F3EEE6] px-5 py-8">
+                <View className="h-14 w-14 items-center justify-center rounded-full bg-white">
+                  <MaterialIcons name="lock-outline" size={28} color="#A8A29E" />
+                </View>
+                <Text className="mt-3 text-center text-sm font-hell leading-5 text-stone-600">
                   Sign in to see a summary of your clip activity for today.
                 </Text>
-              ) : todayStatsLoading ? (
-                <View className="items-center py-4">
-                  <ActivityIndicator color="#FF7300" />
-                </View>
-              ) : todayStatsError ? (
-                <Text className="text-center font-hell text-orange-600">
-                  Could not load today&apos;s summary. Open Statistics when your connection is
-                  back.
+              </View>
+            ) : todayStatsLoading ? (
+              <View className="items-center py-10">
+                <ActivityIndicator color={BRAND_ORANGE} />
+              </View>
+            ) : todayStatsError ? (
+              <View className="items-center rounded-[24px] px-5 py-6">
+                  <MaterialIcons name="cloud-off" size={26} color="#C2410C" />
+                <Text className="mt-3 text-center text-sm font-hell leading-5 text-orange-900">
+                  Could not load today&apos;s summary. Open Statistics when your connection is back.
                 </Text>
-              ) : (
-                <>
-                  <View className="flex-row flex-wrap gap-4">
-                    <View className="min-w-[100px] flex-1">
-                      <Text className="text-2xl font-hell-round-bold text-gray-900">
-                        {activityToday?.total_events ?? 0}
-                      </Text>
-                      <Text className="text-xs font-hell text-gray-600">
-                        State changes today
-                      </Text>
-                    </View>
-                    <View className="min-w-[100px] flex-1">
-                      <Text className="text-2xl font-hell-round-bold text-gray-900">
-                        {Math.round(todayTrackedMinutes)}
-                      </Text>
-                      <Text className="text-xs font-hell text-gray-600">
-                        Est. tracked minutes
-                      </Text>
-                    </View>
+              </View>
+            ) : (
+              <>
+                <Text className="mb-3 text-base font-hell-round-bold text-stone-800">
+                  Today at a glance
+                </Text>
+                <LinearGradient
+                  colors={["#E85D04", "#FF7300", "#FF9F4A"]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={{
+                    position: "relative",
+                    borderRadius: 24,
+                    paddingHorizontal: 20,
+                    paddingVertical: 22,
+                    marginBottom: 4,
+                    overflow: "hidden",
+                  }}
+                >
+                  <Text className="pr-16 text-xl font-hell-round-bold text-white">
+                    Your movement matters
+                  </Text>
+                  <Text className="mt-2 pr-14 text-sm font-hell leading-5 text-white/90">
+                    {(activityToday?.total_events ?? 0) > 0
+                      ? `You logged ${activityToday?.total_events ?? 0} state change${(activityToday?.total_events ?? 0) === 1 ? "" : "s"} and about ${Math.round(todayTrackedMinutes)} minutes of wear time today. Open Statistics for more detail.`
+                      : "When your clip reports walking, sitting, and other states, a fuller picture of your day will appear here."}
+                  </Text>
+                  <View
+                    style={{ position: "absolute", right: 12, bottom: 10, opacity: 0.38 }}
+                    pointerEvents="none"
+                  >
+                    <MaterialIcons name="auto-awesome" size={40} color="#FFFFFF" />
                   </View>
-                  {todayActivityBreakdown.length > 0 ? (
-                    <View className="mt-4 flex-row flex-wrap gap-2">
-                      {todayActivityBreakdown.map(([key, bucket]) => (
-                        <View
-                          key={key}
-                          className="rounded-full bg-gray-100 px-3 py-1.5"
-                        >
-                          <Text className="text-xs font-hell-round-bold text-gray-800">
-                            {formatActivityDisplayName(key)}{" "}
-                            <Text className="font-hell text-gray-600">
-                              · {bucket.count ?? 0}
-                            </Text>
-                          </Text>
-                        </View>
-                      ))}
-                    </View>
-                  ) : (
-                    <Text className="mt-3 text-sm font-hell text-gray-500">
-                      No class breakdown yet — your clip will add walking, sitting, and other
-                      states as it reports.
-                    </Text>
-                  )}
-                </>
-              )}
-            </View>
-          </Card>
+                </LinearGradient>
 
-          <View className="mb-3 mt-8 flex-row items-center justify-between">
-            <Text className="text-lg font-hell-round-bold text-gray-900">
-              Today&apos;s activities
-            </Text>
+                <Text className="mb-1 mt-5 text-base font-hell-round-bold text-stone-800">
+                  Activity mix
+                </Text>
+                {todayActivityBreakdown.length === 0 ? (
+                  <Text className="mb-3 text-xs font-hell leading-4 text-stone-500">
+                    Your clip hasn&apos;t reported class changes yet — these tiles will fill in as
+                    it learns your day.
+                  </Text>
+                ) : null}
+                <View className="gap-3">
+                  {[0, 2].map((start) => (
+                    <View key={start} className="flex-row gap-3">
+                      {myDayGridKeys.slice(start, start + 2).map((key) => {
+                        const bucket = activityToday?.by_activity?.[key] ?? {
+                          count: 0,
+                          total_seconds: 0,
+                        };
+                        const v = homeActivityVisual(key);
+                        const secs = bucket.total_seconds ?? 0;
+                        const mins = Math.round(secs / 60);
+                        const count = bucket.count ?? 0;
+                        const sub =
+                          count === 0
+                            ? "No events yet"
+                            : mins > 0
+                              ? `${count} event${count === 1 ? "" : "s"} · ~${mins} min`
+                              : `${count} event${count === 1 ? "" : "s"}`;
+                        return (
+                          <View
+                            key={key}
+                            className="min-h-[76px] flex-1 flex-row items-center gap-3 rounded-[24px] bg-[#F3EEE6] px-4 py-3.5"
+                          >
+                            <View
+                              className="h-11 w-11 items-center justify-center rounded-full"
+                              style={{ backgroundColor: v.accent }}
+                            >
+                              <MaterialIcons name={v.icon} size={22} color="#FFFFFF" />
+                            </View>
+                            <View className="min-w-0 flex-1">
+                              <Text
+                                className="text-[15px] font-hell-round-bold text-stone-900"
+                                numberOfLines={1}
+                              >
+                                {formatActivityDisplayName(key)}
+                              </Text>
+                              <Text
+                                className="mt-0.5 text-xs font-hell text-stone-500"
+                                numberOfLines={2}
+                              >
+                                {sub}
+                              </Text>
+                            </View>
+                          </View>
+                        );
+                      })}
+                    </View>
+                  ))}
+                </View>
+              </>
+            )}
+          </View>
+
+          <View className="mb-3 mt-9 flex-row items-center justify-between">
+              <Text className="text-lg font-hell-round-bold text-gray-900">
+                Today&apos;s activities
+              </Text>
             <TouchableOpacity
               onPress={() => router.push("/statistics")}
               activeOpacity={0.7}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              className="flex-row items-center rounded-full"
             >
-              <Text className="text-sm font-hell-round-bold text-[#FF7300]">See all</Text>
+              <Text className="text-sm font-hell-round-bold" style={{ color: BRAND_ORANGE }}>
+                See all
+              </Text>
             </TouchableOpacity>
           </View>
 
-          {!userId ? (
-            <Text className="font-hell text-gray-600">
-              Sign in to see a live timeline from your wearable.
-            </Text>
+          {!showAsSignedIn ? (
+            <View className="rounded-2xl border border-dashed border-gray-200 bg-gray-50/80 px-4 py-6">
+              <Text className="text-center text-sm font-hell leading-5 text-gray-600">
+                Sign in to see a live timeline from your wearable.
+              </Text>
+            </View>
           ) : todayStatsLoading ? (
-            <View className="items-center py-8">
-              <ActivityIndicator color="#FF7300" />
+            <View className="items-center rounded-3xl border border-gray-100 bg-white py-10">
+              <ActivityIndicator color={BRAND_ORANGE} />
             </View>
           ) : todayStatsError ? (
-            <Text className="font-hell text-gray-600">
-              Timeline unavailable right now. Try again from the Statistics screen.
-            </Text>
+            <View className="rounded-2xl border border-gray-100 bg-gray-50 px-4 py-5">
+              <Text className="text-center text-sm font-hell text-gray-600">
+                Timeline unavailable right now. Try again from the Statistics screen.
+              </Text>
+            </View>
           ) : todayTimelineEvents.length === 0 ? (
-            <Card variant="outlined">
-              <View className="p-4">
-                <Text className="text-center font-hell text-gray-600">
-                  No activity events yet today. When your clip sends class changes, they will
-                  show up here.
-                </Text>
+            <View
+              className="items-center rounded-3xl border border-gray-100 bg-white px-5 py-8"
+              style={styles.myDaySheet}
+            >
+              <View className="h-14 w-14 items-center justify-center rounded-full bg-gray-100">
+                <MaterialIcons name="timeline" size={28} color="#9CA3AF" />
               </View>
-            </Card>
+              <Text className="mt-3 text-center text-sm font-hell leading-5 text-gray-600">
+                No activity events yet today. When your clip sends class changes, they will show
+                up here.
+              </Text>
+            </View>
           ) : (
-            <View className="gap-0">
-              {todayTimelineEvents.map((ev, index) => (
-                <View
-                  key={`${ev.created_at ?? ""}-${index}`}
-                  className="flex-row items-center border-b border-gray-100 py-3"
-                >
-                  <View className="mr-3 h-2 w-2 rounded-full bg-[#FF7300]" />
-                  <View className="flex-1">
-                    <Text className="font-hell-round-bold text-gray-900">
-                      {formatActivityDisplayName(ev.activity)}
-                    </Text>
-                    {ev.created_at ? (
-                      <Text className="mt-0.5 text-xs font-hell text-gray-500">
-                        {new Date(ev.created_at).toLocaleString()}
-                      </Text>
-                    ) : null}
+            <View className="gap-2.5">
+              {todayTimelineEvents.map((ev, index) => {
+                const v = homeActivityVisual(ev.activity);
+                const timeLabel = formatTimelineTime(ev.created_at);
+                return (
+                  <View
+                    key={`${ev.created_at ?? ""}-${index}`}
+                    className="flex-row overflow-hidden rounded-2xl border border-gray-100 bg-white"
+                    style={styles.myDaySheet}
+                  >
+                    <View style={[styles.timelineStripe, { backgroundColor: v.accent }]} />
+                    <View className="flex-1 flex-row items-center gap-3 py-3.5 pl-3 pr-4">
+                      <View
+                        className="h-11 w-11 items-center justify-center rounded-xl"
+                        style={{ backgroundColor: `${v.accent}18` }}
+                      >
+                        <MaterialIcons name={v.icon} size={22} color={v.accent} />
+                      </View>
+                      <View className="flex-1">
+                        <Text className="text-base font-hell-round-bold text-gray-900">
+                          {formatActivityDisplayName(ev.activity)}
+                        </Text>
+                        {timeLabel ? (
+                          <Text className="mt-1 text-xs font-hell text-gray-500">{timeLabel}</Text>
+                        ) : null}
+                      </View>
+                    </View>
                   </View>
-                </View>
-              ))}
+                );
+              })}
             </View>
           )}
         </ScrollView>
@@ -622,7 +829,7 @@ const HomeScreen = () => {
         visible={showQuickActionsModal}
         message={fallQuickActionMessage}
         contacts={contacts}
-        contactsLoading={contactsLoading}
+        contactsLoading={contactsLoadingEffective}
         primaryContact={primaryContact}
         onDismiss={handleFallSheetDismiss}
         onImOk={handleImOk}

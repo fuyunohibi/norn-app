@@ -43,7 +43,7 @@ const sheetStyles = StyleSheet.create({
  * Dev-only sample rows so an empty inbox still shows how alert cards look.
  * Set to `false` to use the normal empty state while developing.
  */
-const DEV_SHOW_MOCK_ALERTS_PREVIEW = __DEV__ && false;
+const DEV_SHOW_MOCK_ALERTS_PREVIEW = __DEV__ && true;
 
 const MOCK_USER_ID = '00000000-0000-0000-0000-000000000000';
 
@@ -339,13 +339,6 @@ const NotificationsScreen = () => {
                 </Card>
               ) : (
                 <View className="gap-3">
-                  {showMockAlertPreview ? (
-                    <View className="mb-1 rounded-2xl border border-dashed border-orange-200 bg-orange-50/60 px-3 py-2">
-                      <Text className="text-center font-hell text-xs leading-5 text-orange-800">
-                        Sample alerts (dev only) — your inbox is empty.
-                      </Text>
-                    </View>
-                  ) : null}
                   {displayAlerts.map((alert) => (
                     <Card
                       key={alert.id}

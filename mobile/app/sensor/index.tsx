@@ -15,6 +15,12 @@ import { Card } from "../../components/ui/card";
 import { useAuth } from "../../contexts/auth-context";
 import { useImuWearableStatus } from "../../hooks/useImuWearableStatus";
 import { imuLiveActivityHeadlineOnline } from "../../utils/imu-activity";
+import { MOCK_HOME_IMU_STATUS } from "../../utils/mock-home-screen-data";
+
+/**
+ * Dev-only: when true, uses the same IMU mock as the home screen and skips the status API.
+ */
+const SENSOR_SCREEN_USE_MOCK_DATA = __DEV__ && true;
 
 const HERO_MIN_HEIGHT = 200;
 
@@ -22,30 +28,48 @@ export default function SensorScreen() {
   const { user } = useAuth();
   const userId = user?.id;
   const insets = useSafeAreaInsets();
+  const sensorMock = SENSOR_SCREEN_USE_MOCK_DATA;
+  const dataUserId = sensorMock ? undefined : userId;
+  const showSensorSignedIn = Boolean(userId || sensorMock);
+
   const {
     data: imuStatus,
     isLoading: imuStatusLoading,
     error: imuStatusError,
-  } = useImuWearableStatus(userId);
+  } = useImuWearableStatus(dataUserId);
+
+  const imuStatusEffective = sensorMock ? MOCK_HOME_IMU_STATUS : imuStatus;
+  const imuStatusLoadingEffective = sensorMock ? false : imuStatusLoading;
+  const imuStatusErrorEffective = sensorMock ? false : Boolean(imuStatusError);
 
   const wearableStatusTitle = useMemo(() => {
-    if (!userId) return "Sign in required";
-    if (imuStatusLoading) return "Checking status…";
-    if (imuStatusError) return "Status unavailable";
-    return imuStatus?.online ? "Clip online" : "Clip offline";
-  }, [userId, imuStatusLoading, imuStatusError, imuStatus?.online]);
+    if (!showSensorSignedIn) return "Sign in required";
+    if (imuStatusLoadingEffective) return "Checking status…";
+    if (imuStatusErrorEffective) return "Status unavailable";
+    return imuStatusEffective?.online ? "Clip online" : "Clip offline";
+  }, [
+    showSensorSignedIn,
+    imuStatusLoadingEffective,
+    imuStatusErrorEffective,
+    imuStatusEffective?.online,
+  ]);
 
   const wearableStatusSubtitle = useMemo(() => {
-    if (!userId) return "Sign in to see whether your clip is reporting.";
-    if (imuStatusLoading) return "Loading the latest reading from your wearable.";
-    if (imuStatusError) return "We could not reach the service. Check your connection.";
-    return imuStatus?.online
+    if (!showSensorSignedIn) return "Sign in to see whether your clip is reporting.";
+    if (imuStatusLoadingEffective) return "Loading the latest reading from your wearable.";
+    if (imuStatusErrorEffective) return "We could not reach the service. Check your connection.";
+    return imuStatusEffective?.online
       ? "Your clip has reported recently (within about the last 90 seconds)."
       : "No recent signal from your clip. It may be off, out of range, or idle.";
-  }, [userId, imuStatusLoading, imuStatusError, imuStatus?.online]);
+  }, [
+    showSensorSignedIn,
+    imuStatusLoadingEffective,
+    imuStatusErrorEffective,
+    imuStatusEffective?.online,
+  ]);
 
   const sensorStatusHint = useMemo(() => {
-    if (!userId || !imuStatusError) return null;
+    if (!showSensorSignedIn || sensorMock || !imuStatusError) return null;
     const msg =
       imuStatusError instanceof Error
         ? imuStatusError.message
@@ -58,7 +82,7 @@ export default function SensorScreen() {
       return "Check Wi‑Fi and EXPO_PUBLIC_API_URL, or rely on cloud sync if configured.";
     }
     return msg;
-  }, [userId, imuStatusError]);
+  }, [showSensorSignedIn, sensorMock, imuStatusError]);
 
   const heroTextShadow = {
     textShadowColor: "rgba(0,0,0,0.35)",
@@ -136,19 +160,32 @@ export default function SensorScreen() {
 
           <Card variant="outlined" className="mt-5 border-gray-100 bg-gray-50/80">
             <View className="min-w-0">
-              {userId && imuStatusLoading ? (
+              {showSensorSignedIn && imuStatusLoadingEffective ? (
                 <View className="flex-row items-center gap-2">
                   <ActivityIndicator color="#FF7300" />
                   <Text className="text-lg font-hell-round-bold text-gray-900">Checking…</Text>
                 </View>
               ) : (
-                <Text className="text-xl font-hell-round-bold text-gray-900">
-                  {wearableStatusTitle}
-                </Text>
+                <View className="flex-row items-center gap-3">
+                  {showSensorSignedIn && !imuStatusLoadingEffective ? (
+                    imuStatusErrorEffective ? (
+                      <View className="h-2.5 w-2.5 shrink-0 rounded-full bg-orange-500" />
+                    ) : (
+                      <View
+                        className={`h-2.5 w-2.5 shrink-0 rounded-full ${
+                          imuStatusEffective?.online ? "bg-emerald-500" : "bg-gray-400"
+                        }`}
+                      />
+                    )
+                  ) : null}
+                  <Text className="shrink text-xl font-hell-round-bold text-gray-900">
+                    {wearableStatusTitle}
+                  </Text>
+                </View>
               )}
               <Text
                 className={`mt-2 font-hell text-base leading-6 ${
-                  userId && imuStatusError ? "text-orange-700" : "text-gray-600"
+                  showSensorSignedIn && imuStatusErrorEffective ? "text-orange-700" : "text-gray-600"
                 }`}
               >
                 {wearableStatusSubtitle}
@@ -160,19 +197,22 @@ export default function SensorScreen() {
                   </Text>
                 </View>
               ) : null}
-              {userId && !imuStatusLoading && !imuStatusError && imuStatus?.online ? (
+              {showSensorSignedIn &&
+              !imuStatusLoadingEffective &&
+              !imuStatusErrorEffective &&
+              imuStatusEffective?.online ? (
                 <View className="mt-4 rounded-2xl border border-gray-200 bg-white px-3 py-3">
                   <Text className="text-xs font-hell-round-bold uppercase tracking-wide text-gray-400">
                     Current activity
                   </Text>
                   <Text className="mt-1 text-lg font-hell-round-bold text-gray-900">
-                    {imuLiveActivityHeadlineOnline(imuStatus)}
+                    {imuLiveActivityHeadlineOnline(imuStatusEffective)}
                   </Text>
-                  {imuStatus.last_seen_at ? (
+                  {imuStatusEffective.last_seen_at ? (
                     <Text className="mt-2 text-xs font-hell leading-4 text-gray-500">
-                      Last signal: {new Date(imuStatus.last_seen_at).toLocaleString()}
-                      {typeof imuStatus.age_seconds === "number"
-                        ? ` (${imuStatus.age_seconds}s ago)`
+                      Last signal: {new Date(imuStatusEffective.last_seen_at).toLocaleString()}
+                      {typeof imuStatusEffective.age_seconds === "number"
+                        ? ` (${imuStatusEffective.age_seconds}s ago)`
                         : ""}
                     </Text>
                   ) : null}

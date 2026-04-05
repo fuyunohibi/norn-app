@@ -106,7 +106,7 @@ export const NornStateMascot: React.FC<NornStateMascotProps> = ({
         : "Live activity from NORN";
 
   return (
-    <View className="rounded-[2.5rem] h-full w-full overflow-hidden border border-gray-200/80">
+    <View className="rounded-[2.5rem] h-full w-full overflow-hidden">
       <LinearGradient
         colors={theme.colors}
         start={{ x: 0.2, y: 0 }}
