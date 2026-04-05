@@ -26,22 +26,6 @@ import { useEmergencyContacts } from "../../hooks/useEmergencyContacts";
 import { useImuWearableStatus } from "../../hooks/useImuWearableStatus";
 import { backendAPIService } from "../../services/backend-api.service";
 import { formatActivityDisplayName } from "../../utils/imu-activity";
-import {
-  MOCK_HOME_ACTIVITY_STATISTICS,
-  MOCK_HOME_EMERGENCY_CONTACTS,
-  MOCK_HOME_IMU_STATUS,
-} from "../../utils/mock-home-screen-data";
-/**
- * Dev-only: set to a short code (e.g. `"r"`) to preview the mascot; `null` uses live IMU class.
- * Ignored in production builds.
- */
-const DEV_MASCOT_ACTIVITY_OVERRIDE: string | null = __DEV__ ? "f" : null;
-
-/**
- * Dev-only: when true, home uses local mock stats / IMU / contacts and skips those network calls.
- * Flip to `true` to preview the signed-in layout without a backend.
- */
-const HOME_SCREEN_USE_MOCK_DATA = __DEV__ && true;
 
 const BRAND_ORANGE = "#FF7300";
 
@@ -123,24 +107,20 @@ function formatTimelineTime(iso: string | null | undefined): string {
 const HomeScreen = () => {
   const { user } = useAuth();
   const userId = user?.id;
-  const mockHome = HOME_SCREEN_USE_MOCK_DATA;
-  const dataUserId = mockHome ? undefined : userId;
-  const showAsSignedIn = Boolean(userId || mockHome);
+  const showAsSignedIn = Boolean(userId);
 
   const {
     data: imuStatus,
     isLoading: imuStatusLoading,
     error: imuStatusError,
-  } = useImuWearableStatus(dataUserId);
+  } = useImuWearableStatus(userId);
   const {
     data: todayStatsRes,
     isLoading: todayStatsLoading,
     isError: todayStatsError,
-  } = useActivityStatistics(dataUserId, "today");
-  const imuStatusEffective = mockHome ? MOCK_HOME_IMU_STATUS : imuStatus;
-  const imuStatusLoadingEffective = mockHome ? false : imuStatusLoading;
-  const imuStatusErrorEffective = mockHome ? false : Boolean(imuStatusError);
-  const activityToday = mockHome ? MOCK_HOME_ACTIVITY_STATISTICS : todayStatsRes?.statistics;
+  } = useActivityStatistics(userId, "today");
+  const imuStatusErrorBool = Boolean(imuStatusError);
+  const activityToday = todayStatsRes?.statistics;
   const insets = useSafeAreaInsets();
   const lastFallAlertRef = useRef<string | null>(null);
   const [fallQuickActionMessage, setFallQuickActionMessage] = useState<string | null>(null);
@@ -191,12 +171,7 @@ const HomeScreen = () => {
     [bannerBlend],
   );
 
-  const {
-    contacts: contactsRemote,
-    isLoading: contactsLoading,
-  } = useEmergencyContacts(dataUserId);
-  const contacts = mockHome ? MOCK_HOME_EMERGENCY_CONTACTS : contactsRemote;
-  const contactsLoadingEffective = mockHome ? false : contactsLoading;
+  const { contacts, isLoading: contactsLoading } = useEmergencyContacts(userId);
 
   const primaryContact = useMemo(
     () => contacts.find((contact) => contact.is_primary) ?? contacts[0] ?? null,
@@ -284,27 +259,27 @@ const HomeScreen = () => {
   /** Short label for the banner status chip (detail copy lives on /sensor). */
   const wearableChipLabel = useMemo(() => {
     if (!showAsSignedIn) return "Sign in";
-    if (imuStatusLoadingEffective) return "Updating…";
-    if (imuStatusErrorEffective) return "Unavailable";
-    if (imuStatusEffective?.online) return "Live";
+    if (imuStatusLoading) return "Updating…";
+    if (imuStatusErrorBool) return "Unavailable";
+    if (imuStatus?.online) return "Live";
     return "Offline";
   }, [
     showAsSignedIn,
-    imuStatusLoadingEffective,
-    imuStatusErrorEffective,
-    imuStatusEffective?.online,
+    imuStatusLoading,
+    imuStatusErrorBool,
+    imuStatus?.online,
   ]);
 
   const wearableStatusDot = useMemo(() => {
     if (!showAsSignedIn) return "neutral" as const;
-    if (imuStatusLoadingEffective) return "pending" as const;
-    if (imuStatusErrorEffective) return "error" as const;
-    return imuStatusEffective?.online ? ("ok" as const) : ("off" as const);
+    if (imuStatusLoading) return "pending" as const;
+    if (imuStatusErrorBool) return "error" as const;
+    return imuStatus?.online ? ("ok" as const) : ("off" as const);
   }, [
     showAsSignedIn,
-    imuStatusLoadingEffective,
-    imuStatusErrorEffective,
-    imuStatusEffective?.online,
+    imuStatusLoading,
+    imuStatusErrorBool,
+    imuStatus?.online,
   ]);
 
   const myDayDateLabel = useMemo(
@@ -373,7 +348,7 @@ const HomeScreen = () => {
       });
       return res.alerts ?? [];
     },
-    enabled: !!userId && !mockHome,
+    enabled: !!userId,
     retry: 2,
     retryDelay: 4_000,
     refetchInterval: (query) => (query.state.error ? 45_000 : 3_000),
@@ -463,11 +438,10 @@ const HomeScreen = () => {
 
   // Live IMU critical classes (f / af / nf) from latest activity_events row
   useEffect(() => {
-    if (mockHome) return;
-    const code = imuStatusEffective?.activity_code?.toLowerCase();
+    const code = imuStatus?.activity_code?.toLowerCase();
     if (!code || !["f", "af", "nf"].includes(code)) return;
 
-    const fallIdentifier = `${code}-${imuStatusEffective?.last_seen_at ?? ""}`;
+    const fallIdentifier = `${code}-${imuStatus?.last_seen_at ?? ""}`;
     if (lastFallAlertRef.current === fallIdentifier) return;
 
     lastFallAlertRef.current = fallIdentifier;
@@ -480,19 +454,13 @@ const HomeScreen = () => {
           : "The wearable reports unstable standing — you may be at risk of falling.";
 
     presentFallQuickActions(msg);
-  }, [
-    mockHome,
-    imuStatusEffective?.activity_code,
-    imuStatusEffective?.last_seen_at,
-    presentFallQuickActions,
-  ]);
+  }, [imuStatus?.activity_code, imuStatus?.last_seen_at, presentFallQuickActions]);
 
   const mascotProps = {
     signedIn: showAsSignedIn,
-    activityCode:
-      DEV_MASCOT_ACTIVITY_OVERRIDE ?? imuStatusEffective?.activity_code ?? null,
-    loading: showAsSignedIn && imuStatusLoadingEffective,
-    statusError: showAsSignedIn && imuStatusErrorEffective,
+    activityCode: imuStatus?.activity_code ?? null,
+    loading: showAsSignedIn && imuStatusLoading,
+    statusError: showAsSignedIn && imuStatusErrorBool,
   };
 
   const chipShadow = {
@@ -568,7 +536,7 @@ const HomeScreen = () => {
             ...chipShadow,
           }}
         >
-          {showAsSignedIn && imuStatusLoadingEffective ? (
+          {showAsSignedIn && imuStatusLoading ? (
             <ActivityIndicator size="small" color="#FF7300" />
           ) : (
             <View
@@ -829,7 +797,7 @@ const HomeScreen = () => {
         visible={showQuickActionsModal}
         message={fallQuickActionMessage}
         contacts={contacts}
-        contactsLoading={contactsLoadingEffective}
+        contactsLoading={contactsLoading}
         primaryContact={primaryContact}
         onDismiss={handleFallSheetDismiss}
         onImOk={handleImOk}

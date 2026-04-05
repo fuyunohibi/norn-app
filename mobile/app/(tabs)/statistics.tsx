@@ -22,17 +22,6 @@ import {
   criticalActivityTotals,
   formatActivityDisplayName,
 } from '../../utils/imu-activity';
-import {
-  MOCK_HOME_ACTIVITY_STATISTICS,
-  MOCK_STATS_ACTIVITY_30D,
-  MOCK_STATS_ACTIVITY_7D,
-} from '../../utils/mock-home-screen-data';
-
-/**
- * Dev-only: when true, statistics uses the same local “today” mock as home plus 7d/30d
- * synthetic series (UTC-bucketed for the trends chart). Skips activity API calls.
- */
-const STATISTICS_SCREEN_USE_MOCK_DATA = __DEV__ && true;
 
 const windowWidth = Dimensions.get('window').width;
 
@@ -264,19 +253,17 @@ const StatisticsScreen = () => {
   const { user } = useAuth();
   const userId = user?.id;
   const insets = useSafeAreaInsets();
-  const statsMock = STATISTICS_SCREEN_USE_MOCK_DATA;
-  const dataUserId = statsMock ? undefined : userId;
-  const showStatsSignedIn = Boolean(userId || statsMock);
+  const showStatsSignedIn = Boolean(userId);
 
-  const { data: actTodayRes, isLoading: loadToday } = useActivityStatistics(dataUserId, 'today');
-  const { data: act7Res, isLoading: load7 } = useActivityStatistics(dataUserId, '7d');
-  const { data: act30Res, isLoading: load30 } = useActivityStatistics(dataUserId, '30d');
+  const { data: actTodayRes, isLoading: loadToday } = useActivityStatistics(userId, 'today');
+  const { data: act7Res, isLoading: load7 } = useActivityStatistics(userId, '7d');
+  const { data: act30Res, isLoading: load30 } = useActivityStatistics(userId, '30d');
 
-  const activityToday = statsMock ? MOCK_HOME_ACTIVITY_STATISTICS : actTodayRes?.statistics;
-  const activity7 = statsMock ? MOCK_STATS_ACTIVITY_7D : act7Res?.statistics;
-  const activity30 = statsMock ? MOCK_STATS_ACTIVITY_30D : act30Res?.statistics;
+  const activityToday = actTodayRes?.statistics;
+  const activity7 = act7Res?.statistics;
+  const activity30 = act30Res?.statistics;
 
-  const isLoading = statsMock ? false : loadToday || load7 || load30;
+  const isLoading = loadToday || load7 || load30;
   const hasActivityData = (activity30?.total_events ?? 0) > 0;
 
   const [activeSection, setActiveSection] = useState<'overview' | 'mode' | 'activity'>('activity');

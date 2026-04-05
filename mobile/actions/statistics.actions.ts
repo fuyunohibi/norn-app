@@ -4,8 +4,6 @@ import type {
   DailyStatisticUpdate,
 } from '@/database/types';
 import { supabase } from '@/utils/supabase';
-import { aggregateReadingsToDailyStatistics } from '@/utils/statistics-aggregator';
-import { getMockFallData } from '@/utils/mock-statistics';
 
 export const fetchDailyStatistics = async (userId: string, limit = 90): Promise<DailyStatistic[]> => {
   const { data, error } = await supabase
@@ -41,38 +39,5 @@ export const upsertDailyStatistics = async (
     console.error('Error upserting daily statistics:', error);
     throw error;
   }
-};
-
-export const seedDailyStatisticsFromMock = async (userId: string): Promise<void> => {
-  if (!__DEV__) return;
-
-  const fallReadings = getMockFallData(userId).readings || [];
-  const combinedReadings = [...fallReadings];
-
-  if (!combinedReadings.length) {
-    return;
-  }
-
-  const aggregates = aggregateReadingsToDailyStatistics(combinedReadings);
-
-  if (!aggregates.length) {
-    return;
-  }
-
-  const rows: DailyStatisticInsert[] = aggregates.map((aggregate) => ({
-    user_id: userId,
-    stat_date: aggregate.stat_date,
-    total_readings: aggregate.total_readings,
-    fall_readings: aggregate.fall_readings,
-    first_reading_at: aggregate.first_reading_at,
-    last_reading_at: aggregate.last_reading_at,
-    last_fall_reading_at: aggregate.last_fall_reading_at,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  }));
-
-  await supabase
-    .from('daily_statistics')
-    .upsert(rows, { onConflict: 'user_id,stat_date', ignoreDuplicates: false });
 };
 

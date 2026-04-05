@@ -17,7 +17,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Card } from '../../components/ui/card';
 import { useAuth } from '../../contexts/auth-context';
-import type { Alert as AlertRow, UserPreferencesUpdate } from '../../database/types';
+import type { UserPreferencesUpdate } from '../../database/types';
 import { getAlerts, markAlertAsRead, markAllAlertsAsRead } from '../../services/monitoring.service';
 import { getPreferences, updatePreferences } from '../../services/user.service';
 
@@ -38,71 +38,6 @@ const sheetStyles = StyleSheet.create({
     elevation: 3,
   },
 });
-
-/**
- * Dev-only sample rows so an empty inbox still shows how alert cards look.
- * Set to `false` to use the normal empty state while developing.
- */
-const DEV_SHOW_MOCK_ALERTS_PREVIEW = __DEV__ && true;
-
-const MOCK_USER_ID = '00000000-0000-0000-0000-000000000000';
-
-const MOCK_PREVIEW_ALERTS: AlertRow[] = [
-  {
-    id: 'mock-preview-fall',
-    user_id: MOCK_USER_ID,
-    title: 'Fall may have occurred',
-    message:
-      'Your clip reported a sudden orientation change. Check in when you can, or use quick actions on the home screen.',
-    severity: 'critical',
-    alert_type: 'fall',
-    is_read: false,
-    is_resolved: false,
-    created_at: new Date(Date.now() - 12 * 60 * 1000).toISOString(),
-    alert_data: null,
-    device_id: null,
-    resolved_at: null,
-    resolved_by: null,
-    source_device_id: null,
-  },
-  {
-    id: 'mock-preview-fall-risk',
-    user_id: MOCK_USER_ID,
-    title: 'Unstable standing',
-    message:
-      'Movement patterns suggest you may be at higher risk of a fall. Consider sitting down or using support.',
-    severity: 'high',
-    alert_type: 'fall_risk',
-    is_read: false,
-    is_resolved: false,
-    created_at: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(),
-    alert_data: null,
-    device_id: null,
-    resolved_at: null,
-    resolved_by: null,
-    source_device_id: null,
-  },
-  {
-    id: 'mock-preview-info',
-    user_id: MOCK_USER_ID,
-    title: 'Clip back online',
-    message: 'Your NORN clip started reporting again after a short gap.',
-    severity: 'low',
-    alert_type: 'device_status',
-    is_read: true,
-    is_resolved: false,
-    created_at: new Date(Date.now() - 26 * 60 * 60 * 1000).toISOString(),
-    alert_data: null,
-    device_id: null,
-    resolved_at: null,
-    resolved_by: null,
-    source_device_id: null,
-  },
-];
-
-function isMockPreviewAlert(id: string) {
-  return id.startsWith('mock-preview-');
-}
 
 const NotificationsScreen = () => {
   const { user } = useAuth();
@@ -150,12 +85,7 @@ const NotificationsScreen = () => {
     },
   });
 
-  const showMockAlertPreview =
-    DEV_SHOW_MOCK_ALERTS_PREVIEW && !!userId && !alertsLoading && alerts.length === 0;
-
-  const displayAlerts = showMockAlertPreview ? MOCK_PREVIEW_ALERTS : alerts;
-
-  const unreadCount = displayAlerts.filter((a) => !a.is_read).length;
+  const unreadCount = alerts.filter((a) => !a.is_read).length;
 
   const getSeverityColor = (severity: string) => {
     switch (severity) {
@@ -300,7 +230,7 @@ const NotificationsScreen = () => {
                     Recent alerts
                   </Text>
                 </View>
-                {unreadCount > 0 && !showMockAlertPreview ? (
+                {unreadCount > 0 ? (
                   <TouchableOpacity
                     onPress={() => markAllAsReadMutation.mutate()}
                     disabled={markAllAsReadMutation.isPending}
@@ -323,7 +253,7 @@ const NotificationsScreen = () => {
                     </Text>
                   </View>
                 </Card>
-              ) : displayAlerts.length === 0 ? (
+              ) : alerts.length === 0 ? (
                 <Card variant="outlined" className="border-gray-100 bg-gray-50/80">
                   <View className="items-center px-2 py-10">
                     <View className="h-14 w-14 items-center justify-center rounded-2xl bg-gray-100">
@@ -339,7 +269,7 @@ const NotificationsScreen = () => {
                 </Card>
               ) : (
                 <View className="gap-3">
-                  {displayAlerts.map((alert) => (
+                  {alerts.map((alert) => (
                     <Card
                       key={alert.id}
                       variant="outlined"
@@ -371,16 +301,7 @@ const NotificationsScreen = () => {
                             </Text>
                             {!alert.is_read ? (
                               <TouchableOpacity
-                                onPress={() => {
-                                  if (isMockPreviewAlert(alert.id)) {
-                                    Alert.alert(
-                                      'Sample alert',
-                                      'This card is mock data so you can preview the layout. It is not saved.',
-                                    );
-                                    return;
-                                  }
-                                  markAsReadMutation.mutate(alert.id);
-                                }}
+                                onPress={() => markAsReadMutation.mutate(alert.id)}
                                 disabled={markAsReadMutation.isPending}
                                 activeOpacity={0.88}
                                 className="rounded-full border border-gray-200 bg-gray-50 px-3 py-1.5"

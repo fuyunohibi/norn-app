@@ -1,8 +1,7 @@
 -- =============================================
 -- SEED DAILY STATISTICS USING MOCK DATASET
 -- =============================================
--- Populates daily_statistics with the same historical
--- values generated in mobile/utils/mock-statistics.ts.
+-- Populates daily_statistics with historical sample values for local/dev DBs.
 -- =============================================
 
 DO $$
