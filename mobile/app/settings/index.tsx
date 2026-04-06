@@ -1,6 +1,5 @@
-import type { MonitoredPersonContact } from "@/database/types";
+import type { CareBackupContact } from "@/database/types";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useQuery } from "@tanstack/react-query";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import {
@@ -37,12 +36,12 @@ import { Button } from "../../components/ui/button";
 import { Card } from "../../components/ui/card";
 import { Input } from "../../components/ui/input";
 import { useAuth } from "../../contexts/auth-context";
-import { useMonitoredPersonContacts } from "../../hooks/useMonitoredPersonContacts";
+import { useCareBackupContacts } from "../../hooks/useCareBackupContacts";
+import { useCareRecipientProfile } from "../../hooks/useCareRecipientProfile";
 import {
-  monitoredPersonContactFormSchema,
-  MonitoredPersonContactFormValues,
-} from "../../schemas/monitored-person-contact.schema";
-import { getPreferences, updatePreferences } from "../../services/user.service";
+  careBackupContactFormSchema,
+  CareBackupContactFormValues,
+} from "../../schemas/care-backup-contact.schema";
 
 const HERO_MIN_HEIGHT = 200;
 
@@ -85,54 +84,54 @@ const SettingsScreen = () => {
     updateContact,
     deleteContact,
     setPrimaryContact,
-  } = useMonitoredPersonContacts(resolvedUserId);
+  } = useCareBackupContacts(resolvedUserId);
 
-  const { data: preferences, refetch: refetchPreferences } = useQuery({
-    queryKey: ["user-preferences", resolvedUserId],
-    queryFn: () => getPreferences(resolvedUserId!),
-    enabled: Boolean(resolvedUserId),
-  });
+  const {
+    profile: careRecipientProfile,
+    refetch: refetchCareRecipientProfile,
+    upsertProfile: upsertCareRecipientProfile,
+    isSavingProfile: savingMonitoredInfo,
+    isLoading: careRecipientProfileLoading,
+  } = useCareRecipientProfile(resolvedUserId);
 
   const [monitoredPersonName, setMonitoredPersonName] = useState("");
   const [monitoredPersonPhone, setMonitoredPersonPhone] = useState("");
-  const [savingMonitoredInfo, setSavingMonitoredInfo] = useState(false);
   /** When false, show read-only summary + Edit; when true, show fields + Save / Cancel */
   const [monitoredDetailsEditing, setMonitoredDetailsEditing] = useState(false);
   const monitoredEditInitRef = useRef(false);
 
   useEffect(() => {
-    if (!preferences) return;
-    setMonitoredPersonName(preferences.monitored_person_full_name ?? "");
-    setMonitoredPersonPhone(preferences.monitored_person_phone ?? "");
-  }, [preferences]);
+    if (careRecipientProfileLoading) return;
+    setMonitoredPersonName(careRecipientProfile?.full_name ?? "");
+    setMonitoredPersonPhone(careRecipientProfile?.phone_number ?? "");
+  }, [careRecipientProfile, careRecipientProfileLoading]);
 
   /** First visit with no saved name/phone: open the form so it is obvious they can add details */
   useEffect(() => {
-    if (!preferences || monitoredEditInitRef.current) return;
+    if (!resolvedUserId || careRecipientProfileLoading || monitoredEditInitRef.current) return;
     monitoredEditInitRef.current = true;
     const hasAny =
-      Boolean(preferences.monitored_person_full_name?.trim()) ||
-      Boolean(preferences.monitored_person_phone?.trim());
+      Boolean(careRecipientProfile?.full_name?.trim()) ||
+      Boolean(careRecipientProfile?.phone_number?.trim());
     if (!hasAny) {
       setMonitoredDetailsEditing(true);
     }
-  }, [preferences]);
+  }, [careRecipientProfile, careRecipientProfileLoading, resolvedUserId]);
 
   const hasMonitoredDetailsSaved = useMemo(() => {
-    if (!preferences) return false;
     return (
-      Boolean(preferences.monitored_person_full_name?.trim()) ||
-      Boolean(preferences.monitored_person_phone?.trim())
+      Boolean(careRecipientProfile?.full_name?.trim()) ||
+      Boolean(careRecipientProfile?.phone_number?.trim())
     );
-  }, [preferences]);
+  }, [careRecipientProfile]);
 
   const {
     control: contactControl,
     handleSubmit: handleContactFormSubmit,
     reset: resetContactForm,
     formState: { errors: contactErrors, isSubmitting: isContactSubmitting },
-  } = useForm<MonitoredPersonContactFormValues>({
-    resolver: zodResolver(monitoredPersonContactFormSchema),
+  } = useForm<CareBackupContactFormValues>({
+    resolver: zodResolver(careBackupContactFormSchema),
     defaultValues: {
       full_name: "",
       relationship: "",
@@ -144,16 +143,14 @@ const SettingsScreen = () => {
   });
 
   const [isContactModalVisible, setContactModalVisible] = useState(false);
-  const [editingContact, setEditingContact] = useState<MonitoredPersonContact | null>(
-    null
-  );
+  const [editingContact, setEditingContact] = useState<CareBackupContact | null>(null);
 
   const contactsHavePrimary = useMemo(
     () => contacts.some((contact) => contact.is_primary),
     [contacts]
   );
 
-  const openContactModal = (contact?: MonitoredPersonContact) => {
+  const openContactModal = (contact?: CareBackupContact) => {
     if (contact) {
       resetContactForm({
         id: contact.id,
@@ -207,7 +204,7 @@ const SettingsScreen = () => {
     }
   };
 
-  const handleDeleteContact = (contact: MonitoredPersonContact) => {
+  const handleDeleteContact = (contact: CareBackupContact) => {
     Alert.alert(
       "Remove contact",
       `Remove ${contact.full_name} from backup contacts?`,
@@ -251,42 +248,35 @@ const SettingsScreen = () => {
     }
   };
 
-  /** Persists to Supabase `user_preferences` (columns monitored_person_full_name, monitored_person_phone). */
+  /** Persists to Supabase `care_recipient_profiles` (person wearing the sensor). */
   const handleSaveMonitoredPersonInfo = async () => {
     if (!resolvedUserId) return;
-    setSavingMonitoredInfo(true);
     try {
       const name = monitoredPersonName.trim();
       const phone = monitoredPersonPhone.trim();
-      const result = await updatePreferences(resolvedUserId, {
-        monitored_person_full_name: name.length > 0 ? name : null,
-        monitored_person_phone: phone.length > 0 ? phone : null,
+      const result = await upsertCareRecipientProfile({
+        full_name: name.length > 0 ? name : null,
+        phone_number: phone.length > 0 ? phone : null,
       });
       if (!result) {
         Alert.alert("Error", "Could not save. Please try again.");
         return;
       }
-      await refetchPreferences();
+      await refetchCareRecipientProfile();
       setMonitoredDetailsEditing(false);
     } catch (e) {
       console.error(e);
       Alert.alert("Error", "Could not save. Please try again.");
-    } finally {
-      setSavingMonitoredInfo(false);
     }
   };
 
   const handleCancelMonitoredPersonEdit = () => {
-    if (preferences) {
-      setMonitoredPersonName(preferences.monitored_person_full_name ?? "");
-      setMonitoredPersonPhone(preferences.monitored_person_phone ?? "");
-    }
+    setMonitoredPersonName(careRecipientProfile?.full_name ?? "");
+    setMonitoredPersonPhone(careRecipientProfile?.phone_number ?? "");
     setMonitoredDetailsEditing(false);
   };
 
-  const onSubmitMonitoredPersonContact = async (
-    values: MonitoredPersonContactFormValues
-  ) => {
+  const onSubmitCareBackupContact = async (values: CareBackupContactFormValues) => {
     const currentEditing = editingContact;
     const isEditing = Boolean(currentEditing);
     const normalizeOptional = (value?: string) => {
@@ -423,7 +413,7 @@ const SettingsScreen = () => {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <Text className="text-xs font-hell-round-bold uppercase tracking-wide text-gray-400">
+          <Text className="text-xs font-hell-round-bold uppercase tracking-wide text-orange-600">
             Account
           </Text>
           <Text className="mt-1 text-lg font-hell-round-bold text-gray-900">
@@ -457,38 +447,37 @@ const SettingsScreen = () => {
             </View>
           </Card>
 
-          <Text className="mb-2 mt-10 text-xs font-hell-round-bold uppercase tracking-[0.08em] text-gray-400">
+          <Text className="mb-2 mt-10 text-xs font-hell-round-bold uppercase tracking-[0.08em] text-orange-600">
             Monitored person
           </Text>
-          <Text className="text-lg font-hell-round-bold text-gray-900">
+          <Text className="text-lg font-hell-round-bold text-orange-950">
             Person wearing the sensor
           </Text>
-          <Text className="mt-1 font-hell text-sm leading-5 text-gray-500">
+          <Text className="mt-1 font-hell text-sm leading-5 text-stone-600">
             The clip is on them; you use this app to respond when something happens. Add their name
             and number so you can call them from fall alerts.
           </Text>
 
           <Card
             variant="outlined"
-            className="mt-4 border-gray-100 bg-white"
+            className="mt-4 border-orange-200/90 bg-orange-50/50"
             style={sheetStyles.cardShadow}
           >
             <View className="flex-row items-start justify-between gap-3">
               <View className="min-w-0 flex-1">
-                <Text className="text-base font-hell-round-bold text-gray-900">Their details</Text>
-                <Text className="text-gray-600 text-sm font-hell mt-1 leading-5">
-                  Shown on the main call button when a fall is detected. Saved with your account
-                  (cloud).
+                <Text className="text-base font-hell-round-bold text-orange-950">Their details</Text>
+                <Text className="text-stone-700 text-sm font-hell mt-1 leading-5">
+                  Shown on the main call button when a fall is detected.
                 </Text>
               </View>
               {!monitoredDetailsEditing ? (
                 <TouchableOpacity
                   onPress={() => setMonitoredDetailsEditing(true)}
-                  className="flex-row items-center rounded-2xl border border-gray-200 bg-gray-50 px-3 py-2 active:opacity-90"
+                  className="flex-row items-center rounded-2xl border border-orange-300/90 bg-white px-3.5 py-2.5 active:opacity-90"
                   activeOpacity={0.88}
                 >
-                  <Pencil size={16} color="#374151" strokeWidth={2.2} />
-                  <Text className="ml-1.5 font-hell-round-bold text-sm text-gray-800">Edit</Text>
+                  <Pencil size={16} color="#FF7300" strokeWidth={2.2} />
+                  <Text className="ml-1.5 font-hell-round-bold text-sm text-[#C2410C]">Edit</Text>
                 </TouchableOpacity>
               ) : null}
             </View>
@@ -530,21 +519,21 @@ const SettingsScreen = () => {
                 </View>
               </>
             ) : (
-              <View className="mt-4 rounded-2xl border border-gray-100 bg-gray-50/90 px-4 py-3">
-                <Text className="text-xs font-hell-round-bold uppercase tracking-wide text-gray-400">
+              <View className="mt-4 rounded-2xl border border-orange-200/80 bg-white/90 px-4 py-3.5">
+                <Text className="text-xs font-hell-round-bold uppercase tracking-wide text-[#EA580C]">
                   Name
                 </Text>
-                <Text className="mt-1 text-base font-hell text-gray-900">
+                <Text className="mt-1 text-base font-hell-round-bold text-stone-900">
                   {monitoredPersonName.trim() ? monitoredPersonName.trim() : "—"}
                 </Text>
-                <Text className="mt-3 text-xs font-hell-round-bold uppercase tracking-wide text-gray-400">
+                <Text className="mt-3 text-xs font-hell-round-bold uppercase tracking-wide text-[#EA580C]">
                   Phone
                 </Text>
-                <Text className="mt-1 text-base font-hell text-gray-900">
+                <Text className="mt-1 text-base font-hell-round-bold text-stone-900">
                   {monitoredPersonPhone.trim() ? monitoredPersonPhone.trim() : "—"}
                 </Text>
                 {!hasMonitoredDetailsSaved ? (
-                  <Text className="mt-3 text-xs font-hell text-amber-800">
+                  <Text className="mt-3 text-xs font-hell leading-5 text-orange-900/85">
                     Tap Edit to add their name and number for fall quick-calls.
                   </Text>
                 ) : null}
@@ -552,27 +541,27 @@ const SettingsScreen = () => {
             )}
           </Card>
 
-          <Text className="mb-2 mt-10 text-xs font-hell-round-bold uppercase tracking-[0.08em] text-gray-400">
+          <Text className="mb-2 mt-10 text-xs font-hell-round-bold uppercase tracking-[0.08em] text-orange-600">
             Safety
           </Text>
-          <Text className="text-lg font-hell-round-bold text-gray-900">
+          <Text className="text-lg font-hell-round-bold text-orange-950">
             Backup contacts
           </Text>
-          <Text className="mt-1 font-hell text-sm leading-5 text-gray-500">
+          <Text className="mt-1 font-hell text-sm leading-5 text-stone-600">
             Family, neighbors, or others to call if you cannot reach the person wearing the sensor.
           </Text>
 
           <Card
             variant="outlined"
-            className="mt-4 border-gray-100"
+            className="mt-4 border-orange-100/80 bg-white"
             style={sheetStyles.cardShadow}
           >
           <View className="flex-row items-start justify-between gap-3 mb-4">
             <View className="min-w-0 flex-1">
-              <Text className="text-base font-hell-round-bold text-gray-900">
+              <Text className="text-base font-hell-round-bold text-orange-950">
                 Backup list
               </Text>
-              <Text className="text-gray-600 text-sm font-hell mt-1 leading-5">
+              <Text className="text-stone-600 text-sm font-hell mt-1 leading-5">
                 Used from home when you need another number besides the wearer.
               </Text>
             </View>
@@ -876,7 +865,7 @@ const SettingsScreen = () => {
                     <View className="mt-4 border-t border-gray-100 pt-5">
                       <Button
                         title={editingContact ? "Save changes" : "Save contact"}
-                        onPress={handleContactFormSubmit(onSubmitMonitoredPersonContact)}
+                        onPress={handleContactFormSubmit(onSubmitCareBackupContact)}
                         variant="primary"
                         size="lg"
                         className="w-full"

@@ -7,7 +7,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import type { MonitoredPersonContact } from "../database/types";
+import type { CareBackupContact } from "../database/types";
 import { Button } from "./ui/button";
 
 const DEFAULT_MESSAGE =
@@ -17,7 +17,7 @@ export type EmergencyQuickActionsModalProps = {
   visible: boolean;
   /** Context-specific copy; falls back to DEFAULT_MESSAGE when null */
   message: string | null;
-  contacts: MonitoredPersonContact[];
+  contacts: CareBackupContact[];
   contactsLoading: boolean;
   /** Main call action (monitored person if number is set, else primary backup). */
   primaryCallLabel: string;

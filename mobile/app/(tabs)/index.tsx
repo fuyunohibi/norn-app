@@ -22,8 +22,8 @@ import { NornIcon } from "../../components/norn-icon";
 import { NornStateMascot } from "../../components/norn-state-mascot";
 import { useAuth } from "../../contexts/auth-context";
 import { useActivityStatistics } from "../../hooks/useActivityStatistics";
-import { useMonitoredPersonContacts } from "../../hooks/useMonitoredPersonContacts";
-import { getPreferences } from "../../services/user.service";
+import { useCareBackupContacts } from "../../hooks/useCareBackupContacts";
+import { useCareRecipientProfile } from "../../hooks/useCareRecipientProfile";
 import { useImuWearableStatus } from "../../hooks/useImuWearableStatus";
 import { backendAPIService } from "../../services/backend-api.service";
 import { formatActivityDisplayName } from "../../utils/imu-activity";
@@ -172,19 +172,12 @@ const HomeScreen = () => {
     [bannerBlend],
   );
 
-  const { contacts, isLoading: contactsLoading } = useMonitoredPersonContacts(userId);
+  const { contacts, isLoading: contactsLoading } = useCareBackupContacts(userId);
 
-  const { data: userPreferences } = useQuery({
-    queryKey: ["user-preferences", userId],
-    queryFn: () => {
-      if (!userId) return null;
-      return getPreferences(userId);
-    },
-    enabled: !!userId,
-  });
+  const { profile: careRecipientProfile } = useCareRecipientProfile(userId);
 
-  const monitoredPersonName = userPreferences?.monitored_person_full_name?.trim() || null;
-  const monitoredPersonPhone = userPreferences?.monitored_person_phone?.trim() || null;
+  const monitoredPersonName = careRecipientProfile?.full_name?.trim() || null;
+  const monitoredPersonPhone = careRecipientProfile?.phone_number?.trim() || null;
   const monitoredCallLabel = monitoredPersonName ?? "the person you monitor";
 
   const primaryBackupContact = useMemo(

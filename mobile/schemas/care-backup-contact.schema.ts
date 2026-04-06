@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-export const monitoredPersonContactFormSchema = z.object({
+export const careBackupContactFormSchema = z.object({
   id: z.string().uuid().optional(),
   full_name: z
     .string()
@@ -33,4 +33,4 @@ export const monitoredPersonContactFormSchema = z.object({
     .optional(),
 });
 
-export type MonitoredPersonContactFormValues = z.infer<typeof monitoredPersonContactFormSchema>;
+export type CareBackupContactFormValues = z.infer<typeof careBackupContactFormSchema>;
