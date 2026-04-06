@@ -11,14 +11,16 @@ import {
   ImageBackground,
   Linking,
   ScrollView,
-  StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { EmergencyQuickActionsModal } from "../../components/emergency-quick-actions-modal";
+import { homeActivityVisual } from "../../components/home/home-activity-visual";
+import { homeScreenStyles } from "../../components/home/home-screen.styles";
 import { TodayActivitiesHeader } from "../../components/home/today-activities-header";
+import { TodayTimelineList } from "../../components/home/today-timeline-list";
 import { NornIcon } from "../../components/norn-icon";
 import { NornStateMascot } from "../../components/norn-state-mascot";
 import { useAuth } from "../../contexts/auth-context";
@@ -30,74 +32,7 @@ import { backendAPIService } from "../../services/backend-api.service";
 import { NornColors, shadowStyles } from "@/theme";
 import { ScreenSectionHeader } from "../../components/ui/screen-section-header";
 import { formatActivityDisplayName } from "../../utils/imu-activity";
-
-const styles = StyleSheet.create({
-  bannerLayer: {
-    ...StyleSheet.absoluteFillObject,
-  },
-  bannerLayerMascot: {
-    backgroundColor: NornColors.mascotBackground,
-  },
-  timelineStripe: {
-    width: 4,
-    alignSelf: "stretch",
-    borderRadius: 4,
-  },
-});
-
-/** Map raw activity / short codes → icon + accent for home timeline & chips. */
-function homeActivityVisual(raw: string): {
-  icon: React.ComponentProps<typeof MaterialIcons>["name"];
-  accent: string;
-  chipBg: string;
-} {
-  const k = raw.trim().toLowerCase().replace(/\s+/g, "_");
-  const kind =
-    (
-      {
-        w: "walking",
-        st: "standing",
-        si: "sitting",
-        r: "running",
-        f: "falling",
-        af: "after_fall",
-        nf: "unstable_standing",
-      } as Record<string, string>
-    )[k] ?? k;
-
-  const table: Record<
-    string,
-    { icon: React.ComponentProps<typeof MaterialIcons>["name"]; accent: string; chipBg: string }
-  > = {
-    walking: { icon: "directions-walk", accent: "#2563EB", chipBg: "bg-blue-50" },
-    standing: { icon: "accessibility-new", accent: "#0D9488", chipBg: "bg-teal-50" },
-    sitting: { icon: "weekend", accent: "#7C3AED", chipBg: "bg-violet-50" },
-    running: { icon: "directions-run", accent: "#DC2626", chipBg: "bg-red-50" },
-    falling: { icon: "personal-injury", accent: "#B45309", chipBg: "bg-amber-50" },
-    after_fall: { icon: "medical-services", accent: "#C2410C", chipBg: "bg-orange-50" },
-    unstable_standing: { icon: "balance", accent: "#CA8A04", chipBg: "bg-yellow-50" },
-  };
-
-  return (
-    table[kind] ?? {
-      icon: "motion-photos-on",
-      accent: NornColors.brandOrange,
-      chipBg: "bg-orange-50",
-    }
-  );
-}
-
-function formatTimelineTime(iso: string | null | undefined): string {
-  if (!iso) return "";
-  try {
-    return new Date(iso).toLocaleTimeString(undefined, {
-      hour: "numeric",
-      minute: "2-digit",
-    });
-  } catch {
-    return "";
-  }
-}
+import { formatTimelineTime } from "../../utils/time.utils";
 
 const HomeScreen = () => {
   const { user } = useAuth();
@@ -503,7 +438,7 @@ const HomeScreen = () => {
         <Animated.View
           pointerEvents={bannerShowsMascotUi ? "none" : "auto"}
           style={[
-            styles.bannerLayer,
+            homeScreenStyles.bannerLayer,
             {
               opacity: bannerSceneOpacity,
               transform: [{ scale: bannerSceneScale }],
@@ -529,8 +464,8 @@ const HomeScreen = () => {
         <Animated.View
           pointerEvents={bannerShowsMascotUi ? "auto" : "none"}
           style={[
-            styles.bannerLayer,
-            styles.bannerLayerMascot,
+            homeScreenStyles.bannerLayer,
+            homeScreenStyles.bannerLayerMascot,
             {
               opacity: bannerMascotOpacity,
               transform: [{ scale: bannerMascotScale }],
@@ -709,68 +644,15 @@ const HomeScreen = () => {
 
           <TodayActivitiesHeader onSeeAll={() => router.push("/statistics")} />
 
-          {!showAsSignedIn ? (
-            <View className="rounded-2xl border border-dashed border-gray-200 bg-gray-50/80 px-4 py-6">
-              <Text className="text-center text-sm font-hell leading-5 text-gray-600">
-                Sign in to see a live timeline from your wearable.
-              </Text>
-            </View>
-          ) : todayStatsLoading ? (
-            <View className="items-center rounded-3xl border border-gray-100 bg-white py-10">
-              <ActivityIndicator color={NornColors.brandOrange} />
-            </View>
-          ) : todayStatsError ? (
-            <View className="rounded-2xl border border-gray-100 bg-gray-50 px-4 py-5">
-              <Text className="text-center text-sm font-hell text-gray-600">
-                Timeline unavailable right now. Try again from the Statistics screen.
-              </Text>
-            </View>
-          ) : todayTimelineEvents.length === 0 ? (
-            <View
-              className="items-center rounded-3xl border border-gray-100 bg-white px-5 py-8"
-              style={shadowStyles.myDaySheet}
-            >
-              <View className="h-14 w-14 items-center justify-center rounded-full bg-gray-100">
-                <MaterialIcons name="timeline" size={28} color="#9CA3AF" />
-              </View>
-              <Text className="mt-3 text-center text-sm font-hell leading-5 text-gray-600">
-                No activity events yet today. When your clip sends class changes, they will show
-                up here.
-              </Text>
-            </View>
-          ) : (
-            <View className="gap-2.5">
-              {todayTimelineEvents.map((ev, index) => {
-                const v = homeActivityVisual(ev.activity);
-                const timeLabel = formatTimelineTime(ev.created_at);
-                return (
-                  <View
-                    key={`${ev.created_at ?? ""}-${index}`}
-                    className="flex-row overflow-hidden rounded-2xl border border-gray-100 bg-white"
-                    style={shadowStyles.myDaySheet}
-                  >
-                    <View style={[styles.timelineStripe, { backgroundColor: v.accent }]} />
-                    <View className="flex-1 flex-row items-center gap-3 py-3.5 pl-3 pr-4">
-                      <View
-                        className="h-11 w-11 items-center justify-center rounded-xl"
-                        style={{ backgroundColor: `${v.accent}18` }}
-                      >
-                        <MaterialIcons name={v.icon} size={22} color={v.accent} />
-                      </View>
-                      <View className="flex-1">
-                        <Text className="text-base font-hell-round-bold text-gray-900">
-                          {formatActivityDisplayName(ev.activity)}
-                        </Text>
-                        {timeLabel ? (
-                          <Text className="mt-1 text-xs font-hell text-gray-500">{timeLabel}</Text>
-                        ) : null}
-                      </View>
-                    </View>
-                  </View>
-                );
-              })}
-            </View>
-          )}
+          <TodayTimelineList
+            showSignedIn={showAsSignedIn}
+            loading={todayStatsLoading}
+            hasError={todayStatsError}
+            events={todayTimelineEvents}
+            getVisual={homeActivityVisual}
+            formatActivityLabel={formatActivityDisplayName}
+            formatTimeLabel={formatTimelineTime}
+          />
         </ScrollView>
       </View>
 
