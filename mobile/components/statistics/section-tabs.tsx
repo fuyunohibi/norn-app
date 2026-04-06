@@ -2,7 +2,7 @@ import React from "react";
 import { StyleSheet, Text, TouchableOpacity as RNTouchableOpacity, View } from "react-native";
 import { NornColors, shadowPresets } from "@/theme";
 
-type TabId = "activity" | "mode" | "overview";
+export type TabId = "activity" | "mode" | "overview";
 
 type SectionTabsProps = {
   tabs: ReadonlyArray<{ id: TabId; label: string }>;

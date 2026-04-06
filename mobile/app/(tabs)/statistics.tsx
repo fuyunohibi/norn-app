@@ -1,60 +1,18 @@
 import { LinearGradient } from 'expo-linear-gradient';
-import { Activity, BarChart3, Shield, User, Zap } from 'lucide-react-native';
 import React, { useMemo, useState } from 'react';
-import {
-  ActivityIndicator,
-  ImageBackground,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity as RNTouchableOpacity,
-  View,
-} from 'react-native';
+import { ActivityIndicator, ImageBackground, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Card } from '../../components/ui/card';
+import { ActivitySection } from '../../components/statistics/activity-section';
+import { ModeBreakdownSection } from '../../components/statistics/mode-breakdown-section';
+import { OverviewSection } from '../../components/statistics/overview-section';
 import { SectionTabs } from '../../components/statistics/section-tabs';
-import { LineChart } from '../../components/statistics/line-chart';
+import type { TabId } from '../../components/statistics/section-tabs';
+import type { ActivityStatistics } from '../../services/backend-api.service';
 import { useAuth } from '../../contexts/auth-context';
 import { useActivityStatistics } from '../../hooks/useActivityStatistics';
-import {
-  bucketActivityEventsByDay,
-  criticalActivityTotals,
-  formatActivityDisplayName,
-} from '../../utils/imu-activity';
-import { HERO_MIN_HEIGHT, NornColors, heroTextShadow, shadowPresets, shadowStyles } from '@/theme';
-
-/**
- * NativeWind's jsx wrapper replaces RN `TouchableOpacity` with a css-interop implementation
- * that can throw "Couldn't find a navigation context" inside tab navigators. Using
- * `createElement` targets the real RN component and avoids that wrapper.
- */
-function RawTouchableOpacity(
-  props: React.ComponentProps<typeof RNTouchableOpacity>,
-): React.ReactElement {
-  return React.createElement(RNTouchableOpacity, props);
-}
-
-const touchStyles = StyleSheet.create({
-  trendsPill: {
-    borderRadius: 9999,
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-  },
-  trendsPillActive: {
-    backgroundColor: NornColors.brandOrange,
-  },
-  rangePillActive: {
-    backgroundColor: NornColors.brandOrange,
-  },
-});
-
-function formatMinutesFromSeconds(seconds: number) {
-  const m = Math.round(seconds / 60);
-  if (m < 60) return `${m}m`;
-  const h = Math.floor(m / 60);
-  const rem = m % 60;
-  return `${h}h ${rem}m`;
-}
+import { bucketActivityEventsByDay, criticalActivityTotals } from '../../utils/imu-activity';
+import { HERO_MIN_HEIGHT, NornColors, heroTextShadow, shadowStyles } from '@/theme';
 
 const StatisticsScreen = () => {
   const { user } = useAuth();
@@ -73,15 +31,15 @@ const StatisticsScreen = () => {
   const isLoading = loadToday || load7 || load30;
   const hasActivityData = (activity30?.total_events ?? 0) > 0;
 
-  const [activeSection, setActiveSection] = useState<'overview' | 'mode' | 'activity'>('activity');
+  const [activeSection, setActiveSection] = useState<TabId>('activity');
   const [timeRange, setTimeRange] = useState<'7d' | '30d'>('7d');
   const [activityMode, setActivityMode] = useState<'trends' | 'today'>('trends');
 
-  const sectionTabs = [
+  const sectionTabs: ReadonlyArray<{ id: TabId; label: string }> = [
     { id: 'activity', label: 'Activity' },
     { id: 'mode', label: 'Safety' },
     { id: 'overview', label: 'Overview' },
-  ] as const;
+  ];
 
   const timeRangeOptions = [
     { id: '7d' as const, label: '7-day' },
@@ -121,326 +79,7 @@ const StatisticsScreen = () => {
     return sorted[0]?.[0] ?? null;
   }, [activityToday?.by_activity]);
 
-  const renderOverview = () => (
-    <View className="mb-2">
-      <Text className="mb-1 text-xs font-hell-round-bold uppercase tracking-[0.08em] text-gray-400">
-        Summary
-      </Text>
-      <Text className="mb-5 text-xl font-hell-round-bold text-gray-900">Overview</Text>
-      {!hasActivityData ? (
-        <View
-          className="overflow-hidden rounded-3xl border border-orange-100/80 bg-orange-50/35 px-5 py-8"
-          style={shadowStyles.card}
-        >
-          <Text className="text-center font-hell text-base leading-6 text-gray-600">
-            No activity from your clip in the last 30 days. When it picks up changes in how you move or rest, those
-            moments will appear here.
-          </Text>
-        </View>
-      ) : (
-        <View className="flex-row flex-wrap gap-3">
-          <View
-            className="min-w-[140px] flex-1 overflow-hidden rounded-3xl border border-gray-200/90 bg-white p-4"
-            style={shadowStyles.card}
-          >
-            <View className="mb-3 h-11 w-11 items-center justify-center rounded-2xl border border-orange-100 bg-orange-50/90">
-              <Activity size={22} color={NornColors.brandOrange} strokeWidth={2.2} />
-            </View>
-            <Text className="text-3xl font-hell-round-bold text-gray-900">{activity30?.total_events ?? 0}</Text>
-            <Text className="mt-1 font-hell text-sm leading-5 text-gray-500">State changes (30 days)</Text>
-          </View>
-
-          <View
-            className="min-w-[140px] flex-1 overflow-hidden rounded-3xl border border-gray-200/90 bg-white p-4"
-            style={shadowStyles.card}
-          >
-            <View className="mb-3 h-11 w-11 items-center justify-center rounded-2xl border border-amber-100 bg-amber-50/90">
-              <Shield size={22} color="#D97706" strokeWidth={2.2} />
-            </View>
-            <Text className="text-3xl font-hell-round-bold text-gray-900">{imuCritical30.count}</Text>
-            <Text className="mt-1 font-hell text-sm leading-5 text-gray-500">
-              Safety segments (near-fall, falling, after-fall)
-            </Text>
-          </View>
-
-          <View
-            className="min-w-[140px] flex-1 overflow-hidden rounded-3xl border border-gray-200/90 bg-white p-4"
-            style={shadowStyles.card}
-          >
-            <View className="mb-3 h-11 w-11 items-center justify-center rounded-2xl border border-blue-100 bg-blue-50/90">
-              <Zap size={22} color="#306DEE" strokeWidth={2.2} />
-            </View>
-            <Text className="text-3xl font-hell-round-bold text-gray-900">{Math.round(imuTrackedMinutes)}</Text>
-            <Text className="mt-1 font-hell text-sm leading-5 text-gray-500">Est. tracked minutes</Text>
-          </View>
-        </View>
-      )}
-    </View>
-  );
-
-  const renderModeBreakdown = () => (
-    <View className="mb-2">
-      <Text className="mb-1 text-xs font-hell-round-bold uppercase tracking-[0.08em] text-gray-400">
-        Safety
-      </Text>
-      <Text className="mb-5 text-xl font-hell-round-bold text-gray-900">Activity breakdown (30 days)</Text>
-      {!hasActivityData ? (
-        <View className="rounded-3xl border border-gray-100 bg-gray-50/80 px-5 py-6">
-          <Text className="text-center font-hell text-gray-600">No activity breakdown yet.</Text>
-        </View>
-      ) : (
-        <View className="gap-4">
-          <View className="flex-row gap-3">
-            <View
-              className="flex-1 overflow-hidden rounded-3xl border border-gray-200/90 bg-white p-4"
-              style={shadowStyles.card}
-            >
-              <View className="flex-row items-center gap-3">
-                <View className="h-12 w-12 items-center justify-center rounded-2xl border border-blue-100 bg-blue-50/90">
-                  <User size={24} color="#306DEE" fill="#306DEE" strokeWidth={2.2} />
-                </View>
-                <View className="min-w-0 flex-1">
-                  <Text className="text-2xl font-hell-round-bold text-gray-900">
-                    {activity30?.total_events ?? 0}
-                  </Text>
-                  <Text className="mt-0.5 font-hell text-xs leading-4 text-gray-500">Posture / movement changes</Text>
-                </View>
-              </View>
-            </View>
-
-            <View
-              className="flex-1 overflow-hidden rounded-3xl border border-gray-200/90 bg-white p-4"
-              style={shadowStyles.card}
-            >
-              <View className="flex-row items-center gap-3">
-                <View className="h-12 w-12 items-center justify-center rounded-2xl border border-amber-100 bg-amber-50/90">
-                  <Shield size={24} color="#D97706" fill="#D97706" strokeWidth={2} />
-                </View>
-                <View className="min-w-0 flex-1">
-                  <Text className="text-2xl font-hell-round-bold text-gray-900">{imuCritical30.count}</Text>
-                  <Text className="mt-0.5 font-hell text-xs leading-4 text-gray-500">
-                    Near-fall, falling, after-fall
-                  </Text>
-                </View>
-              </View>
-            </View>
-          </View>
-          {activity30?.by_activity && Object.keys(activity30.by_activity).length > 0 && (
-            <View
-              className="overflow-hidden rounded-3xl border border-gray-200/90 bg-white p-4"
-              style={shadowStyles.card}
-            >
-              <Text className="mb-3 text-base font-hell-round-bold text-gray-900">Time by activity</Text>
-              {Object.entries(activity30.by_activity).map(([name, bucket]) => {
-                const segmentCount = bucket.count ?? 0;
-                const segmentLabel = segmentCount === 1 ? 'segment' : 'segments';
-                return (
-                  <View
-                    key={name}
-                    className="mb-2 flex-row items-center justify-between rounded-2xl bg-gray-50/90 px-3.5 py-3 last:mb-0"
-                  >
-                    <Text className="mr-2 flex-shrink font-hell text-gray-800">{formatActivityDisplayName(name)}</Text>
-                    <Text className="font-hell-round-bold text-gray-900">
-                      {formatMinutesFromSeconds(bucket.total_seconds ?? 0)} · {segmentCount} {segmentLabel}
-                    </Text>
-                  </View>
-                );
-              })}
-            </View>
-          )}
-        </View>
-      )}
-    </View>
-  );
-
-  const renderActivity = () => (
-    <View className="gap-5">
-      <View className="mb-1">
-        <Text className="text-xs font-hell-round-bold uppercase tracking-[0.08em] text-gray-400">Activity</Text>
-        <Text className="mt-1 text-xl font-hell-round-bold text-gray-900">Trends & today</Text>
-      </View>
-
-      <View className="mb-4 flex-row flex-wrap items-center justify-between gap-3">
-        <View className="flex-row rounded-full bg-gray-100 p-1">
-          {(['trends', 'today'] as const).map((mode) => {
-            const isActive = activityMode === mode;
-            return (
-              <RawTouchableOpacity
-                key={mode}
-                activeOpacity={0.88}
-                onPress={() => setActivityMode(mode)}
-                style={[touchStyles.trendsPill, isActive && touchStyles.trendsPillActive]}
-              >
-                <Text
-                  className={`text-xs font-hell-round-bold ${isActive ? 'text-white' : 'text-gray-500'}`}
-                >
-                  {mode === 'trends' ? 'Trends' : 'Today'}
-                </Text>
-              </RawTouchableOpacity>
-            );
-          })}
-        </View>
-        {activityMode === 'trends' && (
-          <View className="flex-row rounded-full bg-gray-100 p-1">
-            {timeRangeOptions.map((option) => {
-              const isActive = timeRange === option.id;
-              return (
-                <RawTouchableOpacity
-                  key={option.id}
-                  activeOpacity={0.88}
-                  onPress={() => setTimeRange(option.id)}
-                  style={[touchStyles.trendsPill, isActive && touchStyles.rangePillActive]}
-                >
-                  <Text
-                    className={`text-xs font-hell-round-bold ${
-                      isActive ? 'text-white' : 'text-gray-500'
-                    }`}
-                  >
-                    {option.label}
-                  </Text>
-                </RawTouchableOpacity>
-              );
-            })}
-          </View>
-        )}
-      </View>
-
-      {activityMode === 'trends' ? (
-        !hasActivityData ? (
-          <View
-            className="items-center overflow-hidden rounded-3xl border border-gray-100 bg-gray-50/90 px-6 py-10"
-            style={shadowStyles.card}
-          >
-            <View className="h-14 w-14 items-center justify-center rounded-2xl bg-white shadow-sm">
-              <BarChart3 size={30} color="#9CA3AF" strokeWidth={2} />
-            </View>
-            <Text className="mt-5 text-lg font-hell-round-bold text-gray-900">No events yet</Text>
-            <Text className="mt-2 max-w-xs text-center font-hell text-sm leading-5 text-gray-600">
-              Daily trends appear once your clip starts posting activity changes.
-            </Text>
-          </View>
-        ) : (
-          <View
-            className="overflow-hidden rounded-3xl border border-gray-200/90 bg-white"
-            style={shadowStyles.card}
-          >
-            <ImageBackground
-              source={require('../../assets/images/backgrounds/daytime-bg.png')}
-              resizeMode="cover"
-              className="w-full overflow-hidden rounded-t-3xl"
-              style={{ paddingHorizontal: 20, paddingTop: 20, paddingBottom: 8 }}
-            >
-              <View
-                pointerEvents="none"
-                style={[StyleSheet.absoluteFillObject, { backgroundColor: 'rgba(255, 255, 255, 0.82)' }]}
-              />
-              <View>
-                <Text className="text-lg font-hell-round-bold text-gray-900">Events per day</Text>
-                <Text className="mt-1.5 font-hell text-sm leading-5 text-gray-600">
-                  {`How often your clip reported a change in movement or posture — last ${chartDayCount} days in this range`}
-                </Text>
-              </View>
-            </ImageBackground>
-            <View className="px-4 pb-6 pt-1">
-              <LineChart values={imuEventValues} color={NornColors.brandOrange} labels={imuChartLabels} />
-              {imuChartLabels.length > 0 && (
-                <View className="mt-5 flex-row justify-between border-t border-gray-100 pt-4">
-                  {imuChartLabels.map((label) => (
-                    <View key={label.key} className="flex-1 items-center">
-                      <Text className="text-xs font-hell-round-bold text-gray-700">{label.weekday.charAt(0)}</Text>
-                      <Text className="mt-0.5 text-[10px] font-hell text-gray-400">{label.day}</Text>
-                    </View>
-                  ))}
-                </View>
-              )}
-            </View>
-            <View className="border-t border-gray-100 bg-gray-50/80 px-5 py-3.5">
-              <Text className="text-center text-xs font-hell leading-4 text-gray-500">
-                14-day view plots the last 14 days; 7-day shows the full week.
-              </Text>
-            </View>
-          </View>
-        )
-      ) : !showStatsSignedIn ? (
-        <View className="rounded-3xl border border-orange-100/80 bg-orange-50/35 px-5 py-8">
-          <Text className="text-center font-hell text-base text-gray-600">Sign in to see today&apos;s activity.</Text>
-        </View>
-      ) : (
-        <View
-          className="overflow-hidden rounded-3xl border border-gray-200/90 bg-white"
-          style={shadowStyles.card}
-        >
-          <ImageBackground
-            source={require('../../assets/images/backgrounds/daytime-bg.png')}
-            resizeMode="cover"
-            className="w-full overflow-hidden rounded-t-3xl"
-          >
-            <LinearGradient
-              colors={['rgba(0,0,0,0.22)', 'rgba(0,0,0,0.48)']}
-              start={{ x: 0.5, y: 0 }}
-              end={{ x: 0.5, y: 1 }}
-              style={StyleSheet.absoluteFillObject}
-            />
-            <View className="px-5 pb-3.5 pt-[18px]">
-              <Text className="text-lg font-hell-round-bold text-white" style={heroTextShadow}>
-                Today
-              </Text>
-              <Text className="mt-1 font-hell text-xs leading-4 text-white/90" style={heroTextShadow}>
-                Snapshot from your clip so far today
-              </Text>
-            </View>
-          </ImageBackground>
-          <View className="flex-row flex-wrap gap-3 px-4 pb-5 pt-1">
-            <View className="min-w-[108px] flex-1 rounded-2xl border border-gray-200/70 bg-white px-3.5 py-4 shadow-sm">
-              <View className="mx-auto mb-3.5 h-12 w-12 items-center justify-center rounded-2xl border border-blue-100/90 bg-blue-50">
-                <User size={22} color="#306DEE" strokeWidth={2.2} fill="#306DEE" />
-              </View>
-              <Text className="text-center text-[10px] font-hell-round-bold uppercase tracking-[0.06em] text-gray-400">
-                Events
-              </Text>
-              <Text className="mt-1.5 text-center text-2xl font-hell-round-bold text-gray-900">
-                {activityToday?.total_events ?? 0}
-              </Text>
-            </View>
-            <View className="min-w-[108px] flex-1 rounded-2xl border border-gray-200/70 bg-white px-3.5 py-4 shadow-sm">
-              <View className="mx-auto mb-3.5 h-12 w-12 items-center justify-center rounded-2xl border border-emerald-100/90 bg-emerald-50">
-                <Activity size={22} color="#059669" strokeWidth={2.2} />
-              </View>
-              <Text className="text-center text-[10px] font-hell-round-bold uppercase tracking-[0.06em] text-gray-400">
-                Top activity
-              </Text>
-              <Text
-                className="mt-1.5 min-h-[40px] text-center text-sm font-hell-round-bold leading-5 text-gray-900"
-                numberOfLines={2}
-              >
-                {topClassToday ? formatActivityDisplayName(topClassToday) : '—'}
-              </Text>
-            </View>
-            <View className="min-w-[108px] flex-1 rounded-2xl border border-gray-200/70 bg-white px-3.5 py-4 shadow-sm">
-              <View className="mx-auto mb-3.5 h-12 w-12 items-center justify-center rounded-2xl border border-orange-100/90 bg-orange-50/90">
-                <Zap size={22} color={NornColors.brandOrange} strokeWidth={2.2} />
-              </View>
-              <Text className="text-center text-[10px] font-hell-round-bold uppercase tracking-[0.06em] text-gray-400">
-                Tracked time
-              </Text>
-              <Text className="mt-1.5 text-center text-lg font-hell-round-bold text-gray-900">
-                {activityToday?.by_activity
-                  ? formatMinutesFromSeconds(
-                      Object.values(activityToday.by_activity).reduce(
-                        (s, b) => s + (b.total_seconds ?? 0),
-                        0,
-                      ),
-                    )
-                  : '—'}
-              </Text>
-            </View>
-          </View>
-        </View>
-      )}
-    </View>
-  );
-
-  const renderActiveSection = () => {
+  const renderActiveSection = (): React.ReactNode => {
     if (!showStatsSignedIn) {
       return (
         <Card variant="outlined" className="border-gray-100 bg-gray-50/80">
@@ -455,11 +94,39 @@ const StatisticsScreen = () => {
 
     switch (activeSection) {
       case 'overview':
-        return renderOverview();
+        return (
+          <OverviewSection
+            hasActivityData={hasActivityData}
+            totalEvents30={activity30?.total_events ?? 0}
+            safetySegments30={imuCritical30.count}
+            trackedMinutes30={imuTrackedMinutes}
+          />
+        );
       case 'mode':
-        return renderModeBreakdown();
+        return (
+          <ModeBreakdownSection
+            hasActivityData={hasActivityData}
+            activity30={activity30 as ActivityStatistics | undefined}
+            safetySegments30={imuCritical30.count}
+          />
+        );
       case 'activity':
-        return renderActivity();
+        return (
+          <ActivitySection
+            activityMode={activityMode}
+            setActivityMode={setActivityMode}
+            timeRange={timeRange}
+            setTimeRange={setTimeRange}
+            timeRangeOptions={timeRangeOptions}
+            hasActivityData={hasActivityData}
+            showStatsSignedIn={showStatsSignedIn}
+            chartDayCount={chartDayCount}
+            imuEventValues={imuEventValues}
+            imuChartLabels={imuChartLabels}
+            activityToday={activityToday as ActivityStatistics | undefined}
+            topClassToday={topClassToday}
+          />
+        );
       default:
         return null;
     }
