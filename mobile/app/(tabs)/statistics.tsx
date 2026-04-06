@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Card } from '../../components/ui/card';
+import { SectionTabs } from '../../components/statistics/section-tabs';
 import { LineChart } from '../../components/statistics/line-chart';
 import { useAuth } from '../../contexts/auth-context';
 import { useActivityStatistics } from '../../hooks/useActivityStatistics';
@@ -34,20 +35,6 @@ function RawTouchableOpacity(
 }
 
 const touchStyles = StyleSheet.create({
-  sectionTab: {
-    flex: 1,
-    alignItems: 'center',
-    borderRadius: 18,
-    paddingVertical: 12,
-    paddingHorizontal: 8,
-    borderWidth: 1,
-    borderColor: 'transparent',
-  },
-  sectionTabActive: {
-    backgroundColor: NornColors.brandOrange,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
-    ...shadowPresets.pill,
-  },
   trendsPill: {
     borderRadius: 9999,
     paddingVertical: 8,
@@ -538,32 +525,11 @@ const StatisticsScreen = () => {
                 Switch between activity trends, safety breakdown, and a quick overview.
               </Text>
 
-              <View
-                className="mt-4 overflow-hidden rounded-3xl border border-gray-200/90 bg-gray-100 p-1"
-                style={shadowStyles.card}
-              >
-                <View className="flex-row">
-                  {sectionTabs.map((tab) => {
-                    const isActive = activeSection === tab.id;
-                    return (
-                      <RawTouchableOpacity
-                        key={tab.id}
-                        activeOpacity={0.88}
-                        onPress={() => setActiveSection(tab.id)}
-                        style={[touchStyles.sectionTab, isActive && touchStyles.sectionTabActive]}
-                      >
-                        <Text
-                          className={`text-sm font-hell-round-bold ${
-                            isActive ? 'text-white' : 'text-gray-500'
-                          }`}
-                        >
-                          {tab.label}
-                        </Text>
-                      </RawTouchableOpacity>
-                    );
-                  })}
-                </View>
-              </View>
+              <SectionTabs
+                tabs={sectionTabs}
+                activeSection={activeSection}
+                onChange={(id) => setActiveSection(id)}
+              />
 
               <View className="mt-8">{renderActiveSection()}</View>
             </>
