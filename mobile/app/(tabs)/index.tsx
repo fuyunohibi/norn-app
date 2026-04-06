@@ -1,10 +1,7 @@
-import MaterialIcons from "@expo/vector-icons/MaterialIcons";
-import { LinearGradient } from "expo-linear-gradient";
 import { useQuery } from "@tanstack/react-query";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  ActivityIndicator,
   Alert,
   Animated,
   Easing,
@@ -12,15 +9,16 @@ import {
   Linking,
   ScrollView,
   Text,
-  TouchableOpacity,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { EmergencyQuickActionsModal } from "../../components/emergency-quick-actions-modal";
 import { homeActivityVisual } from "../../components/home/home-activity-visual";
+import { MyDaySummaryCard } from "../../components/home/my-day-summary-card";
 import { homeScreenStyles } from "../../components/home/home-screen.styles";
 import { TodayActivitiesHeader } from "../../components/home/today-activities-header";
 import { TodayTimelineList } from "../../components/home/today-timeline-list";
+import { WearableStatusChip } from "../../components/home/wearable-status-chip";
 import { NornIcon } from "../../components/norn-icon";
 import { NornStateMascot } from "../../components/norn-state-mascot";
 import { useAuth } from "../../contexts/auth-context";
@@ -29,7 +27,6 @@ import { useCareBackupContacts } from "../../hooks/useCareBackupContacts";
 import { useCareRecipientProfile } from "../../hooks/useCareRecipientProfile";
 import { useImuWearableStatus } from "../../hooks/useImuWearableStatus";
 import { backendAPIService } from "../../services/backend-api.service";
-import { NornColors, shadowStyles } from "@/theme";
 import { ScreenSectionHeader } from "../../components/ui/screen-section-header";
 import { formatActivityDisplayName } from "../../utils/imu-activity";
 import { formatTimelineTime } from "../../utils/time.utils";
@@ -475,37 +472,12 @@ const HomeScreen = () => {
           <NornStateMascot {...mascotProps} />
         </Animated.View>
 
-        <TouchableOpacity
-          accessibilityRole="button"
-          accessibilityLabel={`Wearable status: ${wearableChipLabel}. Opens sensor details.`}
-          onPress={() => router.push("/sensor")}
-          activeOpacity={0.88}
-          className="absolute z-20 flex-row items-center gap-2 rounded-full border border-white/70 bg-white px-3 py-2"
-          style={{
-            right: 14,
-            top: insets.top + 8,
-            ...shadowStyles.chip,
-          }}
-        >
-          {showAsSignedIn && imuStatusLoading ? (
-            <ActivityIndicator size="small" color={NornColors.brandOrange} />
-          ) : (
-            <View
-              className={`h-2 w-2 rounded-full ${
-                wearableStatusDot === "ok"
-                  ? "bg-green-500"
-                  : wearableStatusDot === "off" || wearableStatusDot === "error"
-                    ? "bg-red-500"
-                    : wearableStatusDot === "pending"
-                      ? "bg-amber-400"
-                      : "bg-gray-400"
-              }`}
-            />
-          )}
-          <Text className="text-xs font-hell-round-bold text-gray-900">
-            {wearableChipLabel}
-          </Text>
-        </TouchableOpacity>
+        <WearableStatusChip
+          label={wearableChipLabel}
+          dot={wearableStatusDot}
+          showLoadingSpinner={showAsSignedIn && imuStatusLoading}
+          topInset={insets.top}
+        />
       </View>
 
       <View className="flex-1 bg-gray-900">
@@ -519,128 +491,17 @@ const HomeScreen = () => {
         >
           <ScreenSectionHeader title="My day" subtitle={myDayDateLabel} />
 
-          <View
-            className="mt-4 rounded-[28px] px-4 pb-5 pt-4"
-            style={{ backgroundColor: NornColors.surfaceWarm }}
-          >
-            {!showAsSignedIn ? (
-              <View
-                className="items-center rounded-[24px] px-5 py-8"
-                style={{ backgroundColor: NornColors.surfaceWarmMuted }}
-              >
-                <View className="h-14 w-14 items-center justify-center rounded-full bg-white">
-                  <MaterialIcons name="lock-outline" size={28} color="#A8A29E" />
-                </View>
-                <Text className="mt-3 text-center text-sm font-hell leading-5 text-stone-600">
-                  Sign in to see a summary of your clip activity for today.
-                </Text>
-              </View>
-            ) : todayStatsLoading ? (
-              <View className="items-center py-10">
-                <ActivityIndicator color={NornColors.brandOrange} />
-              </View>
-            ) : todayStatsError ? (
-              <View className="items-center rounded-[24px] px-5 py-6">
-                  <MaterialIcons name="cloud-off" size={26} color="#C2410C" />
-                <Text className="mt-3 text-center text-sm font-hell leading-5 text-orange-900">
-                  Could not load today&apos;s summary. Open Statistics when your connection is back.
-                </Text>
-              </View>
-            ) : (
-              <>
-                <Text className="mb-3 text-base font-hell-round-bold text-stone-800">
-                  Today at a glance
-                </Text>
-                <LinearGradient
-                  colors={[...NornColors.heroActivityGradient]}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={{
-                    position: "relative",
-                    borderRadius: 24,
-                    paddingHorizontal: 20,
-                    paddingVertical: 22,
-                    marginBottom: 4,
-                    overflow: "hidden",
-                  }}
-                >
-                  <Text className="pr-16 text-xl font-hell-round-bold text-white">
-                    Your movement matters
-                  </Text>
-                  <Text className="mt-2 pr-14 text-sm font-hell leading-5 text-white/90">
-                    {(activityToday?.total_events ?? 0) > 0
-                      ? `You logged ${activityToday?.total_events ?? 0} state change${(activityToday?.total_events ?? 0) === 1 ? "" : "s"} and about ${Math.round(todayTrackedMinutes)} minutes of wear time today. Open Statistics for more detail.`
-                      : "When your clip reports walking, sitting, and other states, a fuller picture of your day will appear here."}
-                  </Text>
-                  <View
-                    style={{ position: "absolute", right: 12, bottom: 10, opacity: 0.38 }}
-                    pointerEvents="none"
-                  >
-                    <MaterialIcons name="auto-awesome" size={40} color="#FFFFFF" />
-                  </View>
-                </LinearGradient>
-
-                <Text className="mb-1 mt-5 text-base font-hell-round-bold text-stone-800">
-                  Activity mix
-                </Text>
-                {todayActivityBreakdown.length === 0 ? (
-                  <Text className="mb-3 text-xs font-hell leading-4 text-stone-500">
-                    Your clip hasn&apos;t reported class changes yet — these tiles will fill in as
-                    it learns your day.
-                  </Text>
-                ) : null}
-                <View className="gap-3">
-                  {[0, 2].map((start) => (
-                    <View key={start} className="flex-row gap-3">
-                      {myDayGridKeys.slice(start, start + 2).map((key) => {
-                        const bucket = activityToday?.by_activity?.[key] ?? {
-                          count: 0,
-                          total_seconds: 0,
-                        };
-                        const v = homeActivityVisual(key);
-                        const secs = bucket.total_seconds ?? 0;
-                        const mins = Math.round(secs / 60);
-                        const count = bucket.count ?? 0;
-                        const sub =
-                          count === 0
-                            ? "No events yet"
-                            : mins > 0
-                              ? `${count} event${count === 1 ? "" : "s"} · ~${mins} min`
-                              : `${count} event${count === 1 ? "" : "s"}`;
-                        return (
-                          <View
-                            key={key}
-                            className="min-h-[76px] flex-1 flex-row items-center gap-3 rounded-[24px] bg-[#F3EEE6] px-4 py-3.5"
-                          >
-                            <View
-                              className="h-11 w-11 items-center justify-center rounded-full"
-                              style={{ backgroundColor: v.accent }}
-                            >
-                              <MaterialIcons name={v.icon} size={22} color="#FFFFFF" />
-                            </View>
-                            <View className="min-w-0 flex-1">
-                              <Text
-                                className="text-[15px] font-hell-round-bold text-stone-900"
-                                numberOfLines={1}
-                              >
-                                {formatActivityDisplayName(key)}
-                              </Text>
-                              <Text
-                                className="mt-0.5 text-xs font-hell text-stone-500"
-                                numberOfLines={2}
-                              >
-                                {sub}
-                              </Text>
-                            </View>
-                          </View>
-                        );
-                      })}
-                    </View>
-                  ))}
-                </View>
-              </>
-            )}
-          </View>
+          <MyDaySummaryCard
+            showSignedIn={showAsSignedIn}
+            loading={todayStatsLoading}
+            hasError={todayStatsError}
+            activityToday={activityToday}
+            todayTrackedMinutes={todayTrackedMinutes}
+            todayActivityBreakdown={todayActivityBreakdown}
+            myDayGridKeys={myDayGridKeys}
+            getVisual={homeActivityVisual}
+            formatActivityLabel={formatActivityDisplayName}
+          />
 
           <TodayActivitiesHeader onSeeAll={() => router.push("/statistics")} />
 
