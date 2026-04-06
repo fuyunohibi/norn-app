@@ -18,6 +18,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { EmergencyQuickActionsModal } from "../../components/emergency-quick-actions-modal";
+import { TodayActivitiesHeader } from "../../components/home/today-activities-header";
 import { NornIcon } from "../../components/norn-icon";
 import { NornStateMascot } from "../../components/norn-state-mascot";
 import { useAuth } from "../../contexts/auth-context";
@@ -706,24 +707,7 @@ const HomeScreen = () => {
             )}
           </View>
 
-          <View className="mb-3 mt-9 flex-row items-center justify-between">
-              <Text className="text-lg font-hell-round-bold text-gray-900">
-                Today&apos;s activities
-              </Text>
-            <TouchableOpacity
-              onPress={() => router.push("/statistics")}
-              activeOpacity={0.7}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              className="flex-row items-center rounded-full"
-            >
-              <Text
-                className="text-sm font-hell-round-bold"
-                style={{ color: NornColors.brandOrange }}
-              >
-                See all
-              </Text>
-            </TouchableOpacity>
-          </View>
+          <TodayActivitiesHeader onSeeAll={() => router.push("/statistics")} />
 
           {!showAsSignedIn ? (
             <View className="rounded-2xl border border-dashed border-gray-200 bg-gray-50/80 px-4 py-6">

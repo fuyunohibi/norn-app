@@ -10,6 +10,7 @@ import {
   View,
 } from 'react-native';
 import { StackScreenScaffold } from '../../components/layout';
+import { InboxHeader } from '../../components/notifications/inbox-header';
 import { Card } from '../../components/ui/card';
 import { SectionHeading } from '../../components/ui/section-heading';
 import { useAuth } from '../../contexts/auth-context';
@@ -144,28 +145,11 @@ const NotificationsScreen = () => {
                 </View>
               </View>
 
-              <View className="mb-2 mt-10 flex-row items-center justify-between">
-                <View>
-                  <Text className="text-xs font-hell-round-bold uppercase tracking-wide text-gray-400">
-                    Inbox
-                  </Text>
-                  <Text className="mt-1 text-lg font-hell-round-bold text-gray-900">
-                    Recent alerts
-                  </Text>
-                </View>
-                {unreadCount > 0 ? (
-                  <TouchableOpacity
-                    onPress={() => markAllAsReadMutation.mutate()}
-                    disabled={markAllAsReadMutation.isPending}
-                    activeOpacity={0.88}
-                    className="rounded-full bg-gray-900 px-3 py-2"
-                  >
-                    <Text className="text-xs font-hell-round-bold text-white">
-                      Mark all read ({unreadCount})
-                    </Text>
-                  </TouchableOpacity>
-                ) : null}
-              </View>
+              <InboxHeader
+                unreadCount={unreadCount}
+                markAllPending={markAllAsReadMutation.isPending}
+                onMarkAllRead={() => markAllAsReadMutation.mutate()}
+              />
 
               {alertsLoading ? (
                 <Card variant="outlined" className="border-gray-100 bg-gray-50/80">

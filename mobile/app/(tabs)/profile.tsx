@@ -1,6 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
 import { router } from 'expo-router';
-import { Bell, ChevronRight, Info } from 'lucide-react-native';
 import React from 'react';
 import {
   ActivityIndicator,
@@ -8,16 +7,17 @@ import {
   RefreshControl,
   ScrollView,
   Text,
-  TouchableOpacity,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getCurrentUser } from '../../actions/user.actions';
 import { Button } from '../../components/ui/button';
 import { Card } from '../../components/ui/card';
+import { ProfileAvatar } from '../../components/profile/profile-avatar';
+import { ProfileShortcutsCard } from '../../components/profile/profile-shortcuts-card';
 import { useAuth } from '../../contexts/auth-context';
 import { formatMemberSince } from '../../utils/date.utils';
-import { HERO_MIN_HEIGHT_PROFILE, NornColors, profileGroupCardStyle } from '@/theme';
+import { HERO_MIN_HEIGHT_PROFILE, NornColors } from '@/theme';
 
 /** Diameter; half overlaps hero, half sits on the white sheet. */
 const AVATAR_SIZE = 128;
@@ -53,28 +53,6 @@ const ProfileScreen = () => {
       className="w-full overflow-hidden rounded-b-[2.5rem]"
       style={{ minHeight: HERO_MIN_HEIGHT_PROFILE + insets.top }}
     />
-  );
-
-  const renderAvatar = () => (
-    <View
-      className="items-center justify-center"
-      style={{
-        backgroundColor: NornColors.brandOrange,
-        width: AVATAR_SIZE,
-        height: AVATAR_SIZE,
-        borderRadius: AVATAR_RADIUS,
-        borderWidth: 4,
-        borderColor: '#ffffff',
-      }}
-    >
-      {profile?.full_name ? (
-        <Text className="text-4xl font-hell-round-bold text-white">
-          {profile.full_name.charAt(0).toUpperCase()}
-        </Text>
-      ) : (
-        <Text className="text-4xl font-hell-round-bold text-white">U</Text>
-      )}
-    </View>
   );
 
   if (showInitialLoading) {
@@ -117,7 +95,7 @@ const ProfileScreen = () => {
             elevation: 14,
           }}
         >
-          {renderAvatar()}
+          <ProfileAvatar fullName={profile?.full_name} size={AVATAR_SIZE} />
         </View>
 
         <ScrollView
@@ -157,60 +135,10 @@ const ProfileScreen = () => {
             More
           </Text>
 
-          <View
-            className="overflow-hidden rounded-3xl border border-gray-200/90 bg-white"
-            style={profileGroupCardStyle()}
-          >
-            <TouchableOpacity
-              className="flex-row items-center px-4 py-4 active:bg-gray-50"
-              onPress={() => router.push('/notifications')}
-              activeOpacity={0.92}
-            >
-              <View
-                className="mr-3.5 h-[3.25rem] w-[3.25rem] items-center justify-center rounded-2xl border border-orange-100 bg-orange-50/90"
-                style={{ borderCurve: 'continuous' }}
-              >
-                <Bell size={22} color={NornColors.brandOrange} strokeWidth={2.2} />
-              </View>
-              <View className="min-w-0 flex-1 pr-2">
-                <Text className="text-base font-hell-round-bold text-gray-900">
-                  Notifications
-                </Text>
-                <Text className="mt-0.5 font-hell text-sm leading-5 text-gray-500">
-                  Manage alert preferences
-                </Text>
-              </View>
-              <View className="h-9 w-9 items-center justify-center">
-                <ChevronRight size={24} color="#9CA3AF" strokeWidth={2.5} />
-              </View>
-            </TouchableOpacity>
-
-            <View className="mx-4 h-px bg-gray-100" />
-
-            <TouchableOpacity
-              className="flex-row items-center px-4 py-4 active:bg-gray-50"
-              onPress={() => router.push('/about')}
-              activeOpacity={0.92}
-            >
-              <View
-                className="mr-3.5 h-[3.25rem] w-[3.25rem] items-center justify-center rounded-2xl border border-gray-200/80 bg-gray-50"
-                style={{ borderCurve: 'continuous' }}
-              >
-                <Info size={22} color="#52525B" strokeWidth={2.2} />
-              </View>
-              <View className="min-w-0 flex-1 pr-2">
-                <Text className="text-base font-hell-round-bold text-gray-900">
-                  About NORN
-                </Text>
-                <Text className="mt-0.5 font-hell text-sm leading-5 text-gray-500">
-                  App version and information
-                </Text>
-              </View>
-              <View className="h-9 w-9 items-center justify-center rounded-full">
-                <ChevronRight size={24} color="#9CA3AF" strokeWidth={2.5} />
-              </View>
-            </TouchableOpacity>
-          </View>
+          <ProfileShortcutsCard
+            onNotifications={() => router.push('/notifications')}
+            onAbout={() => router.push('/about')}
+          />
 
           <View className="mt-8">
             <Button

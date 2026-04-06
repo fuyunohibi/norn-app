@@ -1,16 +1,7 @@
 import type { CareBackupContact } from "@/database/types";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { router } from "expo-router";
-import {
-  LogOut,
-  Pencil,
-  PhoneCall,
-  Star,
-  Trash2,
-  User,
-  UserPlus,
-  X,
-} from "lucide-react-native";
+import { Pencil, PhoneCall, Star, Trash2, User, UserPlus, X } from "lucide-react-native";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import {
@@ -29,6 +20,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { StackScreenScaffold } from "../../components/layout";
+import { AccountSummaryCard } from "../../components/settings/account-summary-card";
 import { Button } from "../../components/ui/button";
 import { Card } from "../../components/ui/card";
 import { Input } from "../../components/ui/input";
@@ -344,32 +336,7 @@ const SettingsScreen = () => {
             Signed in as
           </Text>
 
-          <Card
-            variant="outlined"
-            className="mt-4 border-gray-100 bg-white"
-            style={shadowStyles.card}
-          >
-            <View className="flex-row gap-4">
-              <View className="flex-1 justify-center items-start">
-                <Text
-                  className="text-base font-hell-round-bold text-gray-900"
-                  numberOfLines={2}
-                >
-                  {user?.email || "Guest"}
-                </Text>
-              </View>
-              <TouchableOpacity
-                onPress={handleLogout}
-                className="flex-row items-center justify-center self-start rounded-2xl border border-red-200 bg-white px-4 py-3 active:opacity-90"
-                activeOpacity={0.88}
-              >
-                <LogOut size={18} color="#dc2626" strokeWidth={2.2} />
-                <Text className="ml-2 font-hell-round-bold text-sm text-red-600">
-                  Sign out
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </Card>
+          <AccountSummaryCard email={user?.email} onSignOut={handleLogout} />
 
           <Text className="mb-2 mt-10 text-xs font-hell-round-bold uppercase tracking-[0.08em] text-orange-600">
             Monitored person
