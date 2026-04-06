@@ -22,7 +22,8 @@ import { NornIcon } from "../../components/norn-icon";
 import { NornStateMascot } from "../../components/norn-state-mascot";
 import { useAuth } from "../../contexts/auth-context";
 import { useActivityStatistics } from "../../hooks/useActivityStatistics";
-import { useEmergencyContacts } from "../../hooks/useEmergencyContacts";
+import { useMonitoredPersonContacts } from "../../hooks/useMonitoredPersonContacts";
+import { getPreferences } from "../../services/user.service";
 import { useImuWearableStatus } from "../../hooks/useImuWearableStatus";
 import { backendAPIService } from "../../services/backend-api.service";
 import { formatActivityDisplayName } from "../../utils/imu-activity";
@@ -124,7 +125,7 @@ const HomeScreen = () => {
   const insets = useSafeAreaInsets();
   const lastFallAlertRef = useRef<string | null>(null);
   const [fallQuickActionMessage, setFallQuickActionMessage] = useState<string | null>(null);
-  const [showQuickActionsModal, setShowQuickActionsModal] = useState(true);
+  const [showQuickActionsModal, setShowQuickActionsModal] = useState(false);
   /** When true, banner shows `NornStateMascot` instead of the illustration. */
   const [bannerShowsMascot, setBannerShowsMascot] = useState(false);
   const bannerBlend = useRef(new Animated.Value(0)).current;
@@ -171,17 +172,47 @@ const HomeScreen = () => {
     [bannerBlend],
   );
 
-  const { contacts, isLoading: contactsLoading } = useEmergencyContacts(userId);
+  const { contacts, isLoading: contactsLoading } = useMonitoredPersonContacts(userId);
 
-  const primaryContact = useMemo(
+  const { data: userPreferences } = useQuery({
+    queryKey: ["user-preferences", userId],
+    queryFn: () => {
+      if (!userId) return null;
+      return getPreferences(userId);
+    },
+    enabled: !!userId,
+  });
+
+  const monitoredPersonName = userPreferences?.monitored_person_full_name?.trim() || null;
+  const monitoredPersonPhone = userPreferences?.monitored_person_phone?.trim() || null;
+  const monitoredCallLabel = monitoredPersonName ?? "the person you monitor";
+
+  const primaryBackupContact = useMemo(
     () => contacts.find((contact) => contact.is_primary) ?? contacts[0] ?? null,
     [contacts],
   );
 
+  const primaryCallLabel = useMemo(() => {
+    if (monitoredPersonPhone) {
+      return `Call ${monitoredCallLabel}`;
+    }
+    if (primaryBackupContact) {
+      return `Call ${primaryBackupContact.full_name}`;
+    }
+    return "Add a number in Settings";
+  }, [monitoredCallLabel, monitoredPersonPhone, primaryBackupContact]);
+
+  const primaryCallDisabled = useMemo(() => {
+    if (monitoredPersonPhone) return false;
+    if (contactsLoading) return true;
+    if (primaryBackupContact) return false;
+    return true;
+  }, [contactsLoading, monitoredPersonPhone, primaryBackupContact]);
+
   const presentFallQuickActions = useCallback((message?: string) => {
     setFallQuickActionMessage(
       message ??
-        "A fall was detected. Let us know how to help or call an emergency contact.",
+        "A fall or safety event was reported for the person wearing the sensor. Check on them or use the actions below.",
     );
     setShowQuickActionsModal(true);
   }, []);
@@ -227,15 +258,19 @@ const HomeScreen = () => {
     [dismissFallQuickActions],
   );
 
-  const handleNeedHelp = useCallback(() => {
-    if (!primaryContact) {
+  const handlePrimaryQuickCall = useCallback(() => {
+    if (monitoredPersonPhone) {
+      callPhoneNumber(monitoredPersonPhone, monitoredCallLabel);
+      return;
+    }
+    if (!primaryBackupContact) {
       Alert.alert(
-        "No emergency contacts",
-        "Add at least one emergency contact in Settings to place a quick call.",
+        "No number to call",
+        "Add the monitored person's phone number or a backup contact in Settings.",
         [
           { text: "Cancel", style: "cancel" },
           {
-            text: "Add Contact",
+            text: "Open Settings",
             onPress: () => router.push("/settings"),
           },
         ],
@@ -243,12 +278,16 @@ const HomeScreen = () => {
       return;
     }
 
-    callPhoneNumber(primaryContact.phone_number, primaryContact.full_name);
-  }, [callPhoneNumber, primaryContact]);
+    callPhoneNumber(primaryBackupContact.phone_number, primaryBackupContact.full_name);
+  }, [
+    callPhoneNumber,
+    monitoredCallLabel,
+    monitoredPersonPhone,
+    primaryBackupContact,
+  ]);
 
-  const handleImOk = useCallback(() => {
+  const handleAcknowledgeFallAlert = useCallback(() => {
     dismissFallQuickActions();
-    Alert.alert("Status updated", "Thanks for letting us know you are safe.");
   }, [dismissFallQuickActions]);
 
   const handleManageContacts = useCallback(() => {
@@ -430,8 +469,8 @@ const HomeScreen = () => {
       const isNearFall = latestFall.alert_type === "fall_risk";
       presentFallQuickActions(
         isNearFall
-          ? `Unstable standing was reported (${confidence} confidence if available). Check in if needed.`
-          : `We detected a fall with ${confidence} confidence. Check in and choose a quick action.`,
+          ? `Unstable standing was reported for the person you monitor (${confidence} confidence if available). Consider checking on them.`
+          : `A fall was detected (${confidence} confidence) for the person wearing the sensor. Check on them or call using the actions below.`,
       );
     }
   }, [unreadAlerts, presentFallQuickActions]);
@@ -448,10 +487,10 @@ const HomeScreen = () => {
 
     const msg =
       code === "f"
-        ? "The wearable reported a fall. Let us know if you need assistance."
+        ? "The wearable reported a fall for the person you monitor. Check on them or call below."
         : code === "af"
-          ? "The wearable reports you may still be down after a fall."
-          : "The wearable reports unstable standing — you may be at risk of falling.";
+          ? "The wearable suggests they may still be down after a fall. Please check on them."
+          : "The wearable reports unstable standing — they may be at higher risk of falling.";
 
     presentFallQuickActions(msg);
   }, [imuStatus?.activity_code, imuStatus?.last_seen_at, presentFallQuickActions]);
@@ -798,10 +837,11 @@ const HomeScreen = () => {
         message={fallQuickActionMessage}
         contacts={contacts}
         contactsLoading={contactsLoading}
-        primaryContact={primaryContact}
+        primaryCallLabel={primaryCallLabel}
+        primaryCallDisabled={primaryCallDisabled}
         onDismiss={handleFallSheetDismiss}
-        onImOk={handleImOk}
-        onCallPrimary={handleNeedHelp}
+        onAcknowledge={handleAcknowledgeFallAlert}
+        onPrimaryCall={handlePrimaryQuickCall}
         onManageContacts={handleManageContacts}
         onCallContact={callPhoneNumber}
       />

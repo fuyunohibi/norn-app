@@ -1,5 +1,6 @@
-import type { EmergencyContact } from "@/database/types";
+import type { MonitoredPersonContact } from "@/database/types";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useQuery } from "@tanstack/react-query";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import {
@@ -13,7 +14,7 @@ import {
   UserPlus,
   X,
 } from "lucide-react-native";
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import {
   ActivityIndicator,
@@ -36,11 +37,12 @@ import { Button } from "../../components/ui/button";
 import { Card } from "../../components/ui/card";
 import { Input } from "../../components/ui/input";
 import { useAuth } from "../../contexts/auth-context";
-import { useEmergencyContacts } from "../../hooks/useEmergencyContacts";
+import { useMonitoredPersonContacts } from "../../hooks/useMonitoredPersonContacts";
 import {
-  emergencyContactFormSchema,
-  EmergencyContactFormValues,
-} from "../../schemas/emergency-contact.schema";
+  monitoredPersonContactFormSchema,
+  MonitoredPersonContactFormValues,
+} from "../../schemas/monitored-person-contact.schema";
+import { getPreferences, updatePreferences } from "../../services/user.service";
 
 const HERO_MIN_HEIGHT = 200;
 
@@ -83,15 +85,31 @@ const SettingsScreen = () => {
     updateContact,
     deleteContact,
     setPrimaryContact,
-  } = useEmergencyContacts(resolvedUserId);
+  } = useMonitoredPersonContacts(resolvedUserId);
+
+  const { data: preferences, refetch: refetchPreferences } = useQuery({
+    queryKey: ["user-preferences", resolvedUserId],
+    queryFn: () => getPreferences(resolvedUserId!),
+    enabled: Boolean(resolvedUserId),
+  });
+
+  const [monitoredPersonName, setMonitoredPersonName] = useState("");
+  const [monitoredPersonPhone, setMonitoredPersonPhone] = useState("");
+  const [savingMonitoredInfo, setSavingMonitoredInfo] = useState(false);
+
+  useEffect(() => {
+    if (!preferences) return;
+    setMonitoredPersonName(preferences.monitored_person_full_name ?? "");
+    setMonitoredPersonPhone(preferences.monitored_person_phone ?? "");
+  }, [preferences]);
 
   const {
     control: contactControl,
     handleSubmit: handleContactFormSubmit,
     reset: resetContactForm,
     formState: { errors: contactErrors, isSubmitting: isContactSubmitting },
-  } = useForm<EmergencyContactFormValues>({
-    resolver: zodResolver(emergencyContactFormSchema),
+  } = useForm<MonitoredPersonContactFormValues>({
+    resolver: zodResolver(monitoredPersonContactFormSchema),
     defaultValues: {
       full_name: "",
       relationship: "",
@@ -103,7 +121,7 @@ const SettingsScreen = () => {
   });
 
   const [isContactModalVisible, setContactModalVisible] = useState(false);
-  const [editingContact, setEditingContact] = useState<EmergencyContact | null>(
+  const [editingContact, setEditingContact] = useState<MonitoredPersonContact | null>(
     null
   );
 
@@ -112,7 +130,7 @@ const SettingsScreen = () => {
     [contacts]
   );
 
-  const openContactModal = (contact?: EmergencyContact) => {
+  const openContactModal = (contact?: MonitoredPersonContact) => {
     if (contact) {
       resetContactForm({
         id: contact.id,
@@ -166,10 +184,10 @@ const SettingsScreen = () => {
     }
   };
 
-  const handleDeleteContact = (contact: EmergencyContact) => {
+  const handleDeleteContact = (contact: MonitoredPersonContact) => {
     Alert.alert(
       "Remove contact",
-      `Remove ${contact.full_name} from your emergency contacts?`,
+      `Remove ${contact.full_name} from backup contacts?`,
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -210,8 +228,32 @@ const SettingsScreen = () => {
     }
   };
 
-  const onSubmitEmergencyContact = async (
-    values: EmergencyContactFormValues
+  const handleSaveMonitoredPersonInfo = async () => {
+    if (!resolvedUserId) return;
+    setSavingMonitoredInfo(true);
+    try {
+      const name = monitoredPersonName.trim();
+      const phone = monitoredPersonPhone.trim();
+      const result = await updatePreferences(resolvedUserId, {
+        monitored_person_full_name: name.length > 0 ? name : null,
+        monitored_person_phone: phone.length > 0 ? phone : null,
+      });
+      if (!result) {
+        Alert.alert("Error", "Could not save. Please try again.");
+        return;
+      }
+      await refetchPreferences();
+      Alert.alert("Saved", "Updated details for the person wearing the sensor.");
+    } catch (e) {
+      console.error(e);
+      Alert.alert("Error", "Could not save. Please try again.");
+    } finally {
+      setSavingMonitoredInfo(false);
+    }
+  };
+
+  const onSubmitMonitoredPersonContact = async (
+    values: MonitoredPersonContactFormValues
   ) => {
     const currentEditing = editingContact;
     const isEditing = Boolean(currentEditing);
@@ -270,12 +312,10 @@ const SettingsScreen = () => {
       closeContactModal();
       Alert.alert(
         "Success",
-        isEditing
-          ? "Emergency contact updated successfully."
-          : "Emergency contact added."
+        isEditing ? "Contact updated." : "Contact added."
       );
     } catch (error) {
-      console.error("Failed to save emergency contact:", error);
+      console.error("Failed to save contact:", error);
       Alert.alert("Error", "We could not save this contact. Please try again.");
     }
   };
@@ -339,7 +379,7 @@ const SettingsScreen = () => {
             className="mt-2 max-w-[92%] text-base font-hell leading-6 text-white/95"
             style={heroTextShadow}
           >
-            Account and who to reach when you need help.
+            Account and the person you monitor with NORN.
           </Text>
         </View>
       </ImageBackground>
@@ -386,13 +426,58 @@ const SettingsScreen = () => {
           </Card>
 
           <Text className="mb-2 mt-10 text-xs font-hell-round-bold uppercase tracking-[0.08em] text-gray-400">
+            Monitored person
+          </Text>
+          <Text className="text-lg font-hell-round-bold text-gray-900">
+            Person wearing the sensor
+          </Text>
+          <Text className="mt-1 font-hell text-sm leading-5 text-gray-500">
+            The clip is on them; you use this app to respond when something happens. Add their name
+            and number so you can call them from fall alerts.
+          </Text>
+
+          <Card
+            variant="outlined"
+            className="mt-4 border-gray-100 bg-white"
+            style={sheetStyles.cardShadow}
+          >
+            <Text className="text-base font-hell-round-bold text-gray-900">Their details</Text>
+            <Text className="text-gray-600 text-sm font-hell mt-1 leading-5">
+              Shown on the main call button when a fall is detected.
+            </Text>
+            <Input
+              label="Name (optional)"
+              placeholder="e.g. Mom"
+              value={monitoredPersonName}
+              onChangeText={setMonitoredPersonName}
+              containerClassName="mt-4"
+            />
+            <Input
+              label="Phone number"
+              placeholder="Number to reach the person wearing the clip"
+              value={monitoredPersonPhone}
+              onChangeText={setMonitoredPersonPhone}
+              keyboardType="phone-pad"
+              containerClassName="mt-1"
+            />
+            <Button
+              title={savingMonitoredInfo ? "Saving…" : "Save"}
+              variant="primary"
+              size="sm"
+              className="mt-4 self-start px-8"
+              onPress={handleSaveMonitoredPersonInfo}
+              disabled={savingMonitoredInfo || !resolvedUserId}
+            />
+          </Card>
+
+          <Text className="mb-2 mt-10 text-xs font-hell-round-bold uppercase tracking-[0.08em] text-gray-400">
             Safety
           </Text>
           <Text className="text-lg font-hell-round-bold text-gray-900">
-            Emergency contacts
+            Backup contacts
           </Text>
           <Text className="mt-1 font-hell text-sm leading-5 text-gray-500">
-            People we suggest for quick call when a fall or alert needs a human.
+            Family, neighbors, or others to call if you cannot reach the person wearing the sensor.
           </Text>
 
           <Card
@@ -403,10 +488,10 @@ const SettingsScreen = () => {
           <View className="flex-row items-start justify-between gap-3 mb-4">
             <View className="min-w-0 flex-1">
               <Text className="text-base font-hell-round-bold text-gray-900">
-                Your list
+                Backup list
               </Text>
               <Text className="text-gray-600 text-sm font-hell mt-1 leading-5">
-                Used from home quick actions and fall flows.
+                Used from home when you need another number besides the wearer.
               </Text>
             </View>
             <TouchableOpacity
@@ -426,7 +511,7 @@ const SettingsScreen = () => {
             <View className="items-center py-8">
               <ActivityIndicator size="small" color="#FF7300" />
               <Text className="text-gray-500 text-sm font-hell mt-3">
-                Loading emergency contacts...
+                Loading backup contacts...
               </Text>
             </View>
           ) : contacts.length === 0 ? (
@@ -435,8 +520,7 @@ const SettingsScreen = () => {
                 No contacts yet
               </Text>
               <Text className="text-gray-500 text-sm font-hell mt-2 text-center">
-                Add trusted friends, family, or caregivers to reach out during
-                emergencies.
+                Add people to call if you cannot reach the person wearing the sensor.
               </Text>
               <Button
                 title="Add Contact"
@@ -468,7 +552,7 @@ const SettingsScreen = () => {
                           <View className="flex-row items-center rounded-full border border-orange-200/60 bg-orange-50 px-2.5 py-1">
                             <Star size={12} color="#FF7300" fill="#FF7300" />
                             <Text className="ml-1 text-xs font-hell-round-bold text-[#FF7300]">
-                              Primary
+                              Primary backup
                             </Text>
                           </View>
                         ) : null}
@@ -571,8 +655,8 @@ const SettingsScreen = () => {
                       </Text>
                       <Text className="mt-1 font-hell text-sm leading-5 text-gray-500">
                         {editingContact
-                          ? "Update details or change who is primary."
-                          : "Someone NORN can suggest when you need help fast."}
+                          ? "Update details or change who is primary backup."
+                          : "Someone to call if you cannot reach the person wearing the sensor."}
                       </Text>
                     </View>
                     <TouchableOpacity
@@ -667,10 +751,10 @@ const SettingsScreen = () => {
                       <View className="flex-row items-center justify-between px-4 py-4">
                         <View className="min-w-0 flex-1 pr-3">
                           <Text className="text-base font-hell-round-bold text-gray-900">
-                            Primary contact
+                            Primary backup contact
                           </Text>
                           <Text className="mt-1 font-hell text-xs leading-4 text-gray-500">
-                            Called first from fall quick actions on home.
+                            Used when the wearer has no phone number saved above.
                           </Text>
                         </View>
                         <Controller
@@ -710,7 +794,7 @@ const SettingsScreen = () => {
                     <View className="mt-4 border-t border-gray-100 pt-5">
                       <Button
                         title={editingContact ? "Save changes" : "Save contact"}
-                        onPress={handleContactFormSubmit(onSubmitEmergencyContact)}
+                        onPress={handleContactFormSubmit(onSubmitMonitoredPersonContact)}
                         variant="primary"
                         size="lg"
                         className="w-full"

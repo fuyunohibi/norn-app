@@ -1,9 +1,9 @@
 import { z } from 'zod';
 
-export const emergencyContactFormSchema = z.object({
+export const monitoredPersonContactFormSchema = z.object({
   id: z.string().uuid().optional(),
   full_name: z
-    .string({ required_error: 'Name is required' })
+    .string()
     .min(2, 'Please enter at least 2 characters')
     .max(120, 'Name is too long'),
   relationship: z
@@ -12,12 +12,14 @@ export const emergencyContactFormSchema = z.object({
     .max(60, 'Relationship is too long')
     .optional(),
   phone_number: z
-    .string({ required_error: 'Phone number is required' })
+    .string()
     .trim()
+    .min(1, 'Phone number is required')
     .regex(/^[+]?[\d\s().-]{7,20}$/, 'Please enter a valid phone number'),
   priority: z
-    .string({ required_error: 'Priority is required' })
+    .string()
     .trim()
+    .min(1, 'Priority is required')
     .regex(/^\d+$/, 'Priority must be a number')
     .refine((value) => {
       const numeric = Number(value);
@@ -31,5 +33,4 @@ export const emergencyContactFormSchema = z.object({
     .optional(),
 });
 
-export type EmergencyContactFormValues = z.infer<typeof emergencyContactFormSchema>;
-
+export type MonitoredPersonContactFormValues = z.infer<typeof monitoredPersonContactFormSchema>;

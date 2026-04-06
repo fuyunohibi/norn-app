@@ -1,68 +1,70 @@
 import type {
-  EmergencyContact,
-  EmergencyContactInsert,
-  EmergencyContactUpdate,
+  MonitoredPersonContact,
+  MonitoredPersonContactInsert,
+  MonitoredPersonContactUpdate,
 } from '@/database/types';
 import { supabase } from '@/utils/supabase';
 
-const TABLE_NAME = 'emergency_contacts';
+const TABLE_NAME = 'monitored_person_contacts';
 
-const normalizeContact = (contact: EmergencyContact): EmergencyContact => ({
+const normalizeContact = (contact: MonitoredPersonContact): MonitoredPersonContact => ({
   ...contact,
 });
 
-export const fetchEmergencyContacts = async (userId: string): Promise<EmergencyContact[]> => {
+export const fetchMonitoredPersonContacts = async (
+  caregiverUserId: string,
+): Promise<MonitoredPersonContact[]> => {
   try {
     const { data, error } = await supabase
       .from(TABLE_NAME)
       .select('*')
-      .eq('user_id', userId)
+      .eq('caregiver_user_id', caregiverUserId)
       .order('is_primary', { ascending: false })
       .order('priority', { ascending: true })
       .order('created_at', { ascending: true });
 
     if (error) {
-      console.error('Error fetching emergency contacts:', error);
+      console.error('Error fetching monitored person contacts:', error);
       return [];
     }
 
     return (data ?? []).map(normalizeContact);
   } catch (error) {
-    console.error('Error fetching emergency contacts:', error);
+    console.error('Error fetching monitored person contacts:', error);
     return [];
   }
 };
 
-export const createEmergencyContact = async (
-  userId: string,
-  payload: Omit<EmergencyContactInsert, 'user_id'>
-): Promise<EmergencyContact | null> => {
+export const createMonitoredPersonContact = async (
+  caregiverUserId: string,
+  payload: Omit<MonitoredPersonContactInsert, 'caregiver_user_id'>,
+): Promise<MonitoredPersonContact | null> => {
   try {
     const { data, error } = await supabase
       .from(TABLE_NAME)
       .insert({
         ...payload,
-        user_id: userId,
+        caregiver_user_id: caregiverUserId,
       })
       .select()
       .single();
 
     if (error) {
-      console.error('Error creating emergency contact:', error);
+      console.error('Error creating monitored person contact:', error);
       return null;
     }
 
     return data ? normalizeContact(data) : null;
   } catch (error) {
-    console.error('Error creating emergency contact:', error);
+    console.error('Error creating monitored person contact:', error);
     return null;
   }
 };
 
-export const updateEmergencyContact = async (
+export const updateMonitoredPersonContact = async (
   contactId: string,
-  updates: EmergencyContactUpdate
-): Promise<EmergencyContact | null> => {
+  updates: MonitoredPersonContactUpdate,
+): Promise<MonitoredPersonContact | null> => {
   try {
     const { data, error } = await supabase
       .from(TABLE_NAME)
@@ -75,45 +77,42 @@ export const updateEmergencyContact = async (
       .single();
 
     if (error) {
-      console.error('Error updating emergency contact:', error);
+      console.error('Error updating monitored person contact:', error);
       return null;
     }
 
     return data ? normalizeContact(data) : null;
   } catch (error) {
-    console.error('Error updating emergency contact:', error);
+    console.error('Error updating monitored person contact:', error);
     return null;
   }
 };
 
-export const deleteEmergencyContact = async (contactId: string): Promise<boolean> => {
+export const deleteMonitoredPersonContact = async (contactId: string): Promise<boolean> => {
   try {
-    const { error } = await supabase
-      .from(TABLE_NAME)
-      .delete()
-      .eq('id', contactId);
+    const { error } = await supabase.from(TABLE_NAME).delete().eq('id', contactId);
 
     if (error) {
-      console.error('Error deleting emergency contact:', error);
+      console.error('Error deleting monitored person contact:', error);
       return false;
     }
 
     return true;
   } catch (error) {
-    console.error('Error deleting emergency contact:', error);
+    console.error('Error deleting monitored person contact:', error);
     return false;
   }
 };
 
-export const setPrimaryEmergencyContact = async (
-  userId: string,
-  contactId: string
+export const setPrimaryMonitoredPersonContact = async (
+  caregiverUserId: string,
+  contactId: string,
 ): Promise<boolean> => {
   try {
     const { error: clearError } = await supabase
       .from(TABLE_NAME)
       .update({ is_primary: false })
-      .eq('user_id', userId)
+      .eq('caregiver_user_id', caregiverUserId)
       .neq('id', contactId);
 
     if (clearError) {
@@ -128,7 +127,7 @@ export const setPrimaryEmergencyContact = async (
         updated_at: new Date().toISOString(),
       })
       .eq('id', contactId)
-      .eq('user_id', userId);
+      .eq('caregiver_user_id', caregiverUserId);
 
     if (error) {
       console.error('Error setting primary contact:', error);
@@ -141,4 +140,3 @@ export const setPrimaryEmergencyContact = async (
     return false;
   }
 };
-

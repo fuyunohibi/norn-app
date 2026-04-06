@@ -7,22 +7,25 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import type { EmergencyContact } from "../database/types";
+import type { MonitoredPersonContact } from "../database/types";
 import { Button } from "./ui/button";
 
 const DEFAULT_MESSAGE =
-  "A fall was detected. Let us know you are safe or call for help.";
+  "The wearable reported an event for the person you monitor. Acknowledge when you have seen this, or call them / their backup contacts below.";
 
 export type EmergencyQuickActionsModalProps = {
   visible: boolean;
   /** Context-specific copy; falls back to DEFAULT_MESSAGE when null */
   message: string | null;
-  contacts: EmergencyContact[];
+  contacts: MonitoredPersonContact[];
   contactsLoading: boolean;
-  primaryContact: EmergencyContact | null;
+  /** Main call action (monitored person if number is set, else primary backup). */
+  primaryCallLabel: string;
+  primaryCallDisabled: boolean;
   onDismiss: () => void;
-  onImOk: () => void;
-  onCallPrimary: () => void;
+  /** Caregiver acknowledges they have seen the alert */
+  onAcknowledge: () => void;
+  onPrimaryCall: () => void;
   onManageContacts: () => void;
   onCallContact: (phoneNumber: string, fullName: string) => void;
 };
@@ -32,10 +35,11 @@ export function EmergencyQuickActionsModal({
   message,
   contacts,
   contactsLoading,
-  primaryContact,
+  primaryCallLabel,
+  primaryCallDisabled,
   onDismiss,
-  onImOk,
-  onCallPrimary,
+  onAcknowledge,
+  onPrimaryCall,
   onManageContacts,
   onCallContact,
 }: EmergencyQuickActionsModalProps) {
@@ -50,7 +54,7 @@ export function EmergencyQuickActionsModal({
         <View className="bg-white rounded-[2.5rem] p-6 max-h-[75%]">
           <View className="flex-row items-center justify-between mb-4">
             <Text className="text-2xl font-hell-round-bold text-gray-900 ">
-              Fall Quick Actions
+              Fall alert
             </Text>
             <TouchableOpacity
               onPress={onDismiss}
@@ -63,20 +67,21 @@ export function EmergencyQuickActionsModal({
             {message ?? DEFAULT_MESSAGE}
           </Text>
           <View className="gap-y-3">
-            <Button title="I'm OK" variant="secondary" size="lg" onPress={onImOk} />
             <Button
-              title={
-                primaryContact
-                  ? `Call ${primaryContact.full_name}`
-                  : "Call primary contact"
-              }
-              variant="primary"
+              title="OK — I've seen this"
+              variant="secondary"
               size="lg"
-              onPress={onCallPrimary}
-              disabled={!primaryContact && contactsLoading}
+              onPress={onAcknowledge}
             />
             <Button
-              title="Manage Contacts"
+              title={primaryCallLabel}
+              variant="primary"
+              size="lg"
+              onPress={onPrimaryCall}
+              disabled={primaryCallDisabled}
+            />
+            <Button
+              title="Manage contacts & wearer info"
               variant="outline"
               size="lg"
               onPress={onManageContacts}
@@ -86,11 +91,14 @@ export function EmergencyQuickActionsModal({
             <View className="flex-row items-center mt-6">
               <ActivityIndicator size="small" color="#FF7300" />
               <Text className="text-gray-500 text-sm font-hell ml-3">
-                Loading emergency contacts...
+                Loading backup contacts...
               </Text>
             </View>
           ) : (
             <ScrollView className="mt-6" showsVerticalScrollIndicator={false}>
+              <Text className="text-xs font-hell-round-bold uppercase tracking-wide text-gray-400 mb-2">
+                Other backup contacts
+              </Text>
               {contacts.length > 0 ? (
                 <View className="gap-y-2">
                   {contacts.map((contact) => (
@@ -113,7 +121,7 @@ export function EmergencyQuickActionsModal({
                       {contact.is_primary ? (
                         <View className="bg-primary-accent/10 px-3 py-1 rounded-full">
                           <Text className="text-primary-accent text-xs font-hell">
-                            Primary
+                            Primary backup
                           </Text>
                         </View>
                       ) : null}
@@ -123,10 +131,11 @@ export function EmergencyQuickActionsModal({
               ) : (
                 <View className="bg-gray-50 rounded-2xl px-4 py-5 border border-dashed border-gray-300">
                   <Text className="text-sm font-hell-round-bold text-gray-900 text-center">
-                    No emergency contacts yet
+                    No backup contacts yet
                   </Text>
                   <Text className="text-gray-600 text-xs font-hell mt-2 text-center">
-                    Add trusted contacts so you can reach them fast during an emergency.
+                    Add family or neighbors to reach if you cannot get through to the person wearing
+                    the sensor.
                   </Text>
                 </View>
               )}

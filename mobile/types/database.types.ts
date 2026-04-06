@@ -110,8 +110,9 @@ export type Database = {
         }
         Relationships: []
       }
-      emergency_contacts: {
+      monitored_person_contacts: {
         Row: {
+          caregiver_user_id: string
           created_at: string | null
           full_name: string
           id: string
@@ -121,9 +122,9 @@ export type Database = {
           priority: number
           relationship: string | null
           updated_at: string | null
-          user_id: string
         }
         Insert: {
+          caregiver_user_id: string
           created_at?: string | null
           full_name: string
           id?: string
@@ -133,9 +134,9 @@ export type Database = {
           priority?: number
           relationship?: string | null
           updated_at?: string | null
-          user_id: string
         }
         Update: {
+          caregiver_user_id?: string
           created_at?: string | null
           full_name?: string
           id?: string
@@ -145,12 +146,11 @@ export type Database = {
           priority?: number
           relationship?: string | null
           updated_at?: string | null
-          user_id?: string
         }
         Relationships: [
           {
-            foreignKeyName: "emergency_contacts_user_id_fkey"
-            columns: ["user_id"]
+            foreignKeyName: "monitored_person_contacts_caregiver_user_id_fkey"
+            columns: ["caregiver_user_id"]
             isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
@@ -260,6 +260,8 @@ export type Database = {
           email_notifications: boolean | null
           fall_alerts_enabled: boolean | null
           id: string
+          monitored_person_full_name: string | null
+          monitored_person_phone: string | null
           push_notifications: boolean | null
           sms_notifications: boolean | null
           updated_at: string | null
@@ -272,6 +274,8 @@ export type Database = {
           email_notifications?: boolean | null
           fall_alerts_enabled?: boolean | null
           id?: string
+          monitored_person_full_name?: string | null
+          monitored_person_phone?: string | null
           push_notifications?: boolean | null
           sms_notifications?: boolean | null
           updated_at?: string | null
@@ -284,6 +288,8 @@ export type Database = {
           email_notifications?: boolean | null
           fall_alerts_enabled?: boolean | null
           id?: string
+          monitored_person_full_name?: string | null
+          monitored_person_phone?: string | null
           push_notifications?: boolean | null
           sms_notifications?: boolean | null
           updated_at?: string | null

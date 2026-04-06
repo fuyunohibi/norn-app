@@ -18,9 +18,10 @@ export type ActivityEventUpdate = TablesUpdate<'activity_events'>;
 
 export type DeviceStatus = Tables<'device_status'>;
 
-export type EmergencyContact = Tables<'emergency_contacts'>;
-export type EmergencyContactInsert = TablesInsert<'emergency_contacts'>;
-export type EmergencyContactUpdate = TablesUpdate<'emergency_contacts'>;
+/** Backup contacts for the monitored person (sensor wearer); rows belong to the caregiver app account. */
+export type MonitoredPersonContact = Tables<'monitored_person_contacts'>;
+export type MonitoredPersonContactInsert = TablesInsert<'monitored_person_contacts'>;
+export type MonitoredPersonContactUpdate = TablesUpdate<'monitored_person_contacts'>;
 
 export type DailyStatistic = Tables<'daily_statistics'>;
 export type DailyStatisticInsert = TablesInsert<'daily_statistics'>;
