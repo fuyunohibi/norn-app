@@ -1,9 +1,7 @@
 import type { CareBackupContact } from "@/database/types";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import {
-  ChevronLeft,
   LogOut,
   Pencil,
   PhoneCall,
@@ -18,7 +16,6 @@ import { Controller, useForm } from "react-hook-form";
 import {
   ActivityIndicator,
   Alert,
-  ImageBackground,
   KeyboardAvoidingView,
   Linking,
   Modal,
@@ -31,6 +28,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { StackScreenScaffold } from "../../components/layout";
 import { Button } from "../../components/ui/button";
 import { Card } from "../../components/ui/card";
 import { Input } from "../../components/ui/input";
@@ -41,7 +39,7 @@ import {
   careBackupContactFormSchema,
   CareBackupContactFormValues,
 } from "../../schemas/care-backup-contact.schema";
-import { HERO_MIN_HEIGHT, heroTextShadow, NornColors, shadowStyles, switchTrackColors } from "@/theme";
+import { NornColors, shadowStyles, switchTrackColors } from "@/theme";
 
 const SettingsScreen = () => {
   const { user, signOut } = useAuth();
@@ -332,60 +330,13 @@ const SettingsScreen = () => {
   };
 
   return (
-    <View className="flex-1 bg-gray-900">
-      <ImageBackground
-        source={require("../../assets/images/backgrounds/daytime-bg.png")}
-        resizeMode="cover"
-        className="w-full overflow-hidden rounded-b-[2.5rem]"
-        style={{ minHeight: HERO_MIN_HEIGHT + insets.top }}
+    <>
+      <StackScreenScaffold
+        hero={{
+          title: "Settings",
+          subtitle: "Account and the person you monitor with NORN.",
+        }}
       >
-        <LinearGradient
-          colors={["rgba(0,0,0,0.12)", "rgba(0,0,0,0.38)"]}
-          start={{ x: 0.5, y: 0.2 }}
-          end={{ x: 0.5, y: 1 }}
-          style={{
-            position: "absolute",
-            left: 0,
-            right: 0,
-            top: 0,
-            bottom: 0,
-          }}
-        />
-        <View
-          className="flex-1 justify-end px-6 pb-6"
-          style={{ paddingTop: insets.top + 8 }}
-        >
-          <TouchableOpacity
-            accessibilityRole="button"
-            accessibilityLabel="Go back"
-            onPress={() => router.back()}
-            activeOpacity={0.88}
-            className="h-12 w-12 items-center justify-center rounded-xl bg-white"
-          >
-            <ChevronLeft size={24} color="#666" strokeWidth={2.5} />
-          </TouchableOpacity>
-          <Text
-            className="mt-5 text-3xl font-hell-round-bold text-white"
-            style={heroTextShadow}
-          >
-            Settings
-          </Text>
-          <Text
-            className="mt-2 max-w-[92%] text-base font-hell leading-6 text-white/95"
-            style={heroTextShadow}
-          >
-            Account and the person you monitor with NORN.
-          </Text>
-        </View>
-      </ImageBackground>
-
-      <View className="flex-1 bg-gray-900">
-        <ScrollView
-          className="mt-6 flex-1 rounded-t-[2.5rem] bg-white px-6 pt-6"
-          contentContainerStyle={{ paddingBottom: insets.bottom + 28 }}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-        >
           <Text className="text-xs font-hell-round-bold uppercase tracking-wide text-orange-600">
             Account
           </Text>
@@ -668,8 +619,7 @@ const SettingsScreen = () => {
             </View>
           )}
         </Card>
-        </ScrollView>
-      </View>
+      </StackScreenScaffold>
 
       <Modal
         visible={isContactModalVisible}
@@ -852,7 +802,7 @@ const SettingsScreen = () => {
           </TouchableWithoutFeedback>
         </KeyboardAvoidingView>
       </Modal>
-    </View>
+    </>
   );
 };
 

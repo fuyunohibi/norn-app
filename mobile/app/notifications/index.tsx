@@ -1,30 +1,26 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { LinearGradient } from 'expo-linear-gradient';
-import { router } from 'expo-router';
-import { AlertCircle, Bell, ChevronLeft, Shield } from 'lucide-react-native';
+import { AlertCircle, Bell, Shield } from 'lucide-react-native';
 import React from 'react';
 import {
   ActivityIndicator,
   Alert,
-  ImageBackground,
-  ScrollView,
   Switch,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { StackScreenScaffold } from '../../components/layout';
 import { Card } from '../../components/ui/card';
+import { SectionHeading } from '../../components/ui/section-heading';
 import { useAuth } from '../../contexts/auth-context';
 import type { UserPreferencesUpdate } from '../../database/types';
 import { getAlerts, markAlertAsRead, markAllAlertsAsRead } from '../../services/monitoring.service';
 import { getPreferences, updatePreferences } from '../../services/user.service';
-import { HERO_MIN_HEIGHT, heroTextShadow, NornColors, shadowStyles, switchTrackColors } from '@/theme';
+import { NornColors, shadowStyles, switchTrackColors } from '@/theme';
 
 const NotificationsScreen = () => {
   const { user } = useAuth();
   const userId = user?.id;
-  const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
 
   const { data: alerts = [], isLoading: alertsLoading } = useQuery({
@@ -100,63 +96,12 @@ const NotificationsScreen = () => {
   };
 
   return (
-    <View className="flex-1 bg-gray-900">
-      <ImageBackground
-        source={require('../../assets/images/backgrounds/daytime-bg.png')}
-        resizeMode="cover"
-        className="w-full overflow-hidden rounded-b-[2.5rem]"
-        style={{ minHeight: HERO_MIN_HEIGHT + insets.top }}
-      >
-        <LinearGradient
-          colors={['rgba(0,0,0,0.12)', 'rgba(0,0,0,0.38)']}
-          start={{ x: 0.5, y: 0.2 }}
-          end={{ x: 0.5, y: 1 }}
-          style={{
-            position: 'absolute',
-            left: 0,
-            right: 0,
-            top: 0,
-            bottom: 0,
-          }}
-        />
-        <View
-          className="flex-1 justify-end px-6 pb-6"
-          style={{ paddingTop: insets.top + 8 }}
-        >
-          <TouchableOpacity
-            accessibilityRole="button"
-            accessibilityLabel="Go back"
-            onPress={() => router.back()}
-            activeOpacity={0.88}
-            className="h-12 w-12 items-center justify-center rounded-xl bg-white"
-          >
-            <ChevronLeft size={24} color="#666" strokeWidth={2.5} />
-          </TouchableOpacity>
-
-          <Text
-            className="mt-5 text-3xl font-hell-round-bold text-white"
-            style={heroTextShadow}
-          >
-            Notifications
-          </Text>
-          <Text
-            className="mt-2 max-w-[92%] text-base font-hell leading-6 text-white/95"
-            style={heroTextShadow}
-          >
-            Fall alerts, preferences, and recent activity from NORN.
-          </Text>
-        </View>
-      </ImageBackground>
-
-      <View className="flex-1 bg-gray-900">
-        <ScrollView
-          className="mt-6 flex-1 rounded-t-[2.5rem] bg-white px-6 pt-6"
-          contentContainerStyle={{
-            paddingBottom: insets.bottom + 28,
-          }}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-        >
+    <StackScreenScaffold
+      hero={{
+        title: 'Notifications',
+        subtitle: 'Fall alerts, preferences, and recent activity from NORN.',
+      }}
+    >
           {!userId ? (
             <Card variant="outlined" className="border-gray-100 bg-gray-50/80">
               <Text className="text-center font-hell text-base leading-6 text-gray-600">
@@ -165,15 +110,11 @@ const NotificationsScreen = () => {
             </Card>
           ) : (
             <>
-              <Text className="text-xs font-hell-round-bold uppercase tracking-wide text-gray-400">
-                Preferences
-              </Text>
-              <Text className="mt-1 text-lg font-hell-round-bold text-gray-900">
-                Alert types
-              </Text>
-              <Text className="mt-1 text-sm font-hell leading-5 text-gray-500">
-                Choose what we can notify you about.
-              </Text>
+              <SectionHeading
+                eyebrow="Preferences"
+                title="Alert types"
+                description="Choose what we can notify you about."
+              />
 
               <View
                 className="mt-4 overflow-hidden rounded-3xl border border-gray-200/90 bg-white"
@@ -305,9 +246,7 @@ const NotificationsScreen = () => {
               )}
             </>
           )}
-        </ScrollView>
-      </View>
-    </View>
+    </StackScreenScaffold>
   );
 };
 
