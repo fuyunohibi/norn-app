@@ -129,6 +129,8 @@ const HomeScreen = () => {
   /** When true, banner shows `NornStateMascot` instead of the illustration. */
   const [bannerShowsMascot, setBannerShowsMascot] = useState(false);
   const bannerBlend = useRef(new Animated.Value(0)).current;
+  /** Tracks last IMU online state so we only auto-switch the banner when Live/Offline actually changes (preserves manual toggle while status is stable). */
+  const prevImuOnlineRef = useRef<boolean | undefined>(undefined);
 
   useEffect(() => {
     Animated.timing(bannerBlend, {
@@ -138,6 +140,30 @@ const HomeScreen = () => {
       useNativeDriver: true,
     }).start();
   }, [bannerShowsMascot, bannerBlend]);
+
+  // When the clip is Live, make the activity mascot the primary banner; when Offline (or unavailable), the scene/ImageBackground.
+  useEffect(() => {
+    if (!showAsSignedIn) {
+      setBannerShowsMascot(false);
+      prevImuOnlineRef.current = undefined;
+      return;
+    }
+    if (imuStatusLoading) return;
+
+    const online = Boolean(imuStatus?.online);
+    const prev = prevImuOnlineRef.current;
+
+    if (prev === undefined) {
+      setBannerShowsMascot(online);
+      prevImuOnlineRef.current = online;
+      return;
+    }
+
+    if (prev !== online) {
+      setBannerShowsMascot(online);
+      prevImuOnlineRef.current = online;
+    }
+  }, [showAsSignedIn, imuStatusLoading, imuStatus?.online]);
 
   const bannerSceneOpacity = useMemo(
     () =>
