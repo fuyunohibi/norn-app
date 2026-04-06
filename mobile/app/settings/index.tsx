@@ -14,7 +14,7 @@ import {
   UserPlus,
   X,
 } from "lucide-react-native";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import {
   ActivityIndicator,
@@ -96,11 +96,34 @@ const SettingsScreen = () => {
   const [monitoredPersonName, setMonitoredPersonName] = useState("");
   const [monitoredPersonPhone, setMonitoredPersonPhone] = useState("");
   const [savingMonitoredInfo, setSavingMonitoredInfo] = useState(false);
+  /** When false, show read-only summary + Edit; when true, show fields + Save / Cancel */
+  const [monitoredDetailsEditing, setMonitoredDetailsEditing] = useState(false);
+  const monitoredEditInitRef = useRef(false);
 
   useEffect(() => {
     if (!preferences) return;
     setMonitoredPersonName(preferences.monitored_person_full_name ?? "");
     setMonitoredPersonPhone(preferences.monitored_person_phone ?? "");
+  }, [preferences]);
+
+  /** First visit with no saved name/phone: open the form so it is obvious they can add details */
+  useEffect(() => {
+    if (!preferences || monitoredEditInitRef.current) return;
+    monitoredEditInitRef.current = true;
+    const hasAny =
+      Boolean(preferences.monitored_person_full_name?.trim()) ||
+      Boolean(preferences.monitored_person_phone?.trim());
+    if (!hasAny) {
+      setMonitoredDetailsEditing(true);
+    }
+  }, [preferences]);
+
+  const hasMonitoredDetailsSaved = useMemo(() => {
+    if (!preferences) return false;
+    return (
+      Boolean(preferences.monitored_person_full_name?.trim()) ||
+      Boolean(preferences.monitored_person_phone?.trim())
+    );
   }, [preferences]);
 
   const {
@@ -228,6 +251,7 @@ const SettingsScreen = () => {
     }
   };
 
+  /** Persists to Supabase `user_preferences` (columns monitored_person_full_name, monitored_person_phone). */
   const handleSaveMonitoredPersonInfo = async () => {
     if (!resolvedUserId) return;
     setSavingMonitoredInfo(true);
@@ -243,13 +267,21 @@ const SettingsScreen = () => {
         return;
       }
       await refetchPreferences();
-      Alert.alert("Saved", "Updated details for the person wearing the sensor.");
+      setMonitoredDetailsEditing(false);
     } catch (e) {
       console.error(e);
       Alert.alert("Error", "Could not save. Please try again.");
     } finally {
       setSavingMonitoredInfo(false);
     }
+  };
+
+  const handleCancelMonitoredPersonEdit = () => {
+    if (preferences) {
+      setMonitoredPersonName(preferences.monitored_person_full_name ?? "");
+      setMonitoredPersonPhone(preferences.monitored_person_phone ?? "");
+    }
+    setMonitoredDetailsEditing(false);
   };
 
   const onSubmitMonitoredPersonContact = async (
@@ -441,33 +473,83 @@ const SettingsScreen = () => {
             className="mt-4 border-gray-100 bg-white"
             style={sheetStyles.cardShadow}
           >
-            <Text className="text-base font-hell-round-bold text-gray-900">Their details</Text>
-            <Text className="text-gray-600 text-sm font-hell mt-1 leading-5">
-              Shown on the main call button when a fall is detected.
-            </Text>
-            <Input
-              label="Name (optional)"
-              placeholder="e.g. Mom"
-              value={monitoredPersonName}
-              onChangeText={setMonitoredPersonName}
-              containerClassName="mt-4"
-            />
-            <Input
-              label="Phone number"
-              placeholder="Number to reach the person wearing the clip"
-              value={monitoredPersonPhone}
-              onChangeText={setMonitoredPersonPhone}
-              keyboardType="phone-pad"
-              containerClassName="mt-1"
-            />
-            <Button
-              title={savingMonitoredInfo ? "Saving…" : "Save"}
-              variant="primary"
-              size="sm"
-              className="mt-4 self-start px-8"
-              onPress={handleSaveMonitoredPersonInfo}
-              disabled={savingMonitoredInfo || !resolvedUserId}
-            />
+            <View className="flex-row items-start justify-between gap-3">
+              <View className="min-w-0 flex-1">
+                <Text className="text-base font-hell-round-bold text-gray-900">Their details</Text>
+                <Text className="text-gray-600 text-sm font-hell mt-1 leading-5">
+                  Shown on the main call button when a fall is detected. Saved with your account
+                  (cloud).
+                </Text>
+              </View>
+              {!monitoredDetailsEditing ? (
+                <TouchableOpacity
+                  onPress={() => setMonitoredDetailsEditing(true)}
+                  className="flex-row items-center rounded-2xl border border-gray-200 bg-gray-50 px-3 py-2 active:opacity-90"
+                  activeOpacity={0.88}
+                >
+                  <Pencil size={16} color="#374151" strokeWidth={2.2} />
+                  <Text className="ml-1.5 font-hell-round-bold text-sm text-gray-800">Edit</Text>
+                </TouchableOpacity>
+              ) : null}
+            </View>
+
+            {monitoredDetailsEditing ? (
+              <>
+                <Input
+                  label="Name (optional)"
+                  placeholder="e.g. Mom"
+                  value={monitoredPersonName}
+                  onChangeText={setMonitoredPersonName}
+                  containerClassName="mt-4"
+                />
+                <Input
+                  label="Phone number"
+                  placeholder="Number to reach the person wearing the clip"
+                  value={monitoredPersonPhone}
+                  onChangeText={setMonitoredPersonPhone}
+                  keyboardType="phone-pad"
+                  containerClassName="mt-1"
+                />
+                <View className="mt-4 flex-row flex-wrap gap-2">
+                  <Button
+                    title={savingMonitoredInfo ? "Saving…" : "Save"}
+                    variant="primary"
+                    size="sm"
+                    className="px-6"
+                    onPress={handleSaveMonitoredPersonInfo}
+                    disabled={savingMonitoredInfo || !resolvedUserId}
+                  />
+                  <Button
+                    title="Cancel"
+                    variant="outline"
+                    size="sm"
+                    className="px-6"
+                    onPress={handleCancelMonitoredPersonEdit}
+                    disabled={savingMonitoredInfo}
+                  />
+                </View>
+              </>
+            ) : (
+              <View className="mt-4 rounded-2xl border border-gray-100 bg-gray-50/90 px-4 py-3">
+                <Text className="text-xs font-hell-round-bold uppercase tracking-wide text-gray-400">
+                  Name
+                </Text>
+                <Text className="mt-1 text-base font-hell text-gray-900">
+                  {monitoredPersonName.trim() ? monitoredPersonName.trim() : "—"}
+                </Text>
+                <Text className="mt-3 text-xs font-hell-round-bold uppercase tracking-wide text-gray-400">
+                  Phone
+                </Text>
+                <Text className="mt-1 text-base font-hell text-gray-900">
+                  {monitoredPersonPhone.trim() ? monitoredPersonPhone.trim() : "—"}
+                </Text>
+                {!hasMonitoredDetailsSaved ? (
+                  <Text className="mt-3 text-xs font-hell text-amber-800">
+                    Tap Edit to add their name and number for fall quick-calls.
+                  </Text>
+                ) : null}
+              </View>
+            )}
           </Card>
 
           <Text className="mb-2 mt-10 text-xs font-hell-round-bold uppercase tracking-[0.08em] text-gray-400">
