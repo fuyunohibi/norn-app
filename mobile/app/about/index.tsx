@@ -8,37 +8,12 @@ import React from 'react';
 import {
   ImageBackground,
   ScrollView,
-  StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-
-const HERO_MIN_HEIGHT = 200;
-
-const heroTextShadow = {
-  textShadowColor: 'rgba(0,0,0,0.35)',
-  textShadowOffset: { width: 0, height: 1 },
-  textShadowRadius: 6,
-} as const;
-
-const sheetStyles = StyleSheet.create({
-  groupCard: {
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 10,
-    elevation: 3,
-  },
-  versionPill: {
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-});
+import { HERO_MIN_HEIGHT, heroTextShadow, NornColors, shadowStyles } from '@/theme';
 
 const AboutScreen = () => {
   const insets = useSafeAreaInsets();
@@ -61,7 +36,7 @@ const AboutScreen = () => {
       icon: Shield,
       iconBg: 'bg-orange-50',
       iconBorder: 'border-orange-100',
-      iconColor: '#FF7300',
+      iconColor: NornColors.brandOrange,
       title: 'Fall safety',
       body:
         'Alerts for falls, near-falls, and shaky balance, with clear severity so you know what to do next.',
@@ -147,10 +122,13 @@ const AboutScreen = () => {
           <Card
             variant="outlined"
             className="border-gray-100 bg-gray-50/90"
-            style={sheetStyles.groupCard}
+            style={shadowStyles.card}
           >
             <View className="items-center px-2 py-6">
-              <View className="mb-4 h-[5.5rem] w-[5.5rem] items-center justify-center rounded-3xl bg-[#FF7300] shadow-sm">
+              <View
+                className="mb-4 h-[5.5rem] w-[5.5rem] items-center justify-center rounded-3xl shadow-sm"
+                style={{ backgroundColor: NornColors.brandOrange }}
+              >
                 <NornIcon size={56} />
               </View>
               <Text className="text-center text-2xl font-hell-round-bold text-gray-900">
@@ -162,7 +140,7 @@ const AboutScreen = () => {
               </Text>
               <View
                 className="mt-5 rounded-full border border-gray-200/90 bg-white px-5 py-2.5"
-                style={sheetStyles.versionPill}
+                style={shadowStyles.pill}
               >
                 <Text className="text-center text-sm font-hell-round-bold text-gray-800">
                   Version {displayVersion}
@@ -183,7 +161,7 @@ const AboutScreen = () => {
 
           <View
             className="mt-4 overflow-hidden rounded-3xl border border-gray-200/90 bg-white"
-            style={sheetStyles.groupCard}
+            style={shadowStyles.card}
           >
             {features.map((item, index) => {
               const Icon = item.icon;

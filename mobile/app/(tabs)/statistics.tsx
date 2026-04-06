@@ -22,27 +22,9 @@ import {
   criticalActivityTotals,
   formatActivityDisplayName,
 } from '../../utils/imu-activity';
+import { HERO_MIN_HEIGHT, NornColors, heroTextShadow, shadowPresets, shadowStyles } from '@/theme';
 
 const windowWidth = Dimensions.get('window').width;
-
-const CHART_BRAND = '#FF7300';
-const HERO_MIN_HEIGHT = 200;
-
-const heroTextShadow = {
-  textShadowColor: 'rgba(0,0,0,0.35)',
-  textShadowOffset: { width: 0, height: 1 },
-  textShadowRadius: 6,
-} as const;
-
-const sheetStyles = StyleSheet.create({
-  groupCard: {
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 10,
-    elevation: 3,
-  },
-});
 
 /**
  * NativeWind's jsx wrapper replaces RN `TouchableOpacity` with a css-interop implementation
@@ -66,13 +48,9 @@ const touchStyles = StyleSheet.create({
     borderColor: 'transparent',
   },
   sectionTabActive: {
-    backgroundColor: CHART_BRAND,
+    backgroundColor: NornColors.brandOrange,
     borderColor: 'rgba(255, 255, 255, 0.2)',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 2,
+    ...shadowPresets.pill,
   },
   trendsPill: {
     borderRadius: 9999,
@@ -80,10 +58,10 @@ const touchStyles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   trendsPillActive: {
-    backgroundColor: CHART_BRAND,
+    backgroundColor: NornColors.brandOrange,
   },
   rangePillActive: {
-    backgroundColor: CHART_BRAND,
+    backgroundColor: NornColors.brandOrange,
   },
 });
 
@@ -178,7 +156,7 @@ const LineChart: React.FC<{
   if (chartData.points.length < 2) {
     return (
       <View className="items-center justify-center rounded-2xl bg-orange-50/60 px-4 py-8">
-        <BarChart3 size={28} color={CHART_BRAND} strokeWidth={2} />
+        <BarChart3 size={28} color={NornColors.brandOrange} strokeWidth={2} />
         <Text className="mt-3 text-center text-sm font-hell text-gray-600">
           Not enough days with events to show a trend yet.
         </Text>
@@ -323,7 +301,7 @@ const StatisticsScreen = () => {
       {!hasActivityData ? (
         <View
           className="overflow-hidden rounded-3xl border border-orange-100/80 bg-orange-50/35 px-5 py-8"
-          style={sheetStyles.groupCard}
+          style={shadowStyles.card}
         >
           <Text className="text-center font-hell text-base leading-6 text-gray-600">
             No activity from your clip in the last 30 days. When it picks up changes in how you move or rest, those
@@ -334,10 +312,10 @@ const StatisticsScreen = () => {
         <View className="flex-row flex-wrap gap-3">
           <View
             className="min-w-[140px] flex-1 overflow-hidden rounded-3xl border border-gray-200/90 bg-white p-4"
-            style={sheetStyles.groupCard}
+            style={shadowStyles.card}
           >
             <View className="mb-3 h-11 w-11 items-center justify-center rounded-2xl border border-orange-100 bg-orange-50/90">
-              <Activity size={22} color={CHART_BRAND} strokeWidth={2.2} />
+              <Activity size={22} color={NornColors.brandOrange} strokeWidth={2.2} />
             </View>
             <Text className="text-3xl font-hell-round-bold text-gray-900">{activity30?.total_events ?? 0}</Text>
             <Text className="mt-1 font-hell text-sm leading-5 text-gray-500">State changes (30 days)</Text>
@@ -345,7 +323,7 @@ const StatisticsScreen = () => {
 
           <View
             className="min-w-[140px] flex-1 overflow-hidden rounded-3xl border border-gray-200/90 bg-white p-4"
-            style={sheetStyles.groupCard}
+            style={shadowStyles.card}
           >
             <View className="mb-3 h-11 w-11 items-center justify-center rounded-2xl border border-amber-100 bg-amber-50/90">
               <Shield size={22} color="#D97706" strokeWidth={2.2} />
@@ -358,7 +336,7 @@ const StatisticsScreen = () => {
 
           <View
             className="min-w-[140px] flex-1 overflow-hidden rounded-3xl border border-gray-200/90 bg-white p-4"
-            style={sheetStyles.groupCard}
+            style={shadowStyles.card}
           >
             <View className="mb-3 h-11 w-11 items-center justify-center rounded-2xl border border-blue-100 bg-blue-50/90">
               <Zap size={22} color="#306DEE" strokeWidth={2.2} />
@@ -386,7 +364,7 @@ const StatisticsScreen = () => {
           <View className="flex-row gap-3">
             <View
               className="flex-1 overflow-hidden rounded-3xl border border-gray-200/90 bg-white p-4"
-              style={sheetStyles.groupCard}
+              style={shadowStyles.card}
             >
               <View className="flex-row items-center gap-3">
                 <View className="h-12 w-12 items-center justify-center rounded-2xl border border-blue-100 bg-blue-50/90">
@@ -403,7 +381,7 @@ const StatisticsScreen = () => {
 
             <View
               className="flex-1 overflow-hidden rounded-3xl border border-gray-200/90 bg-white p-4"
-              style={sheetStyles.groupCard}
+              style={shadowStyles.card}
             >
               <View className="flex-row items-center gap-3">
                 <View className="h-12 w-12 items-center justify-center rounded-2xl border border-amber-100 bg-amber-50/90">
@@ -421,7 +399,7 @@ const StatisticsScreen = () => {
           {activity30?.by_activity && Object.keys(activity30.by_activity).length > 0 && (
             <View
               className="overflow-hidden rounded-3xl border border-gray-200/90 bg-white p-4"
-              style={sheetStyles.groupCard}
+              style={shadowStyles.card}
             >
               <Text className="mb-3 text-base font-hell-round-bold text-gray-900">Time by activity</Text>
               {Object.entries(activity30.by_activity).map(([name, bucket]) => {
@@ -502,7 +480,7 @@ const StatisticsScreen = () => {
         !hasActivityData ? (
           <View
             className="items-center overflow-hidden rounded-3xl border border-gray-100 bg-gray-50/90 px-6 py-10"
-            style={sheetStyles.groupCard}
+            style={shadowStyles.card}
           >
             <View className="h-14 w-14 items-center justify-center rounded-2xl bg-white shadow-sm">
               <BarChart3 size={30} color="#9CA3AF" strokeWidth={2} />
@@ -515,7 +493,7 @@ const StatisticsScreen = () => {
         ) : (
           <View
             className="overflow-hidden rounded-3xl border border-gray-200/90 bg-white"
-            style={sheetStyles.groupCard}
+            style={shadowStyles.card}
           >
             <ImageBackground
               source={require('../../assets/images/backgrounds/daytime-bg.png')}
@@ -535,7 +513,7 @@ const StatisticsScreen = () => {
               </View>
             </ImageBackground>
             <View className="px-4 pb-6 pt-1">
-              <LineChart values={imuEventValues} color={CHART_BRAND} labels={imuChartLabels} />
+              <LineChart values={imuEventValues} color={NornColors.brandOrange} labels={imuChartLabels} />
               {imuChartLabels.length > 0 && (
                 <View className="mt-5 flex-row justify-between border-t border-gray-100 pt-4">
                   {imuChartLabels.map((label) => (
@@ -561,7 +539,7 @@ const StatisticsScreen = () => {
       ) : (
         <View
           className="overflow-hidden rounded-3xl border border-gray-200/90 bg-white"
-          style={sheetStyles.groupCard}
+          style={shadowStyles.card}
         >
           <ImageBackground
             source={require('../../assets/images/backgrounds/daytime-bg.png')}
@@ -611,7 +589,7 @@ const StatisticsScreen = () => {
             </View>
             <View className="min-w-[108px] flex-1 rounded-2xl border border-gray-200/70 bg-white px-3.5 py-4 shadow-sm">
               <View className="mx-auto mb-3.5 h-12 w-12 items-center justify-center rounded-2xl border border-orange-100/90 bg-orange-50/90">
-                <Zap size={22} color={CHART_BRAND} strokeWidth={2.2} />
+                <Zap size={22} color={NornColors.brandOrange} strokeWidth={2.2} />
               </View>
               <Text className="text-center text-[10px] font-hell-round-bold uppercase tracking-[0.06em] text-gray-400">
                 Tracked time
@@ -701,10 +679,10 @@ const StatisticsScreen = () => {
           {isLoading ? (
             <View
               className="mb-4 overflow-hidden rounded-3xl border border-gray-100 bg-gray-50/80"
-              style={sheetStyles.groupCard}
+              style={shadowStyles.card}
             >
               <View className="items-center py-12">
-                <ActivityIndicator size="large" color="#FF7300" />
+                <ActivityIndicator size="large" color={NornColors.brandOrange} />
                 <Text className="mt-4 font-hell text-sm text-gray-600">Loading activity statistics…</Text>
               </View>
             </View>
@@ -720,7 +698,7 @@ const StatisticsScreen = () => {
 
               <View
                 className="mt-4 overflow-hidden rounded-3xl border border-gray-200/90 bg-gray-100 p-1"
-                style={sheetStyles.groupCard}
+                style={shadowStyles.card}
               >
                 <View className="flex-row">
                   {sectionTabs.map((tab) => {

@@ -15,8 +15,7 @@ import { Card } from "../../components/ui/card";
 import { useAuth } from "../../contexts/auth-context";
 import { useImuWearableStatus } from "../../hooks/useImuWearableStatus";
 import { imuLiveActivityHeadlineOnline } from "../../utils/imu-activity";
-
-const HERO_MIN_HEIGHT = 200;
+import { HERO_MIN_HEIGHT, heroTextShadow, NornColors } from "@/theme";
 
 export default function SensorScreen() {
   const { user } = useAuth();
@@ -63,12 +62,6 @@ export default function SensorScreen() {
     }
     return msg;
   }, [showSensorSignedIn, imuStatusError]);
-
-  const heroTextShadow = {
-    textShadowColor: "rgba(0,0,0,0.35)",
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 6,
-  } as const;
 
   return (
     <View className="flex-1 bg-gray-900">
@@ -142,7 +135,7 @@ export default function SensorScreen() {
             <View className="min-w-0">
               {showSensorSignedIn && imuStatusLoading ? (
                 <View className="flex-row items-center gap-2">
-                  <ActivityIndicator color="#FF7300" />
+                  <ActivityIndicator color={NornColors.brandOrange} />
                   <Text className="text-lg font-hell-round-bold text-gray-900">Checking…</Text>
                 </View>
               ) : (

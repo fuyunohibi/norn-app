@@ -26,23 +26,16 @@ import { useCareBackupContacts } from "../../hooks/useCareBackupContacts";
 import { useCareRecipientProfile } from "../../hooks/useCareRecipientProfile";
 import { useImuWearableStatus } from "../../hooks/useImuWearableStatus";
 import { backendAPIService } from "../../services/backend-api.service";
+import { NornColors, shadowStyles } from "@/theme";
+import { ScreenSectionHeader } from "../../components/ui/screen-section-header";
 import { formatActivityDisplayName } from "../../utils/imu-activity";
-
-const BRAND_ORANGE = "#FF7300";
 
 const styles = StyleSheet.create({
   bannerLayer: {
     ...StyleSheet.absoluteFillObject,
   },
   bannerLayerMascot: {
-    backgroundColor: "#f5f5f5",
-  },
-  myDaySheet: {
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.07,
-    shadowRadius: 14,
-    elevation: 4,
+    backgroundColor: NornColors.mascotBackground,
   },
   timelineStripe: {
     width: 4,
@@ -87,7 +80,7 @@ function homeActivityVisual(raw: string): {
   return (
     table[kind] ?? {
       icon: "motion-photos-on",
-      accent: BRAND_ORANGE,
+      accent: NornColors.brandOrange,
       chipBg: "bg-orange-50",
     }
   );
@@ -126,44 +119,24 @@ const HomeScreen = () => {
   const lastFallAlertRef = useRef<string | null>(null);
   const [fallQuickActionMessage, setFallQuickActionMessage] = useState<string | null>(null);
   const [showQuickActionsModal, setShowQuickActionsModal] = useState(false);
-  /** When true, banner shows `NornStateMascot` instead of the illustration. */
-  const [bannerShowsMascot, setBannerShowsMascot] = useState(false);
+  /** Mascot when the clip looks Live, scene when offline/loading; fall sheet forces mascot. */
+  const bannerShowsMascotUi = useMemo(() => {
+    if (showQuickActionsModal) return true;
+    if (!showAsSignedIn) return false;
+    if (imuStatusLoading) return false;
+    return Boolean(imuStatus?.online);
+  }, [showQuickActionsModal, showAsSignedIn, imuStatusLoading, imuStatus?.online]);
+
   const bannerBlend = useRef(new Animated.Value(0)).current;
-  /** Tracks last IMU online state so we only auto-switch the banner when Live/Offline actually changes (preserves manual toggle while status is stable). */
-  const prevImuOnlineRef = useRef<boolean | undefined>(undefined);
 
   useEffect(() => {
     Animated.timing(bannerBlend, {
-      toValue: bannerShowsMascot ? 1 : 0,
+      toValue: bannerShowsMascotUi ? 1 : 0,
       duration: 340,
       easing: Easing.out(Easing.cubic),
       useNativeDriver: true,
     }).start();
-  }, [bannerShowsMascot, bannerBlend]);
-
-  // When the clip is Live, make the activity mascot the primary banner; when Offline (or unavailable), the scene/ImageBackground.
-  useEffect(() => {
-    if (!showAsSignedIn) {
-      setBannerShowsMascot(false);
-      prevImuOnlineRef.current = undefined;
-      return;
-    }
-    if (imuStatusLoading) return;
-
-    const online = Boolean(imuStatus?.online);
-    const prev = prevImuOnlineRef.current;
-
-    if (prev === undefined) {
-      setBannerShowsMascot(online);
-      prevImuOnlineRef.current = online;
-      return;
-    }
-
-    if (prev !== online) {
-      setBannerShowsMascot(online);
-      prevImuOnlineRef.current = online;
-    }
-  }, [showAsSignedIn, imuStatusLoading, imuStatus?.online]);
+  }, [bannerShowsMascotUi, bannerBlend]);
 
   const bannerSceneOpacity = useMemo(
     () =>
@@ -521,29 +494,13 @@ const HomeScreen = () => {
     statusError: showAsSignedIn && imuStatusErrorBool,
   };
 
-  const chipShadow = {
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.12,
-    shadowRadius: 4,
-    elevation: 6,
-  } as const;
-
-  const fabShadow = {
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.14,
-    shadowRadius: 5,
-    elevation: 8,
-  } as const;
-
   return (
     <View className="flex-1 bg-gray-900">
 
       {/* Banner: crossfade + light scale between scene and mascot (native driver). */}
       <View className="relative h-[25rem] w-full overflow-hidden rounded-b-[2.5rem]">
         <Animated.View
-          pointerEvents={bannerShowsMascot ? "none" : "auto"}
+          pointerEvents={bannerShowsMascotUi ? "none" : "auto"}
           style={[
             styles.bannerLayer,
             {
@@ -569,7 +526,7 @@ const HomeScreen = () => {
           </ImageBackground>
         </Animated.View>
         <Animated.View
-          pointerEvents={bannerShowsMascot ? "auto" : "none"}
+          pointerEvents={bannerShowsMascotUi ? "auto" : "none"}
           style={[
             styles.bannerLayer,
             styles.bannerLayerMascot,
@@ -591,11 +548,11 @@ const HomeScreen = () => {
           style={{
             right: 14,
             top: insets.top + 8,
-            ...chipShadow,
+            ...shadowStyles.chip,
           }}
         >
           {showAsSignedIn && imuStatusLoading ? (
-            <ActivityIndicator size="small" color="#FF7300" />
+            <ActivityIndicator size="small" color={NornColors.brandOrange} />
           ) : (
             <View
               className={`h-2 w-2 rounded-full ${
@@ -613,30 +570,6 @@ const HomeScreen = () => {
             {wearableChipLabel}
           </Text>
         </TouchableOpacity>
-
-        <TouchableOpacity
-          accessibilityRole="button"
-          accessibilityLabel={
-            bannerShowsMascot
-              ? "Show scene banner with NORN logo"
-              : "Show activity mascot in the banner"
-          }
-          onPress={() => setBannerShowsMascot((v) => !v)}
-          activeOpacity={0.88}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          className="absolute z-30 h-11 w-11 items-center justify-center rounded-full border border-white/80 bg-white"
-          style={{
-            right: 14,
-            bottom: 16,
-            ...fabShadow,
-          }}
-        >
-          <MaterialIcons
-            name={bannerShowsMascot ? "landscape" : "pets"}
-            size={22}
-            color="#111827"
-          />
-        </TouchableOpacity>
       </View>
 
       <View className="flex-1 bg-gray-900">
@@ -648,14 +581,17 @@ const HomeScreen = () => {
           }}
           keyboardShouldPersistTaps="handled"
         >
-          <View>
-            <Text className="text-2xl font-hell-round-bold text-gray-900">My day</Text>
-            <Text className="mt-0.5 text-sm font-hell text-gray-500">{myDayDateLabel}</Text>
-          </View>
+          <ScreenSectionHeader title="My day" subtitle={myDayDateLabel} />
 
-          <View className="mt-4 rounded-[28px] bg-[#FAF8F4] px-4 pb-5 pt-4">
+          <View
+            className="mt-4 rounded-[28px] px-4 pb-5 pt-4"
+            style={{ backgroundColor: NornColors.surfaceWarm }}
+          >
             {!showAsSignedIn ? (
-              <View className="items-center rounded-[24px] bg-[#F3EEE6] px-5 py-8">
+              <View
+                className="items-center rounded-[24px] px-5 py-8"
+                style={{ backgroundColor: NornColors.surfaceWarmMuted }}
+              >
                 <View className="h-14 w-14 items-center justify-center rounded-full bg-white">
                   <MaterialIcons name="lock-outline" size={28} color="#A8A29E" />
                 </View>
@@ -665,7 +601,7 @@ const HomeScreen = () => {
               </View>
             ) : todayStatsLoading ? (
               <View className="items-center py-10">
-                <ActivityIndicator color={BRAND_ORANGE} />
+                <ActivityIndicator color={NornColors.brandOrange} />
               </View>
             ) : todayStatsError ? (
               <View className="items-center rounded-[24px] px-5 py-6">
@@ -680,7 +616,7 @@ const HomeScreen = () => {
                   Today at a glance
                 </Text>
                 <LinearGradient
-                  colors={["#E85D04", "#FF7300", "#FF9F4A"]}
+                  colors={[...NornColors.heroActivityGradient]}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 1 }}
                   style={{
@@ -780,7 +716,10 @@ const HomeScreen = () => {
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               className="flex-row items-center rounded-full"
             >
-              <Text className="text-sm font-hell-round-bold" style={{ color: BRAND_ORANGE }}>
+              <Text
+                className="text-sm font-hell-round-bold"
+                style={{ color: NornColors.brandOrange }}
+              >
                 See all
               </Text>
             </TouchableOpacity>
@@ -794,7 +733,7 @@ const HomeScreen = () => {
             </View>
           ) : todayStatsLoading ? (
             <View className="items-center rounded-3xl border border-gray-100 bg-white py-10">
-              <ActivityIndicator color={BRAND_ORANGE} />
+              <ActivityIndicator color={NornColors.brandOrange} />
             </View>
           ) : todayStatsError ? (
             <View className="rounded-2xl border border-gray-100 bg-gray-50 px-4 py-5">
@@ -805,7 +744,7 @@ const HomeScreen = () => {
           ) : todayTimelineEvents.length === 0 ? (
             <View
               className="items-center rounded-3xl border border-gray-100 bg-white px-5 py-8"
-              style={styles.myDaySheet}
+              style={shadowStyles.myDaySheet}
             >
               <View className="h-14 w-14 items-center justify-center rounded-full bg-gray-100">
                 <MaterialIcons name="timeline" size={28} color="#9CA3AF" />
@@ -824,7 +763,7 @@ const HomeScreen = () => {
                   <View
                     key={`${ev.created_at ?? ""}-${index}`}
                     className="flex-row overflow-hidden rounded-2xl border border-gray-100 bg-white"
-                    style={styles.myDaySheet}
+                    style={shadowStyles.myDaySheet}
                   >
                     <View style={[styles.timelineStripe, { backgroundColor: v.accent }]} />
                     <View className="flex-1 flex-row items-center gap-3 py-3.5 pl-3 pr-4">

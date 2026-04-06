@@ -24,7 +24,6 @@ import {
   Modal,
   Platform,
   ScrollView,
-  StyleSheet,
   Switch,
   Text,
   TouchableOpacity,
@@ -42,33 +41,7 @@ import {
   careBackupContactFormSchema,
   CareBackupContactFormValues,
 } from "../../schemas/care-backup-contact.schema";
-
-const HERO_MIN_HEIGHT = 200;
-
-const heroTextShadow = {
-  textShadowColor: "rgba(0,0,0,0.35)",
-  textShadowOffset: { width: 0, height: 1 },
-  textShadowRadius: 6,
-} as const;
-
-const sheetStyles = StyleSheet.create({
-  cardShadow: {
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 10,
-    elevation: 3,
-  },
-  modalSheet: {
-    borderTopLeftRadius: 36,
-    borderTopRightRadius: 36,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: -6 },
-    shadowOpacity: 0.18,
-    shadowRadius: 24,
-    elevation: 28,
-  },
-});
+import { HERO_MIN_HEIGHT, heroTextShadow, NornColors, shadowStyles, switchTrackColors } from "@/theme";
 
 const SettingsScreen = () => {
   const { user, signOut } = useAuth();
@@ -423,7 +396,7 @@ const SettingsScreen = () => {
           <Card
             variant="outlined"
             className="mt-4 border-gray-100 bg-white"
-            style={sheetStyles.cardShadow}
+            style={shadowStyles.card}
           >
             <View className="flex-row gap-4">
               <View className="flex-1 justify-center items-start">
@@ -461,7 +434,7 @@ const SettingsScreen = () => {
           <Card
             variant="outlined"
             className="mt-4 border-orange-200/90 bg-orange-50/50"
-            style={sheetStyles.cardShadow}
+            style={shadowStyles.card}
           >
             <View className="flex-row items-start justify-between gap-3">
               <View className="min-w-0 flex-1">
@@ -476,7 +449,7 @@ const SettingsScreen = () => {
                   className="flex-row items-center rounded-2xl border border-orange-300/90 bg-white px-3.5 py-2.5 active:opacity-90"
                   activeOpacity={0.88}
                 >
-                  <Pencil size={16} color="#FF7300" strokeWidth={2.2} />
+                  <Pencil size={16} color={NornColors.brandOrange} strokeWidth={2.2} />
                   <Text className="ml-1.5 font-hell-round-bold text-sm text-[#C2410C]">Edit</Text>
                 </TouchableOpacity>
               ) : null}
@@ -554,7 +527,7 @@ const SettingsScreen = () => {
           <Card
             variant="outlined"
             className="mt-4 border-orange-100/80 bg-white"
-            style={sheetStyles.cardShadow}
+            style={shadowStyles.card}
           >
           <View className="flex-row items-start justify-between gap-3 mb-4">
             <View className="min-w-0 flex-1">
@@ -568,7 +541,7 @@ const SettingsScreen = () => {
             <TouchableOpacity
               onPress={() => openContactModal()}
               disabled={contactsMutating}
-              className="flex-row items-center rounded-2xl bg-[#FF7300] px-4 py-3 active:opacity-90"
+              className="flex-row items-center rounded-2xl bg-primary-accent px-4 py-3 active:opacity-90"
               activeOpacity={0.88}
             >
               <UserPlus size={18} color="#FFFFFF" strokeWidth={2.5} />
@@ -580,7 +553,7 @@ const SettingsScreen = () => {
 
           {contactsLoading ? (
             <View className="items-center py-8">
-              <ActivityIndicator size="small" color="#FF7300" />
+              <ActivityIndicator size="small" color={NornColors.brandOrange} />
               <Text className="text-gray-500 text-sm font-hell mt-3">
                 Loading backup contacts...
               </Text>
@@ -608,11 +581,11 @@ const SettingsScreen = () => {
                 <View
                   key={contact.id}
                   className="overflow-hidden rounded-3xl border border-gray-200/90 bg-white"
-                  style={sheetStyles.cardShadow}
+                  style={shadowStyles.card}
                 >
                   <View className="flex-row gap-3 p-4">
                     <View className="h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-orange-100/90 bg-orange-50/90">
-                      <User size={26} color="#FF7300" fill="#FF7300" strokeWidth={2.2} />
+                      <User size={26} color={NornColors.brandOrange} fill={NornColors.brandOrange} strokeWidth={2.2} />
                     </View>
                     <View className="min-w-0 flex-1">
                       <View className="flex-row flex-wrap items-center gap-2">
@@ -621,8 +594,8 @@ const SettingsScreen = () => {
                         </Text>
                         {contact.is_primary ? (
                           <View className="flex-row items-center rounded-full border border-orange-200/60 bg-orange-50 px-2.5 py-1">
-                            <Star size={12} color="#FF7300" fill="#FF7300" />
-                            <Text className="ml-1 text-xs font-hell-round-bold text-[#FF7300]">
+                            <Star size={12} color={NornColors.brandOrange} fill={NornColors.brandOrange} />
+                            <Text className="ml-1 text-xs font-hell-round-bold text-primary-accent">
                               Primary backup
                             </Text>
                           </View>
@@ -641,12 +614,12 @@ const SettingsScreen = () => {
                         activeOpacity={0.85}
                       >
                         <View className="h-9 w-9 items-center justify-center rounded-xl bg-white">
-                          <PhoneCall size={18} color="#FF7300" strokeWidth={2.2} />
+                          <PhoneCall size={18} color={NornColors.brandOrange} strokeWidth={2.2} />
                         </View>
                         <Text className="ml-3 flex-1 text-sm font-hell-round-bold text-gray-900">
                           {contact.phone_number}
                         </Text>
-                        <Text className="text-xs font-hell-round-bold text-[#FF7300]">Call</Text>
+                        <Text className="text-xs font-hell-round-bold text-primary-accent">Call</Text>
                       </TouchableOpacity>
                       {!!contact.notes && (
                         <View className="mt-3 rounded-2xl border border-gray-100 bg-gray-50/80 px-3 py-2.5">
@@ -683,8 +656,8 @@ const SettingsScreen = () => {
                         className="flex-row items-center rounded-full border border-orange-200/70 bg-white px-3.5 py-2 shadow-sm"
                         activeOpacity={0.85}
                       >
-                        <Star size={14} color="#FF7300" strokeWidth={2.5} />
-                        <Text className="ml-2 text-xs font-hell-round-bold text-[#FF7300]">
+                        <Star size={14} color={NornColors.brandOrange} strokeWidth={2.5} />
+                        <Text className="ml-2 text-xs font-hell-round-bold text-primary-accent">
                           Make primary
                         </Text>
                       </TouchableOpacity>
@@ -713,7 +686,7 @@ const SettingsScreen = () => {
               <TouchableWithoutFeedback onPress={() => {}}>
                 <View
                   className="max-h-[96%] min-h-[52%] overflow-hidden border-t border-gray-100 bg-white"
-                  style={sheetStyles.modalSheet}
+                  style={shadowStyles.modalSheet}
                 >
                   <View className="items-center pt-3 pb-1">
                     <View className="h-1 w-12 rounded-full bg-gray-300/90" />
@@ -835,7 +808,7 @@ const SettingsScreen = () => {
                             <Switch
                               value={value}
                               onValueChange={onChange}
-                              trackColor={{ false: "#E5E7EB", true: "#FF7300" }}
+                              trackColor={switchTrackColors}
                               thumbColor={value ? "#FFFFFF" : "#F3F4F6"}
                               ios_backgroundColor="#E5E7EB"
                             />

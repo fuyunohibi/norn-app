@@ -8,7 +8,6 @@ import {
   Alert,
   ImageBackground,
   ScrollView,
-  StyleSheet,
   Switch,
   Text,
   TouchableOpacity,
@@ -20,24 +19,7 @@ import { useAuth } from '../../contexts/auth-context';
 import type { UserPreferencesUpdate } from '../../database/types';
 import { getAlerts, markAlertAsRead, markAllAlertsAsRead } from '../../services/monitoring.service';
 import { getPreferences, updatePreferences } from '../../services/user.service';
-
-const HERO_MIN_HEIGHT = 200;
-
-const heroTextShadow = {
-  textShadowColor: 'rgba(0,0,0,0.35)',
-  textShadowOffset: { width: 0, height: 1 },
-  textShadowRadius: 6,
-} as const;
-
-const sheetStyles = StyleSheet.create({
-  groupCard: {
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 10,
-    elevation: 3,
-  },
-});
+import { HERO_MIN_HEIGHT, heroTextShadow, NornColors, shadowStyles, switchTrackColors } from '@/theme';
 
 const NotificationsScreen = () => {
   const { user } = useAuth();
@@ -195,7 +177,7 @@ const NotificationsScreen = () => {
 
               <View
                 className="mt-4 overflow-hidden rounded-3xl border border-gray-200/90 bg-white"
-                style={sheetStyles.groupCard}
+                style={shadowStyles.card}
               >
                 <View className="flex-row items-center justify-between px-4 py-4">
                   <View className="min-w-0 flex-1 pr-3">
@@ -207,14 +189,14 @@ const NotificationsScreen = () => {
                     </Text>
                   </View>
                   {prefsLoading ? (
-                    <ActivityIndicator size="small" color="#FF7300" />
+                    <ActivityIndicator size="small" color={NornColors.brandOrange} />
                   ) : (
                     <Switch
                       value={preferences?.fall_alerts_enabled ?? true}
                       onValueChange={(value) =>
                         handleTogglePreference('fall_alerts_enabled', value)
                       }
-                      trackColor={{ false: '#E5E7EB', true: '#FF7300' }}
+                      trackColor={switchTrackColors}
                       thumbColor="#FFFFFF"
                     />
                   )}
@@ -247,7 +229,7 @@ const NotificationsScreen = () => {
               {alertsLoading ? (
                 <Card variant="outlined" className="border-gray-100 bg-gray-50/80">
                   <View className="items-center py-10">
-                    <ActivityIndicator size="large" color="#FF7300" />
+                    <ActivityIndicator size="large" color={NornColors.brandOrange} />
                     <Text className="mt-4 font-hell text-sm text-gray-600">
                       Loading alerts…
                     </Text>
@@ -287,7 +269,10 @@ const NotificationsScreen = () => {
                               {alert.title}
                             </Text>
                             {!alert.is_read ? (
-                              <View className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-[#FF7300]" />
+                              <View
+                              className="mt-1.5 h-2 w-2 shrink-0 rounded-full"
+                              style={{ backgroundColor: NornColors.brandOrange }}
+                            />
                             ) : null}
                           </View>
                           <Text className="mt-1 font-hell text-sm leading-5 text-gray-600">

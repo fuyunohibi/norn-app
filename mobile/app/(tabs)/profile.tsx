@@ -7,7 +7,6 @@ import {
   ImageBackground,
   RefreshControl,
   ScrollView,
-  StyleSheet,
   Text,
   TouchableOpacity,
   View,
@@ -18,26 +17,11 @@ import { Button } from '../../components/ui/button';
 import { Card } from '../../components/ui/card';
 import { useAuth } from '../../contexts/auth-context';
 import { formatMemberSince } from '../../utils/date.utils';
+import { HERO_MIN_HEIGHT_PROFILE, NornColors, profileGroupCardStyle } from '@/theme';
 
-/** Tall enough for art; avatar straddles bottom of hero + top of sheet. */
-const HERO_MIN_HEIGHT = 350;
 /** Diameter; half overlaps hero, half sits on the white sheet. */
 const AVATAR_SIZE = 128;
 const AVATAR_RADIUS = AVATAR_SIZE / 2;
-
-const menuStyles = StyleSheet.create({
-  groupCard: {
-    borderCurve: 'continuous',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 10,
-    elevation: 3,
-  },
-  iconTile: {
-    borderCurve: 'continuous',
-  },
-});
 
 const ProfileScreen = () => {
   const { user, loading: authLoading } = useAuth();
@@ -67,14 +51,15 @@ const ProfileScreen = () => {
       source={require('../../assets/images/backgrounds/daytime-bg.png')}
       resizeMode="cover"
       className="w-full overflow-hidden rounded-b-[2.5rem]"
-      style={{ minHeight: HERO_MIN_HEIGHT + insets.top }}
+      style={{ minHeight: HERO_MIN_HEIGHT_PROFILE + insets.top }}
     />
   );
 
   const renderAvatar = () => (
     <View
-      className="items-center justify-center bg-[#FF7300]"
+      className="items-center justify-center"
       style={{
+        backgroundColor: NornColors.brandOrange,
         width: AVATAR_SIZE,
         height: AVATAR_SIZE,
         borderRadius: AVATAR_RADIUS,
@@ -104,7 +89,7 @@ const ProfileScreen = () => {
           >
             <Card variant="outlined" className="border-gray-100 bg-gray-50/80">
               <View className="items-center py-10">
-                <ActivityIndicator size="large" color="#FF7300" />
+                <ActivityIndicator size="large" color={NornColors.brandOrange} />
                 <Text className="mt-4 font-hell text-sm text-gray-600">
                   Loading profile…
                 </Text>
@@ -149,8 +134,8 @@ const ProfileScreen = () => {
             <RefreshControl
               refreshing={isRefetching}
               onRefresh={() => refetch()}
-              tintColor="#FF7300"
-              colors={['#FF7300']}
+              tintColor={NornColors.brandOrange}
+              colors={[NornColors.brandOrange]}
             />
           }
         >
@@ -174,7 +159,7 @@ const ProfileScreen = () => {
 
           <View
             className="overflow-hidden rounded-3xl border border-gray-200/90 bg-white"
-            style={menuStyles.groupCard}
+            style={profileGroupCardStyle()}
           >
             <TouchableOpacity
               className="flex-row items-center px-4 py-4 active:bg-gray-50"
@@ -183,9 +168,9 @@ const ProfileScreen = () => {
             >
               <View
                 className="mr-3.5 h-[3.25rem] w-[3.25rem] items-center justify-center rounded-2xl border border-orange-100 bg-orange-50/90"
-                style={menuStyles.iconTile}
+                style={{ borderCurve: 'continuous' }}
               >
-                <Bell size={22} color="#FF7300" strokeWidth={2.2} />
+                <Bell size={22} color={NornColors.brandOrange} strokeWidth={2.2} />
               </View>
               <View className="min-w-0 flex-1 pr-2">
                 <Text className="text-base font-hell-round-bold text-gray-900">
@@ -209,7 +194,7 @@ const ProfileScreen = () => {
             >
               <View
                 className="mr-3.5 h-[3.25rem] w-[3.25rem] items-center justify-center rounded-2xl border border-gray-200/80 bg-gray-50"
-                style={menuStyles.iconTile}
+                style={{ borderCurve: 'continuous' }}
               >
                 <Info size={22} color="#52525B" strokeWidth={2.2} />
               </View>
