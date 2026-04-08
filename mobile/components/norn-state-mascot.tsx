@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useRef } from "react";
 import { ActivityIndicator, StyleSheet, Text, View, type ImageSourcePropType } from "react-native";
 import Animated, {
   Easing,
+  interpolate,
   useAnimatedStyle,
   useSharedValue,
   withRepeat,
@@ -11,6 +12,7 @@ import Animated, {
   withSpring,
   withTiming,
 } from "react-native-reanimated";
+import type { SharedValue } from "react-native-reanimated";
 import { activityCodeForBackendKey, formatActivityDisplayName } from "../utils/imu-activity";
 
 import nornAfterFalling from "../assets/logos/norn-icons/norn-after-falling.svg";
@@ -22,6 +24,45 @@ import nornStanding from "../assets/logos/norn-icons/norn-standing.svg";
 import nornWalking from "../assets/logos/norn-icons/norn-walking.svg";
 
 type NornCode = "st" | "si" | "w" | "r" | "nf" | "f" | "af";
+const RAIN_DROPS = 18;
+const RAIN_X_OFFSETS = [6, 12, 18, 24, 30, 36, 42, 50, 56, 62, 68, 74, 80, 86, 92, 96, 90, 84];
+
+type RainDropProps = {
+  idx: number;
+  rainProgress: SharedValue<number>;
+  rainOpacity: number;
+};
+
+const RainDrop: React.FC<RainDropProps> = ({ idx, rainProgress, rainOpacity }) => {
+  const dropStyle = useAnimatedStyle(() => {
+    const offset = idx / RAIN_DROPS;
+    const local = (rainProgress.value + offset) % 1;
+    const y = interpolate(local, [0, 1], [-24, 230]);
+    const op = interpolate(local, [0, 0.18, 0.8, 1], [0, 1, 0.95, 0]);
+    return {
+      opacity: op * rainOpacity,
+      transform: [{ translateY: y }],
+    };
+  }, [idx, rainOpacity]);
+
+  const leftPercent = RAIN_X_OFFSETS[idx] ?? ((idx * 7) % 96);
+  return (
+    <Animated.View
+      style={[
+        {
+          position: "absolute",
+          left: `${leftPercent}%`,
+          top: 0,
+          width: 2,
+          height: 14 + (idx % 4),
+          borderRadius: 999,
+          backgroundColor: "rgba(255,255,255,0.85)",
+        },
+        dropStyle,
+      ]}
+    />
+  );
+};
 
 const NORNS: Record<NornCode, ImageSourcePropType> = {
   st: nornStanding,
@@ -114,7 +155,10 @@ export const NornStateMascot: React.FC<NornStateMascotProps> = ({
   const transitionY = useSharedValue(0);
   const squashX = useSharedValue(1);
   const squashY = useSharedValue(1);
+  const rainProgress = useSharedValue(0);
   const prevCodeRef = useRef<NornCode | null>(null);
+  const isRainState = code === "nf" || code === "f" || code === "af";
+  const rainOpacity = code === "f" ? 0.95 : code === "af" ? 0.75 : 0.65;
 
   useEffect(() => {
     entranceOpacity.value = withTiming(1, { duration: 450, easing: Easing.out(Easing.cubic) });
@@ -261,6 +305,19 @@ export const NornStateMascot: React.FC<NornStateMascotProps> = ({
     );
   }, [code, transitionSpin, transitionX, transitionY, entranceScale, squashX, squashY]);
 
+  useEffect(() => {
+    if (isRainState) {
+      rainProgress.value = 0;
+      rainProgress.value = withRepeat(
+        withTiming(1, { duration: 1300, easing: Easing.linear }),
+        -1,
+        false,
+      );
+      return;
+    }
+    rainProgress.value = withTiming(0, { duration: 220 });
+  }, [isRainState, rainProgress]);
+
   const mascotAnimatedStyle = useAnimatedStyle(() => ({
     opacity: entranceOpacity.value * (loading ? 0.35 : 1),
     transform: [
@@ -291,6 +348,25 @@ export const NornStateMascot: React.FC<NornStateMascotProps> = ({
       />
 
       <View className="flex-1 items-center justify-center px-6 pt-4 pb-4">
+        {isRainState ? (
+          <View
+            pointerEvents="none"
+            className="absolute left-8 right-8"
+            style={{ top: 20, bottom: 20 }}
+          >
+            {Array.from({ length: RAIN_DROPS }).map((_, i) => {
+              return (
+                <RainDrop
+                  key={`rain-${i}`}
+                  idx={i}
+                  rainProgress={rainProgress}
+                  rainOpacity={rainOpacity}
+                />
+              );
+            })}
+          </View>
+        ) : null}
+
         {loading ? (
           <View
             className="absolute items-center justify-center"
