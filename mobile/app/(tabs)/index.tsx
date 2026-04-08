@@ -24,6 +24,10 @@ import { NornStateMascot } from "../../components/norn-state-mascot";
 import { ScreenSectionHeader } from "../../components/ui/screen-section-header";
 import { useAuth } from "../../contexts/auth-context";
 import { useActivityStatistics } from "../../hooks/useActivityStatistics";
+import { upsertTodayDailySummaryFromActivity } from "../../actions/statistics.actions";
+import { upsertTodayDailySummaryFromEventsFallback } from "../../actions/statistics.actions";
+import { fetchDailyStatistics } from "../../actions/statistics.actions";
+import { fetchTodayActivityEvents, buildTodayStatsFromEvents } from "../../actions/statistics.actions";
 import { useCareBackupContacts } from "../../hooks/useCareBackupContacts";
 import { useCareRecipientProfile } from "../../hooks/useCareRecipientProfile";
 import { useImuWearableStatus } from "../../hooks/useImuWearableStatus";
@@ -48,6 +52,55 @@ const HomeScreen = () => {
   } = useActivityStatistics(userId, "today");
   const imuStatusErrorBool = Boolean(imuStatusError);
   const activityToday = todayStatsRes?.statistics;
+  const { data: persistedTodayRows = [] } = useQuery({
+    queryKey: ["daily-statistics-home-today", userId],
+    queryFn: () => fetchDailyStatistics(userId!, 1),
+    enabled: Boolean(userId),
+    staleTime: 15_000,
+    refetchInterval: 30_000,
+  });
+  const { data: todayFallbackEvents = [] } = useQuery({
+    queryKey: ["today-activity-events-fallback", userId],
+    queryFn: () => fetchTodayActivityEvents(userId!),
+    enabled: Boolean(userId),
+    staleTime: 8_000,
+    refetchInterval: 10_000,
+  });
+  const persistedToday = persistedTodayRows[0] ?? null;
+  const fallbackTodayStats = useMemo(() => {
+    if (!persistedToday) return undefined;
+    const raw = persistedToday.activity_class_breakdown;
+    const source =
+      raw && typeof raw === "object" && !Array.isArray(raw)
+        ? (raw as Record<string, { count?: number; total_seconds?: number }>)
+        : {};
+    const byActivity = Object.entries(source).reduce<
+      Record<string, { count: number; total_seconds: number }>
+    >((acc, [k, v]) => {
+      acc[k] = {
+        count: v?.count ?? 0,
+        total_seconds: v?.total_seconds ?? 0,
+      };
+      return acc;
+    }, {});
+    return {
+      period: "today",
+      from: `${persistedToday.stat_date}T00:00:00.000Z`,
+      to: `${persistedToday.stat_date}T23:59:59.999Z`,
+      by_activity: byActivity,
+      events: [],
+      total_events: persistedToday.imu_activity_event_count ?? persistedToday.total_readings ?? 0,
+    };
+  }, [persistedToday]);
+  const eventsDerivedTodayStats = useMemo(
+    () => (todayFallbackEvents.length ? buildTodayStatsFromEvents(todayFallbackEvents) : undefined),
+    [todayFallbackEvents],
+  );
+  const effectiveActivityToday = activityToday ?? eventsDerivedTodayStats ?? fallbackTodayStats;
+  const showTodayLoadingSpinner = todayStatsLoading && !effectiveActivityToday;
+  const showTodaySummaryError = todayStatsError && !effectiveActivityToday;
+  const lastPersistedSummaryRef = useRef<string | null>(null);
+  const lastFallbackPersistAtRef = useRef<number>(0);
   const insets = useSafeAreaInsets();
   const lastFallAlertRef = useRef<string | null>(null);
   const [fallQuickActionMessage, setFallQuickActionMessage] = useState<string | null>(null);
@@ -274,19 +327,19 @@ const HomeScreen = () => {
   );
 
   const todayTrackedMinutes = useMemo(() => {
-    const by = activityToday?.by_activity;
+    const by = effectiveActivityToday?.by_activity;
     if (!by) return 0;
     return Object.values(by).reduce((s, b) => s + (b.total_seconds ?? 0) / 60, 0);
-  }, [activityToday?.by_activity]);
+  }, [effectiveActivityToday?.by_activity]);
 
   const todayActivityBreakdown = useMemo(() => {
-    const by = activityToday?.by_activity;
+    const by = effectiveActivityToday?.by_activity;
     if (!by) return [];
     return Object.entries(by)
       .filter(([, v]) => (v.count ?? 0) > 0 || (v.total_seconds ?? 0) > 0)
       .sort((a, b) => (b[1].total_seconds ?? 0) - (a[1].total_seconds ?? 0))
       .slice(0, 6);
-  }, [activityToday?.by_activity]);
+  }, [effectiveActivityToday?.by_activity]);
 
   /** Up to four activity keys for the home 2×2 grid: real data first, then common defaults. */
   const myDayGridKeys = useMemo(() => {
@@ -312,11 +365,76 @@ const HomeScreen = () => {
   }, [todayActivityBreakdown]);
 
   const todayTimelineEvents = useMemo(() => {
-    const list = activityToday?.events ?? [];
+    const list = effectiveActivityToday?.events ?? [];
     return [...list]
       .filter((e) => e.activity && String(e.activity).toLowerCase() !== "ping")
-      .slice(0, 24);
-  }, [activityToday?.events]);
+      .sort((a, b) => {
+        const ta = a.created_at ? new Date(a.created_at).getTime() : 0;
+        const tb = b.created_at ? new Date(b.created_at).getTime() : 0;
+        return tb - ta;
+      })
+      .slice(0, 20);
+  }, [effectiveActivityToday?.events]);
+
+  useEffect(() => {
+    if (__DEV__) {
+      console.log("[Home] Daily summary precheck", {
+        hasUserId: Boolean(userId),
+        todayStatsLoading,
+        todayStatsError,
+        hasActivityToday: Boolean(activityToday),
+        totalEvents: activityToday?.total_events ?? null,
+      });
+    }
+
+    if (!userId || !activityToday) {
+      if (__DEV__) {
+        console.log("[Home] Daily summary skipped", {
+          reason: !userId ? "missing-user-id" : "missing-activity-today",
+        });
+      }
+      return;
+    }
+    const signature = JSON.stringify({
+      total_events: activityToday.total_events ?? 0,
+      by_activity: activityToday.by_activity ?? {},
+      last_event_at: (activityToday.events ?? [])
+        .map((e) => e.created_at)
+        .filter(Boolean)
+        .sort()
+        .at(-1) ?? null,
+    });
+    if (lastPersistedSummaryRef.current === signature) return;
+    lastPersistedSummaryRef.current = signature;
+
+    if (__DEV__) {
+      console.log("[Home] Persist daily summary trigger", {
+        userId,
+        total_events: activityToday.total_events ?? 0,
+      });
+    }
+
+    upsertTodayDailySummaryFromActivity(userId, activityToday).catch((err) => {
+      console.error("Failed to persist daily summary:", err);
+      lastPersistedSummaryRef.current = null;
+    });
+  }, [userId, activityToday, todayStatsLoading, todayStatsError]);
+
+  useEffect(() => {
+    if (!userId || !todayStatsError || todayStatsLoading) return;
+    const now = Date.now();
+    // Avoid hammering when API is flapping: try fallback at most every 30s.
+    if (now - lastFallbackPersistAtRef.current < 30_000) return;
+    lastFallbackPersistAtRef.current = now;
+
+    if (__DEV__) {
+      console.log("[Home] Daily summary fallback trigger", { userId });
+    }
+
+    upsertTodayDailySummaryFromEventsFallback(userId).catch((err) => {
+      console.error("Failed to persist daily summary via fallback:", err);
+    });
+  }, [userId, todayStatsError, todayStatsLoading]);
 
   // Monitor for fall detection alerts (failures surface to React Query for backoff — avoid 3s spam when backend is down)
   const { data: unreadAlerts = [] } = useQuery({
@@ -502,7 +620,7 @@ const HomeScreen = () => {
           className="flex-1 rounded-t-[2.5rem] bg-white p-6 mt-6"
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{
-            paddingBottom: insets.bottom + 28,
+            paddingBottom: insets.bottom + 150,
           }}
           keyboardShouldPersistTaps="handled"
         >
@@ -510,9 +628,9 @@ const HomeScreen = () => {
 
           <MyDaySummaryCard
             showSignedIn={showAsSignedIn}
-            loading={todayStatsLoading}
-            hasError={todayStatsError}
-            activityToday={activityToday}
+            loading={showTodayLoadingSpinner}
+            hasError={showTodaySummaryError}
+            activityToday={effectiveActivityToday}
             todayTrackedMinutes={todayTrackedMinutes}
             todayActivityBreakdown={todayActivityBreakdown}
             myDayGridKeys={myDayGridKeys}
@@ -524,8 +642,8 @@ const HomeScreen = () => {
 
           <TodayTimelineList
             showSignedIn={showAsSignedIn}
-            loading={todayStatsLoading}
-            hasError={todayStatsError}
+            loading={showTodayLoadingSpinner}
+            hasError={showTodaySummaryError}
             events={todayTimelineEvents}
             getVisual={homeActivityVisual}
             formatActivityLabel={formatActivityDisplayName}

@@ -1,5 +1,6 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useMemo, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { ActivityIndicator, ImageBackground, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Card } from '../../components/ui/card';
@@ -11,6 +12,8 @@ import type { TabId } from '../../components/statistics/section-tabs';
 import type { ActivityStatistics } from '../../services/backend-api.service';
 import { useAuth } from '../../contexts/auth-context';
 import { useActivityStatistics } from '../../hooks/useActivityStatistics';
+import { fetchDailyStatistics } from '../../actions/statistics.actions';
+import { fetchTodayActivityEvents, buildTodayStatsFromEvents } from '../../actions/statistics.actions';
 import { bucketActivityEventsByDay, criticalActivityTotals } from '../../utils/imu-activity';
 import { HERO_MIN_HEIGHT, NornColors, heroTextShadow, shadowStyles } from '@/theme';
 
@@ -30,6 +33,42 @@ const StatisticsScreen = () => {
 
   const isLoading = loadToday || load7 || load30;
   const hasActivityData = (activity30?.total_events ?? 0) > 0;
+  const { data: persistedDailyStats = [] } = useQuery({
+    queryKey: ['daily-statistics-summary', userId],
+    queryFn: () => fetchDailyStatistics(userId!, 1),
+    enabled: Boolean(userId),
+    staleTime: 15_000,
+    refetchInterval: 30_000,
+  });
+  const { data: todayFallbackEvents = [] } = useQuery({
+    queryKey: ['today-activity-events-fallback', userId],
+    queryFn: () => fetchTodayActivityEvents(userId!),
+    enabled: Boolean(userId),
+    staleTime: 8_000,
+    refetchInterval: 10_000,
+  });
+  const persistedTodaySummary = persistedDailyStats[0] ?? null;
+  const activityTodayEffective = useMemo(() => {
+    if (activityToday) return activityToday;
+    if (todayFallbackEvents.length) return buildTodayStatsFromEvents(todayFallbackEvents) as ActivityStatistics;
+    if (!persistedTodaySummary) return undefined;
+    const raw = persistedTodaySummary.activity_class_breakdown;
+    const byActivity =
+      raw && typeof raw === 'object' && !Array.isArray(raw)
+        ? (raw as Record<string, { count?: number; total_seconds?: number }>)
+        : {};
+    return {
+      period: 'today',
+      from: `${persistedTodaySummary.stat_date}T00:00:00.000Z`,
+      to: `${persistedTodaySummary.stat_date}T23:59:59.999Z`,
+      by_activity: byActivity,
+      events: [],
+      total_events:
+        persistedTodaySummary.imu_activity_event_count ??
+        persistedTodaySummary.total_readings ??
+        0,
+    } as ActivityStatistics;
+  }, [activityToday, persistedTodaySummary, todayFallbackEvents]);
 
   const [activeSection, setActiveSection] = useState<TabId>('activity');
   const [timeRange, setTimeRange] = useState<'7d' | '30d'>('7d');
@@ -73,11 +112,11 @@ const StatisticsScreen = () => {
   }, [activity30?.by_activity]);
 
   const topClassToday = useMemo(() => {
-    const by = activityToday?.by_activity;
+    const by = activityTodayEffective?.by_activity;
     if (!by || !Object.keys(by).length) return null;
     const sorted = Object.entries(by).sort((a, b) => (b[1].total_seconds ?? 0) - (a[1].total_seconds ?? 0));
     return sorted[0]?.[0] ?? null;
-  }, [activityToday?.by_activity]);
+  }, [activityTodayEffective?.by_activity]);
 
   const renderActiveSection = (): React.ReactNode => {
     if (!showStatsSignedIn) {
@@ -123,7 +162,7 @@ const StatisticsScreen = () => {
             chartDayCount={chartDayCount}
             imuEventValues={imuEventValues}
             imuChartLabels={imuChartLabels}
-            activityToday={activityToday as ActivityStatistics | undefined}
+            activityToday={activityTodayEffective as ActivityStatistics | undefined}
             topClassToday={topClassToday}
           />
         );
