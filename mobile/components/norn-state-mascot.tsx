@@ -24,28 +24,38 @@ import nornStanding from "../assets/logos/norn-icons/norn-standing.svg";
 import nornWalking from "../assets/logos/norn-icons/norn-walking.svg";
 
 type NornCode = "st" | "si" | "w" | "r" | "nf" | "f" | "af";
-const RAIN_DROPS = 18;
 const RAIN_X_OFFSETS = [6, 12, 18, 24, 30, 36, 42, 50, 56, 62, 68, 74, 80, 86, 92, 96, 90, 84];
+type RainMode = "nf" | "f" | "af";
 
 type RainDropProps = {
   idx: number;
+  totalDrops: number;
   rainProgress: SharedValue<number>;
+  rainMode: RainMode;
   rainOpacity: number;
 };
 
-const RainDrop: React.FC<RainDropProps> = ({ idx, rainProgress, rainOpacity }) => {
+const RainDrop: React.FC<RainDropProps> = ({ idx, totalDrops, rainProgress, rainMode, rainOpacity }) => {
+  const isFallMode = rainMode === "f";
+  const isAfterFallMode = rainMode === "af";
+  const dropLength = isFallMode ? 22 + (idx % 5) * 2 : isAfterFallMode ? 14 + (idx % 3) : 17 + (idx % 4);
+  const dropWidth = isFallMode ? 2.8 : isAfterFallMode ? 1.8 : 2.2;
+
   const dropStyle = useAnimatedStyle(() => {
-    const offset = idx / RAIN_DROPS;
+    const offset = idx / totalDrops;
     const local = (rainProgress.value + offset) % 1;
-    const y = interpolate(local, [0, 1], [-24, 230]);
-    const op = interpolate(local, [0, 0.18, 0.8, 1], [0, 1, 0.95, 0]);
+    const yEnd = isFallMode ? 260 : isAfterFallMode ? 210 : 235;
+    const y = interpolate(local, [0, 1], [-28, yEnd]);
+    const sway = interpolate(local, [0, 0.5, 1], [-1.2, 1.2, -1.2]);
+    const stretchY = interpolate(local, [0, 0.55, 1], [0.85, 1.08, 0.9]);
+    const op = interpolate(local, [0, 0.12, 0.82, 1], [0, 1, 0.95, 0]);
     return {
       opacity: op * rainOpacity,
-      transform: [{ translateY: y }],
+      transform: [{ translateY: y }, { translateX: sway }, { scaleY: stretchY }],
     };
-  }, [idx, rainOpacity]);
+  }, [idx, totalDrops, rainOpacity, isFallMode, isAfterFallMode]);
 
-  const leftPercent = RAIN_X_OFFSETS[idx] ?? ((idx * 7) % 96);
+  const leftPercent = RAIN_X_OFFSETS[idx] ?? ((idx * 11) % 96);
   return (
     <Animated.View
       style={[
@@ -53,10 +63,16 @@ const RainDrop: React.FC<RainDropProps> = ({ idx, rainProgress, rainOpacity }) =
           position: "absolute",
           left: `${leftPercent}%`,
           top: 0,
-          width: 2,
-          height: 14 + (idx % 4),
+          width: dropWidth,
+          height: dropLength,
           borderRadius: 999,
-          backgroundColor: "rgba(255,255,255,0.85)",
+          backgroundColor: isFallMode
+            ? "rgba(190,225,255,0.97)"
+            : isAfterFallMode
+              ? "rgba(175,210,245,0.78)"
+              : "rgba(182,218,250,0.88)",
+          borderWidth: 0.5,
+          borderColor: "rgba(255,255,255,0.72)",
         },
         dropStyle,
       ]}
@@ -158,6 +174,9 @@ export const NornStateMascot: React.FC<NornStateMascotProps> = ({
   const rainProgress = useSharedValue(0);
   const prevCodeRef = useRef<NornCode | null>(null);
   const isRainState = code === "nf" || code === "f" || code === "af";
+  const rainMode: RainMode = code === "f" ? "f" : code === "af" ? "af" : "nf";
+  const rainDropCount = rainMode === "f" ? 34 : rainMode === "nf" ? 24 : 14;
+  const rainDurationMs = rainMode === "f" ? 760 : rainMode === "nf" ? 980 : 1350;
   const rainOpacity = code === "f" ? 0.95 : code === "af" ? 0.75 : 0.65;
 
   useEffect(() => {
@@ -309,14 +328,14 @@ export const NornStateMascot: React.FC<NornStateMascotProps> = ({
     if (isRainState) {
       rainProgress.value = 0;
       rainProgress.value = withRepeat(
-        withTiming(1, { duration: 1300, easing: Easing.linear }),
+        withTiming(1, { duration: rainDurationMs, easing: Easing.linear }),
         -1,
         false,
       );
       return;
     }
     rainProgress.value = withTiming(0, { duration: 220 });
-  }, [isRainState, rainProgress]);
+  }, [isRainState, rainProgress, rainDurationMs]);
 
   const mascotAnimatedStyle = useAnimatedStyle(() => ({
     opacity: entranceOpacity.value * (loading ? 0.35 : 1),
@@ -354,12 +373,14 @@ export const NornStateMascot: React.FC<NornStateMascotProps> = ({
             className="absolute left-8 right-8"
             style={{ top: 20, bottom: 20 }}
           >
-            {Array.from({ length: RAIN_DROPS }).map((_, i) => {
+            {Array.from({ length: rainDropCount }).map((_, i) => {
               return (
                 <RainDrop
                   key={`rain-${i}`}
                   idx={i}
+                  totalDrops={rainDropCount}
                   rainProgress={rainProgress}
+                  rainMode={rainMode}
                   rainOpacity={rainOpacity}
                 />
               );
