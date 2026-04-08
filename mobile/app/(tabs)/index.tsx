@@ -60,6 +60,23 @@ const HomeScreen = () => {
     return Boolean(imuStatus?.online);
   }, [showQuickActionsModal, showAsSignedIn, imuStatusLoading, imuStatus?.online]);
 
+  useEffect(() => {
+    if (!__DEV__) return;
+    console.log("[Home][MascotVisibility]", {
+      showQuickActionsModal,
+      showAsSignedIn,
+      imuStatusLoading,
+      imuOnline: Boolean(imuStatus?.online),
+      bannerShowsMascotUi,
+    });
+  }, [
+    showQuickActionsModal,
+    showAsSignedIn,
+    imuStatusLoading,
+    imuStatus?.online,
+    bannerShowsMascotUi,
+  ]);
+
   const bannerBlend = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {

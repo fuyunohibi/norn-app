@@ -1,7 +1,16 @@
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo } from "react";
 import { ActivityIndicator, StyleSheet, Text, View, type ImageSourcePropType } from "react-native";
+import Animated, {
+  Easing,
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withSequence,
+  withSpring,
+  withTiming,
+} from "react-native-reanimated";
 import { activityCodeForBackendKey, formatActivityDisplayName } from "../utils/imu-activity";
 
 import nornAfterFalling from "../assets/logos/norn-icons/norn-after-falling.svg";
@@ -84,8 +93,8 @@ export interface NornStateMascotProps {
 }
 
 /**
- * State mascot: gradient panel + static icon + labels.
- * Rain and float animation were removed pending a simpler approach (e.g. Lottie, or Reanimated in a dev build).
+ * State mascot: gradient panel + icon + labels.
+ * The icon has a gentle floating/sway animation for a calm "alive" feel.
  */
 export const NornStateMascot: React.FC<NornStateMascotProps> = ({
   activityCode,
@@ -95,6 +104,52 @@ export const NornStateMascot: React.FC<NornStateMascotProps> = ({
 }) => {
   const code = useMemo(() => resolveNornCode(activityCode), [activityCode]);
   const theme = BACKGROUND[code];
+  const entranceOpacity = useSharedValue(0);
+  const entranceScale = useSharedValue(0.92);
+  const floatY = useSharedValue(0);
+  const tilt = useSharedValue(0);
+  const pulseScale = useSharedValue(1);
+
+  useEffect(() => {
+    entranceOpacity.value = withTiming(1, { duration: 450, easing: Easing.out(Easing.cubic) });
+    entranceScale.value = withSpring(1, { damping: 15, stiffness: 110 });
+
+    floatY.value = withRepeat(
+      withSequence(
+        withTiming(-4, { duration: 1700, easing: Easing.inOut(Easing.ease) }),
+        withTiming(4, { duration: 1700, easing: Easing.inOut(Easing.ease) }),
+      ),
+      -1,
+      true,
+    );
+
+    tilt.value = withRepeat(
+      withSequence(
+        withTiming(2, { duration: 1700, easing: Easing.inOut(Easing.ease) }),
+        withTiming(-2, { duration: 1700, easing: Easing.inOut(Easing.ease) }),
+      ),
+      -1,
+      true,
+    );
+
+    pulseScale.value = withRepeat(
+      withSequence(
+        withTiming(1.005, { duration: 1700, easing: Easing.inOut(Easing.ease) }),
+        withTiming(0.995, { duration: 1700, easing: Easing.inOut(Easing.ease) }),
+      ),
+      -1,
+      true,
+    );
+  }, [entranceOpacity, entranceScale, floatY, tilt, pulseScale]);
+
+  const mascotAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: entranceOpacity.value * (loading ? 0.35 : 1),
+    transform: [
+      { scale: entranceScale.value * pulseScale.value },
+      { translateY: floatY.value },
+      { rotate: `${tilt.value}deg` },
+    ],
+  }), [loading]);
 
   const headline = formatActivityDisplayName(code);
   const subtitle = !signedIn
@@ -125,14 +180,14 @@ export const NornStateMascot: React.FC<NornStateMascotProps> = ({
           </View>
         ) : null}
 
-        <View style={{ opacity: loading ? 0.35 : 1 }}>
+        <Animated.View style={mascotAnimatedStyle}>
           <Image
             source={NORNS[code]}
             style={{ width: 200, height: 200 }}
             contentFit="contain"
             accessibilityLabel={headline}
           />
-        </View>
+        </Animated.View>
 
         <Text
           className={`mt-1 text-center text-lg font-hell-round-bold ${theme.textClass}`}
