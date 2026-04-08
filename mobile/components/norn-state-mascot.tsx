@@ -1,6 +1,6 @@
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
-import React, { useEffect, useMemo } from "react";
+import React, { useEffect, useMemo, useRef } from "react";
 import { ActivityIndicator, StyleSheet, Text, View, type ImageSourcePropType } from "react-native";
 import Animated, {
   Easing,
@@ -109,6 +109,12 @@ export const NornStateMascot: React.FC<NornStateMascotProps> = ({
   const floatY = useSharedValue(0);
   const tilt = useSharedValue(0);
   const pulseScale = useSharedValue(1);
+  const transitionSpin = useSharedValue(0);
+  const transitionX = useSharedValue(0);
+  const transitionY = useSharedValue(0);
+  const squashX = useSharedValue(1);
+  const squashY = useSharedValue(1);
+  const prevCodeRef = useRef<NornCode | null>(null);
 
   useEffect(() => {
     entranceOpacity.value = withTiming(1, { duration: 450, easing: Easing.out(Easing.cubic) });
@@ -142,12 +148,127 @@ export const NornStateMascot: React.FC<NornStateMascotProps> = ({
     );
   }, [entranceOpacity, entranceScale, floatY, tilt, pulseScale]);
 
+  useEffect(() => {
+    const prev = prevCodeRef.current;
+    prevCodeRef.current = code;
+    if (!prev || prev === code) return;
+
+    const toAlert = code === "nf" || code === "f" || code === "af";
+    const fromAlert = prev === "nf" || prev === "f" || prev === "af";
+
+    if (toAlert) {
+      // Entering safety-related states: energetic sweep across the container.
+      transitionSpin.value = 0;
+      transitionX.value = withSequence(
+        withTiming(-30, { duration: 130, easing: Easing.out(Easing.quad) }),
+        withTiming(34, { duration: 240, easing: Easing.inOut(Easing.cubic) }),
+        withTiming(-22, { duration: 210, easing: Easing.inOut(Easing.cubic) }),
+        withTiming(12, { duration: 170, easing: Easing.inOut(Easing.cubic) }),
+        withTiming(0, { duration: 170, easing: Easing.in(Easing.quad) }),
+      );
+      transitionY.value = withSequence(
+        withTiming(-22, { duration: 170, easing: Easing.out(Easing.quad) }),
+        withTiming(14, { duration: 220, easing: Easing.inOut(Easing.quad) }),
+        withTiming(-8, { duration: 170, easing: Easing.inOut(Easing.quad) }),
+        withTiming(0, { duration: 170, easing: Easing.in(Easing.quad) }),
+      );
+      entranceScale.value = withSequence(
+        withSpring(1.24, { damping: 9, stiffness: 220 }),
+        withSpring(1, { damping: 13, stiffness: 180 }),
+      );
+      transitionSpin.value = withSequence(
+        withTiming(24, { duration: 180, easing: Easing.out(Easing.quad) }),
+        withTiming(-18, { duration: 210, easing: Easing.inOut(Easing.quad) }),
+        withTiming(10, { duration: 170, easing: Easing.inOut(Easing.quad) }),
+        withTiming(0, { duration: 160, easing: Easing.in(Easing.quad) }),
+      );
+      squashX.value = withSequence(
+        withTiming(1.14, { duration: 120 }),
+        withTiming(0.9, { duration: 160 }),
+        withTiming(1.06, { duration: 140 }),
+        withTiming(1, { duration: 150 }),
+      );
+      squashY.value = withSequence(
+        withTiming(0.9, { duration: 120 }),
+        withTiming(1.16, { duration: 160 }),
+        withTiming(0.96, { duration: 140 }),
+        withTiming(1, { duration: 150 }),
+      );
+      return;
+    }
+
+    if (fromAlert) {
+      // Leaving alert states: smooth rebound back to center.
+      transitionX.value = withSequence(
+        withTiming(24, { duration: 170, easing: Easing.out(Easing.quad) }),
+        withTiming(-16, { duration: 220, easing: Easing.inOut(Easing.quad) }),
+        withTiming(8, { duration: 160, easing: Easing.inOut(Easing.quad) }),
+        withTiming(0, { duration: 170, easing: Easing.in(Easing.quad) }),
+      );
+      transitionY.value = withSequence(
+        withTiming(-16, { duration: 160, easing: Easing.out(Easing.quad) }),
+        withTiming(10, { duration: 210, easing: Easing.inOut(Easing.quad) }),
+        withTiming(-4, { duration: 150, easing: Easing.inOut(Easing.quad) }),
+        withTiming(0, { duration: 150, easing: Easing.in(Easing.quad) }),
+      );
+      transitionSpin.value = withSequence(
+        withTiming(-12, { duration: 180, easing: Easing.inOut(Easing.quad) }),
+        withTiming(8, { duration: 160, easing: Easing.inOut(Easing.quad) }),
+        withTiming(0, { duration: 150, easing: Easing.in(Easing.quad) }),
+      );
+      squashX.value = withSequence(
+        withTiming(1.1, { duration: 130 }),
+        withTiming(0.94, { duration: 150 }),
+        withTiming(1.02, { duration: 130 }),
+        withTiming(1, { duration: 130 }),
+      );
+      squashY.value = withSequence(
+        withTiming(0.92, { duration: 130 }),
+        withTiming(1.1, { duration: 150 }),
+        withTiming(0.98, { duration: 130 }),
+        withTiming(1, { duration: 130 }),
+      );
+      return;
+    }
+
+    // Normal-to-normal transitions: lively drift around container.
+    transitionX.value = withSequence(
+      withTiming(-18, { duration: 140, easing: Easing.out(Easing.quad) }),
+      withTiming(20, { duration: 200, easing: Easing.inOut(Easing.quad) }),
+      withTiming(-10, { duration: 170, easing: Easing.inOut(Easing.quad) }),
+      withTiming(0, { duration: 170, easing: Easing.in(Easing.quad) }),
+    );
+    transitionY.value = withSequence(
+      withTiming(-12, { duration: 150, easing: Easing.out(Easing.quad) }),
+      withTiming(8, { duration: 190, easing: Easing.inOut(Easing.quad) }),
+      withTiming(-4, { duration: 150, easing: Easing.inOut(Easing.quad) }),
+      withTiming(0, { duration: 150, easing: Easing.in(Easing.quad) }),
+    );
+    transitionSpin.value = withSequence(
+      withTiming(16, { duration: 160, easing: Easing.inOut(Easing.quad) }),
+      withTiming(-10, { duration: 170, easing: Easing.inOut(Easing.quad) }),
+      withTiming(0, { duration: 150, easing: Easing.in(Easing.quad) }),
+    );
+    squashX.value = withSequence(
+      withTiming(1.08, { duration: 110 }),
+      withTiming(0.96, { duration: 130 }),
+      withTiming(1, { duration: 120 }),
+    );
+    squashY.value = withSequence(
+      withTiming(0.94, { duration: 110 }),
+      withTiming(1.06, { duration: 130 }),
+      withTiming(1, { duration: 120 }),
+    );
+  }, [code, transitionSpin, transitionX, transitionY, entranceScale, squashX, squashY]);
+
   const mascotAnimatedStyle = useAnimatedStyle(() => ({
     opacity: entranceOpacity.value * (loading ? 0.35 : 1),
     transform: [
-      { scale: entranceScale.value * pulseScale.value },
-      { translateY: floatY.value },
-      { rotate: `${tilt.value}deg` },
+      { scaleX: entranceScale.value * pulseScale.value * squashX.value },
+      { scaleY: entranceScale.value * pulseScale.value * squashY.value },
+      { translateX: transitionX.value },
+      { translateY: floatY.value + transitionY.value },
+      { rotate: `${tilt.value + transitionSpin.value}deg` },
     ],
   }), [loading]);
 
