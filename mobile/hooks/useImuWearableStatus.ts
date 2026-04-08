@@ -2,15 +2,13 @@ import { useQuery } from "@tanstack/react-query";
 import type { ImuWearableStatusResponse } from "../services/backend-api.service";
 import { backendAPIService } from "../services/backend-api.service";
 import { getImuWearableStatusFromSupabase } from "../services/imu-wearable-supabase.service";
+import { MOCK_FLAGS } from "../mock";
 
 /**
- * In __DEV__, the wearable is mocked as Live (online) unless you set
- * `EXPO_PUBLIC_MOCK_IMU_ONLINE=0` in the environment and restart Metro.
+ * Manual local toggle for mocking wearable online status.
+ * Set to `true` to use mock data, `false` to use live backend/Supabase.
  */
-const MOCK_IMU_ONLINE =
-  typeof __DEV__ !== "undefined" &&
-  __DEV__ &&
-  process.env.EXPO_PUBLIC_MOCK_IMU_ONLINE !== "0";
+const MOCK_IMU_ONLINE = MOCK_FLAGS.imuOnline;
 
 function mockImuWearableStatus(): ImuWearableStatusResponse {
   return {

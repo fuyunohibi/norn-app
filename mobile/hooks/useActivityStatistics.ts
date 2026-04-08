@@ -4,16 +4,13 @@ import {
   type ActivityPeriod,
   type ActivityStatisticsResponse,
 } from '../services/backend-api.service';
+import { MOCK_FLAGS } from '../mock';
 
 /**
- * In __DEV__, today's activity summary (My day) is mocked unless you set
- * `EXPO_PUBLIC_MOCK_MY_DAY=0` in the environment and restart Metro.
+ * Manual local toggle for mocking today's activity summary (My day).
  * Other periods (7d / 30d) always use the API.
  */
-const MOCK_MY_DAY =
-  typeof __DEV__ !== 'undefined' &&
-  __DEV__ &&
-  process.env.EXPO_PUBLIC_MOCK_MY_DAY !== '0';
+const MOCK_MY_DAY = MOCK_FLAGS.myDayToday;
 
 function mockActivityStatisticsToday(): ActivityStatisticsResponse {
   const now = new Date();
