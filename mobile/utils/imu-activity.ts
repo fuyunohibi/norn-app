@@ -17,6 +17,7 @@ const BACKEND_KEY_TO_CODE: Record<string, string> = {
   sitting: 'si',
   running: 'r',
   falling: 'f',
+  fall: 'f',
   after_fall: 'af',
   unstable_standing: 'nf',
 };
@@ -55,6 +56,12 @@ export function activityCodeForBackendKey(key: string): string | null {
   if (BACKEND_KEY_TO_CODE[k]) return BACKEND_KEY_TO_CODE[k];
   if (CODE_TO_LABEL[k]) return k;
   return null;
+}
+
+/** True when live IMU status should trigger the home fall quick-actions sheet (thesis code `f` plus common aliases). */
+export function imuActivityCodeIsFallClass(code: string | null | undefined): boolean {
+  const k = code?.trim().toLowerCase() ?? '';
+  return k === 'f' || k === 'fall' || k === 'falling';
 }
 
 export function criticalActivityTotals(

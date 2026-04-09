@@ -20,7 +20,7 @@ import { TodayActivitiesHeader } from "../../components/home/today-activities-he
 import { TodayTimelineList } from "../../components/home/today-timeline-list";
 import { WearableStatusChip } from "../../components/home/wearable-status-chip";
 import { NornIcon } from "../../components/norn-icon";
-import { NornStateMascot } from "../../components/norn-state-mascot";
+import { NORN_ALERT_ENTRY_ANIMATION_MS, NornStateMascot } from "../../components/norn-state-mascot";
 import { ScreenSectionHeader } from "../../components/ui/screen-section-header";
 import { useAuth } from "../../contexts/auth-context";
 import { useActivityStatistics } from "../../hooks/useActivityStatistics";
@@ -32,7 +32,7 @@ import { useCareBackupContacts } from "../../hooks/useCareBackupContacts";
 import { useCareRecipientProfile } from "../../hooks/useCareRecipientProfile";
 import { useImuWearableStatus } from "../../hooks/useImuWearableStatus";
 import { backendAPIService } from "../../services/backend-api.service";
-import { formatActivityDisplayName } from "../../utils/imu-activity";
+import { formatActivityDisplayName, imuActivityCodeIsFallClass } from "../../utils/imu-activity";
 import { formatTimelineTime } from "../../utils/time.utils";
 
 const HomeScreen = () => {
@@ -456,21 +456,18 @@ const HomeScreen = () => {
   // Track shown alerts to prevent duplicate notifications
   const shownAlertIds = useRef<Set<string>>(new Set());
 
-  // IMU / backend fall alerts: show whenever critical alerts arrive (device always monitors).
+  // IMU / backend fall alerts: show only when actual fall state is reported.
   useEffect(() => {
     if (!unreadAlerts || unreadAlerts.length === 0) return;
 
-    // Find critical fall alerts that haven't been shown yet
-    // Also verify they're recent (within last 2 minutes) and actually detected as falls
+    // Find critical fall alerts that haven't been shown yet.
+    // Also verify they're recent (within last 2 minutes) and actually detected as falls.
     const now = new Date().getTime();
     const twoMinutesAgo = now - 2 * 60 * 1000;
 
     const fallAlerts = unreadAlerts.filter((alert) => {
-      const isImuSafety =
-        (alert.alert_type === "fall" && alert.severity === "critical") ||
-        (alert.alert_type === "fall_risk" &&
-          (alert.severity === "high" || alert.severity === "critical"));
-      if (!isImuSafety) return false;
+      const isActualFall = alert.alert_type === "fall" && alert.severity === "critical";
+      if (!isActualFall) return false;
       if (shownAlertIds.current.has(alert.id)) return false;
 
       // Check if alert is recent (within last 2 minutes)
@@ -526,33 +523,37 @@ const HomeScreen = () => {
         ? `${Math.round(confidenceValue * 100)}%`
         : "High";
 
-      const isNearFall = latestFall.alert_type === "fall_risk";
       presentFallQuickActions(
-        isNearFall
-          ? `Unstable standing was reported for the person you monitor (${confidence} confidence if available). Consider checking on them.`
-          : `A fall was detected (${confidence} confidence) for the person wearing the sensor. Check on them or call using the actions below.`,
+        `A fall was detected (${confidence} confidence) for the person wearing the sensor. Check on them or call using the actions below.`,
       );
     }
   }, [unreadAlerts, presentFallQuickActions]);
 
-  // Live IMU critical classes (f / af / nf) from latest activity_events row
+  // Live IMU fall class (short code `f`, or mock-friendly `fall` / `falling`) from wearable status
   useEffect(() => {
-    const code = imuStatus?.activity_code?.toLowerCase();
-    if (!code || !["f", "af", "nf"].includes(code)) return;
+    const raw = imuStatus?.activity_code;
+    const trimmed = raw?.trim();
+    // Clear dedupe after we leave fall state so si→f / r→f can open the sheet again even if
+    // `last_seen_at` is unchanged (mock saves or backend row timestamp).
+    if (trimmed && !imuActivityCodeIsFallClass(raw)) {
+      lastFallAlertRef.current = null;
+      return;
+    }
+    if (!imuActivityCodeIsFallClass(raw)) return;
 
+    const code = raw!.trim().toLowerCase();
     const fallIdentifier = `${code}-${imuStatus?.last_seen_at ?? ""}`;
     if (lastFallAlertRef.current === fallIdentifier) return;
 
-    lastFallAlertRef.current = fallIdentifier;
-
     const msg =
-      code === "f"
-        ? "The wearable reported a fall for the person you monitor. Check on them or call below."
-        : code === "af"
-          ? "The wearable suggests they may still be down after a fall. Please check on them."
-          : "The wearable reports unstable standing — they may be at higher risk of falling.";
+      "The wearable reported a fall for the person you monitor. Check on them or call below.";
 
-    presentFallQuickActions(msg);
+    const t = setTimeout(() => {
+      lastFallAlertRef.current = fallIdentifier;
+      presentFallQuickActions(msg);
+    }, NORN_ALERT_ENTRY_ANIMATION_MS);
+
+    return () => clearTimeout(t);
   }, [imuStatus?.activity_code, imuStatus?.last_seen_at, presentFallQuickActions]);
 
   const mascotProps = {

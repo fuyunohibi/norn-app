@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import type { ImuWearableStatusResponse } from "../services/backend-api.service";
 import { backendAPIService } from "../services/backend-api.service";
 import { getImuWearableStatusFromSupabase } from "../services/imu-wearable-supabase.service";
-import { MOCK_FLAGS } from "../mock";
+import { MOCK_FLAGS, MOCK_IMU_WEARABLE_BODY } from "../mock";
 
 /**
  * Manual local toggle for mocking wearable online status.
@@ -12,14 +12,8 @@ const MOCK_IMU_ONLINE = MOCK_FLAGS.imuOnline;
 
 function mockImuWearableStatus(): ImuWearableStatusResponse {
   return {
-    status: "success",
-    online: true,
+    ...MOCK_IMU_WEARABLE_BODY,
     last_seen_at: new Date().toISOString(),
-    age_seconds: 12,
-    activity_code: "si",
-    activity_label: "Sitting",
-    device_id: null,
-    reason: "mock",
   };
 }
 
@@ -29,7 +23,14 @@ function mockImuWearableStatus(): ImuWearableStatusResponse {
  */
 export const useImuWearableStatus = (userId?: string, deviceId?: string) => {
   return useQuery({
-    queryKey: ["imu-wearable-status", userId, deviceId ?? "any", MOCK_IMU_ONLINE ? "mock" : "live"],
+    queryKey: [
+      "imu-wearable-status",
+      userId,
+      deviceId ?? "any",
+      MOCK_IMU_ONLINE ? "mock" : "live",
+      // New key when MOCK_IMU_WEARABLE_BODY changes → immediate UI update on save (no refetch interval).
+      ...(MOCK_IMU_ONLINE ? [JSON.stringify(MOCK_IMU_WEARABLE_BODY)] : []),
+    ],
     queryFn: async () => {
       if (MOCK_IMU_ONLINE) {
         return mockImuWearableStatus();
@@ -45,7 +46,8 @@ export const useImuWearableStatus = (userId?: string, deviceId?: string) => {
       }
     },
     enabled: Boolean(userId),
-    refetchInterval: MOCK_IMU_ONLINE ? false : 5000,
-    staleTime: MOCK_IMU_ONLINE ? Infinity : 2000,
+    // Poll faster so UI state tracks backend activity changes with less lag.
+    refetchInterval: MOCK_IMU_ONLINE ? false : 2000,
+    staleTime: MOCK_IMU_ONLINE ? Infinity : 1000,
   });
 };
