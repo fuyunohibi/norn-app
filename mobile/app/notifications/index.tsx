@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertCircle, Shield } from 'lucide-react-native';
+import { AlertCircle, Shield, Wifi } from 'lucide-react-native';
 import React from 'react';
 import {
   ActivityIndicator,
@@ -87,6 +87,8 @@ const NotificationsScreen = () => {
       case 'fall':
       case 'fall_risk':
         return <Shield size={20} color="white" fill="white" />;
+      case 'device_online':
+        return <Wifi size={20} color="white" strokeWidth={2.5} />;
       default:
         return <AlertCircle size={20} color="white" />;
     }
