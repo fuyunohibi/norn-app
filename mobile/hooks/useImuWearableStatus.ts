@@ -16,8 +16,8 @@ function mockImuWearableStatus(): ImuWearableStatusResponse {
     online: true,
     last_seen_at: new Date().toISOString(),
     age_seconds: 12,
-    activity_code: "f",
-    activity_label: "Falling",
+    activity_code: "si",
+    activity_label: "Sitting",
     device_id: null,
     reason: "mock",
   };

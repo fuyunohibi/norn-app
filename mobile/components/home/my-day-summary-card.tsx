@@ -5,6 +5,7 @@ import { ActivityIndicator, Text, View } from "react-native";
 import { NornColors } from "@/theme";
 import type { ActivityStatistics } from "@/services/backend-api.service";
 import type { HomeActivityVisual } from "./home-activity-visual";
+import { cn } from '@/utils/cn';
 
 type MyDaySummaryCardProps = {
   showSignedIn: boolean;
@@ -166,9 +167,7 @@ export function MyDaySummaryCard({
                   const durationLabel = mins > 0 ? `~${mins} min` : "";
                   return (
                     <View key={key} className="flex-1 flex-column">
-                      <View
-                      
-                      className="min-h-[76px] flex-1 flex-row items-center gap-3 rounded-t-[24px] bg-[#F3EEE6] px-4 py-3.5"
+                      <View className={cn("min-h-[76px] flex-1 flex-row items-center gap-3 rounded-t-[24px] bg-[#F3EEE6] px-4 py-3.5", !durationLabel &&  "rounded-b-[24px]")}
                     >
                       <View
                         className="h-11 w-11 items-center justify-center rounded-full"

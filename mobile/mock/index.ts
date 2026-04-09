@@ -5,5 +5,12 @@
 export const MOCK_FLAGS = {
   imuOnline: false,
   myDayToday: false,
+  myDayTodayAtAGlance: {
+    noEvents: false,
+    safetyWatch: false,
+    sedentaryTrend: false,
+    activeTrend: false,
+    balancedMovement: false,
+  },
 } as const;
 
