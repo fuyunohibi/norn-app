@@ -1,5 +1,7 @@
 """Unit tests for ActivityMonitoringService (V&V / thesis)."""
 
+import asyncio
+
 import pytest
 from app.models.sensor import ActivityEventData, IMUAlertData
 from app.services.activity_monitoring_service import ActivityMonitoringService
@@ -20,6 +22,9 @@ class _FakeSupabase:
         self.activity_stores: list[dict] = []
         self.stats_requests: list[dict] = []
         self.alert_calls: list[dict] = []
+        self.imu_live_online: bool = False
+        self.block_duplicate_imu_alerts: bool = False
+        self.block_duplicate_device_online: bool = False
 
     async def store_activity_event(self, **kwargs):
         self.activity_stores.append(kwargs)
@@ -30,6 +35,16 @@ class _FakeSupabase:
         return {"period": period, "by_activity": {}}
 
     def get_imu_live_status(self, user_id: str, device_id=None, stale_seconds=90):
+        if self.imu_live_online:
+            return {
+                "online": True,
+                "last_seen_at": "2020-01-01T00:00:00+00:00",
+                "age_seconds": 1,
+                "activity_code": "st",
+                "activity_label": "Standing",
+                "device_id": device_id,
+                "reason": None,
+            }
         return {
             "online": False,
             "last_seen_at": None,
@@ -39,6 +54,16 @@ class _FakeSupabase:
             "device_id": device_id,
             "reason": "no_events",
         }
+
+    def has_recent_imu_prediction_alert(
+        self, user_id, device_id, prediction, window_seconds=60
+    ):
+        return self.block_duplicate_imu_alerts
+
+    def has_recent_device_online_alert(
+        self, user_id, device_id, window_seconds=120
+    ):
+        return self.block_duplicate_device_online
 
     async def create_alert(self, alert_data: dict):
         self.alert_calls.append(alert_data)
@@ -97,8 +122,52 @@ def test_enqueue_activity_event_schedules_store(svc: ActivityMonitoringService, 
     assert out["status"] == "success"
     assert len(bg.calls) == 1
     fn, args, kwargs = bg.calls[0]
-    assert kwargs["user_id"] == "u1"
-    assert kwargs["activity"] == "st"
+    assert fn == svc._run_activity_event_pipeline
+    asyncio.run(fn(**kwargs))
+    assert len(fake_db.activity_stores) == 1
+    assert fake_db.activity_stores[0]["user_id"] == "u1"
+    assert fake_db.activity_stores[0]["activity"] == "st"
+    assert len(fake_db.alert_calls) == 1
+    assert fake_db.alert_calls[0]["alert_type"] == "device_online"
+
+
+def test_activity_critical_creates_inbox_alert_when_already_online(
+    svc: ActivityMonitoringService, fake_db: _FakeSupabase
+) -> None:
+    fake_db.imu_live_online = True
+    bg = _FakeBackgroundTasks()
+    ev = ActivityEventData(device_id="d1", timestamp=10, activity="nf")
+    svc.enqueue_activity_event(bg, user_id="u1", data=ev)
+    fn, _, kwargs = bg.calls[0]
+    asyncio.run(fn(**kwargs))
+    assert len(fake_db.alert_calls) == 1
+    assert fake_db.alert_calls[0]["alert_type"] == "fall_risk"
+    assert fake_db.alert_calls[0]["alert_data"]["source"] == "activity_event"
+
+
+def test_imu_alert_enqueue_uses_deduping_hook(
+    svc: ActivityMonitoringService, fake_db: _FakeSupabase
+) -> None:
+    bg = _FakeBackgroundTasks()
+    data = IMUAlertData(device_id="d1", timestamp=1, prediction="f")
+    svc.enqueue_imu_alert(bg, user_id="u1", data=data)
+    assert len(bg.calls) == 1
+    fn, args, kwargs = bg.calls[0]
+    assert fn == svc._create_imu_class_alert_if_needed
+    asyncio.run(fn(*args, **kwargs))
+    assert len(fake_db.alert_calls) == 1
+
+
+def test_imu_alert_skips_when_recent_duplicate(
+    svc: ActivityMonitoringService, fake_db: _FakeSupabase
+) -> None:
+    fake_db.block_duplicate_imu_alerts = True
+    bg = _FakeBackgroundTasks()
+    data = IMUAlertData(device_id="d1", timestamp=1, prediction="f")
+    svc.enqueue_imu_alert(bg, user_id="u1", data=data)
+    fn, args, kwargs = bg.calls[0]
+    asyncio.run(fn(*args, **kwargs))
+    assert fake_db.alert_calls == []
 
 
 def test_service_requires_db() -> None:

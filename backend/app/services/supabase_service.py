@@ -322,6 +322,76 @@ class SupabaseService:
             "reason": None,
         }
 
+    def has_recent_imu_prediction_alert(
+        self,
+        user_id: str,
+        device_id: Optional[str],
+        prediction: str,
+        window_seconds: int = 60,
+    ) -> bool:
+        """
+        True if a fall/fall_risk alert with the same device + prediction exists recently.
+        Dedupes duplicate POSTs from /sensor/activity and /sensor/imu/alert.
+        """
+        pred = (prediction or "").strip().lower()
+        dev_key = (device_id or "").strip()
+        since = (
+            datetime.now(timezone.utc) - timedelta(seconds=max(15, window_seconds))
+        ).isoformat()
+        try:
+            result = (
+                self.client.table("alerts")
+                .select("id, alert_data")
+                .eq("user_id", user_id)
+                .gte("created_at", since)
+                .in_("alert_type", ["fall", "fall_risk"])
+                .execute()
+            )
+        except Exception as e:
+            logger.error("has_recent_imu_prediction_alert: %s", e)
+            return False
+        for row in result.data or []:
+            inner = row.get("alert_data")
+            if not isinstance(inner, dict):
+                continue
+            if (inner.get("prediction") or "").strip().lower() != pred:
+                continue
+            row_dev = (inner.get("device_id") or "") or ""
+            if row_dev.strip() == dev_key:
+                return True
+        return False
+
+    def has_recent_device_online_alert(
+        self,
+        user_id: str,
+        device_id: Optional[str],
+        window_seconds: int = 120,
+    ) -> bool:
+        dev_key = (device_id or "").strip()
+        since = (
+            datetime.now(timezone.utc) - timedelta(seconds=max(30, window_seconds))
+        ).isoformat()
+        try:
+            result = (
+                self.client.table("alerts")
+                .select("id, alert_data")
+                .eq("user_id", user_id)
+                .eq("alert_type", "device_online")
+                .gte("created_at", since)
+                .execute()
+            )
+        except Exception as e:
+            logger.error("has_recent_device_online_alert: %s", e)
+            return False
+        for row in result.data or []:
+            inner = row.get("alert_data")
+            if not isinstance(inner, dict):
+                continue
+            row_dev = (inner.get("device_id") or "") or ""
+            if row_dev.strip() == dev_key:
+                return True
+        return False
+
     async def create_alert(self, alert_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """
         Create a new alert in the database.

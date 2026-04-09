@@ -11,4 +11,4 @@ ALTER TABLE public.alerts
             'device_online',
             'low_battery'
         )
-    );
+    );go
