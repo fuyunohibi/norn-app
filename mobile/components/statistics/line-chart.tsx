@@ -21,7 +21,7 @@ export function LineChart({ values, color, labels }: LineChartProps) {
 
   const chartData = useMemo(() => {
     const validValues = values.filter(
-      (value) => typeof value === "number" && value > 0 && !Number.isNaN(value),
+      (value) => typeof value === "number" && value >= 0 && !Number.isNaN(value),
     );
 
     if (validValues.length < 2) {
@@ -30,7 +30,7 @@ export function LineChart({ values, color, labels }: LineChartProps) {
 
     let previousValue = validValues[0];
     const safeValues = values.map((value) => {
-      if (typeof value === "number" && value > 0 && !Number.isNaN(value)) {
+      if (typeof value === "number" && value >= 0 && !Number.isNaN(value)) {
         previousValue = value;
         return value;
       }

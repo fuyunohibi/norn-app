@@ -1,10 +1,10 @@
 import { useQuery } from '@tanstack/react-query';
-import {
-  backendAPIService,
-  type ActivityPeriod,
-  type ActivityStatisticsResponse,
-} from '../services/backend-api.service';
 import { MOCK_FLAGS } from '../mock';
+import {
+    backendAPIService,
+    type ActivityPeriod,
+    type ActivityStatisticsResponse,
+} from '../services/backend-api.service';
 
 /**
  * Manual local toggle for mocking today's activity summary (My day).
@@ -173,7 +173,12 @@ export const useActivityStatistics = (
       return backendAPIService.getActivityStatistics(userId!, period);
     },
     enabled: Boolean(userId),
-    staleTime: useMockToday ? Infinity : 15_000,
-    refetchInterval: useMockToday ? false : 20_000,
+    staleTime: Infinity,
+    gcTime: Infinity,
+    refetchInterval: false,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    refetchOnMount: false,
+    retry: false,
   });
 };

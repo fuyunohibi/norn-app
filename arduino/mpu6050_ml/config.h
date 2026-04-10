@@ -20,6 +20,8 @@
 // Your WiFi network credentials
 #define WIFI_SSID "HOME"
 #define WIFI_PASSWORD "18112514"
+// #define WIFI_SSID "Pochara"
+// #define WIFI_PASSWORD "petch123"
 
 // Connection timeout (seconds)
 #define WIFI_TIMEOUT_SEC 30
@@ -30,7 +32,9 @@
 
 // FastAPI backend base URL (no trailing slash)
 // MONGKHOLTHAM ESP32 IP: 192.168.1.36
-#define BACKEND_BASE_URL "http://192.168.1.102:8000" 
+#define BACKEND_BASE_URL "http://192.168.1.102:8000"
+// #define BACKEND_BASE_URL "http://172.20.10.8:8000"
+
 // Alert endpoint - called when critical state (fall, after_fall, unstable) is detected
 #define BACKEND_ALERT_URL BACKEND_BASE_URL "/api/v1/sensor/imu/alert"
 // Activity endpoint - called on every activity state change (walk, standing, sitting, etc.)

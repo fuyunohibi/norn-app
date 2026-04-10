@@ -3,14 +3,14 @@ import { Activity, BarChart3, User, Zap } from "lucide-react-native";
 import React from "react";
 import {
   ImageBackground,
+  Pressable,
   StyleSheet,
   Text,
-  TouchableOpacity as RNTouchableOpacity,
   View,
 } from "react-native";
 import { LineChart, type ChartLabel } from "./line-chart";
 import type { ActivityStatistics } from "@/services/backend-api.service";
-import { NornColors, heroTextShadow, shadowPresets, shadowStyles } from "@/theme";
+import { NornColors, heroTextShadow, shadowStyles } from "@/theme";
 import { formatActivityDisplayName } from "@/utils/imu-activity";
 import { formatMinutesFromSeconds } from "@/utils/statistics.utils";
 
@@ -18,25 +18,14 @@ type ActivityMode = "trends" | "today";
 type TimeRange = "7d" | "30d";
 
 type ActivitySectionProps = {
-  activityMode: ActivityMode;
-  setActivityMode: (mode: ActivityMode) => void;
   timeRange: TimeRange;
   setTimeRange: (range: TimeRange) => void;
   timeRangeOptions: Array<{ id: TimeRange; label: string }>;
   hasActivityData: boolean;
-  showStatsSignedIn: boolean;
   chartDayCount: number;
   imuEventValues: number[];
   imuChartLabels: ChartLabel[];
-  activityToday?: ActivityStatistics;
-  topClassToday: string | null;
 };
-
-function RawTouchableOpacity(
-  props: React.ComponentProps<typeof RNTouchableOpacity>,
-): React.ReactElement {
-  return React.createElement(RNTouchableOpacity, props);
-}
 
 const touchStyles = StyleSheet.create({
   trendsPill: {
@@ -53,21 +42,19 @@ const touchStyles = StyleSheet.create({
 });
 
 export function ActivitySection({
-  activityMode,
-  setActivityMode,
   timeRange,
   setTimeRange,
   timeRangeOptions,
   hasActivityData,
-  showStatsSignedIn,
   chartDayCount,
   imuEventValues,
   imuChartLabels,
-  activityToday,
-  topClassToday,
 }: ActivitySectionProps) {
   return (
     <View className="gap-5">
+      <View className="flex-row justify-between">
+
+      
       <View className="mb-1">
         <Text className="text-xs font-hell-round-bold uppercase tracking-[0.08em] text-gray-400">
           Activity
@@ -75,51 +62,29 @@ export function ActivitySection({
         <Text className="mt-1 text-xl font-hell-round-bold text-gray-900">Trends & today</Text>
       </View>
 
-      <View className="mb-4 flex-row flex-wrap items-center justify-between gap-3">
+      <View className="flex-row flex-wrap items-center justify-end gap-3">
         <View className="flex-row rounded-full bg-gray-100 p-1">
-          {(["trends", "today"] as const).map((mode) => {
-            const isActive = activityMode === mode;
+          {timeRangeOptions.map((option) => {
+            const isActive = timeRange === option.id;
             return (
-              <RawTouchableOpacity
-                key={mode}
-                activeOpacity={0.88}
-                onPress={() => setActivityMode(mode)}
-                style={[touchStyles.trendsPill, isActive && touchStyles.trendsPillActive]}
+              <Pressable
+                key={option.id}
+                onPress={() => setTimeRange(option.id)}
+                style={[touchStyles.trendsPill, isActive && touchStyles.rangePillActive]}
               >
                 <Text
                   className={`text-xs font-hell-round-bold ${isActive ? "text-white" : "text-gray-500"}`}
                 >
-                  {mode === "trends" ? "Trends" : "Today"}
+                  {option.label}
                 </Text>
-              </RawTouchableOpacity>
+              </Pressable>
             );
           })}
         </View>
-        {activityMode === "trends" ? (
-          <View className="flex-row rounded-full bg-gray-100 p-1">
-            {timeRangeOptions.map((option) => {
-              const isActive = timeRange === option.id;
-              return (
-                <RawTouchableOpacity
-                  key={option.id}
-                  activeOpacity={0.88}
-                  onPress={() => setTimeRange(option.id)}
-                  style={[touchStyles.trendsPill, isActive && touchStyles.rangePillActive]}
-                >
-                  <Text
-                    className={`text-xs font-hell-round-bold ${isActive ? "text-white" : "text-gray-500"}`}
-                  >
-                    {option.label}
-                  </Text>
-                </RawTouchableOpacity>
-              );
-            })}
-          </View>
-        ) : null}
+      </View>
       </View>
 
-      {activityMode === "trends" ? (
-        !hasActivityData ? (
+      {!hasActivityData ? (
           <View
             className="items-center overflow-hidden rounded-3xl border border-gray-100 bg-gray-50/90 px-6 py-10"
             style={shadowStyles.card}
@@ -178,85 +143,7 @@ export function ActivitySection({
               </Text>
             </View>
           </View>
-        )
-      ) : !showStatsSignedIn ? (
-        <View className="rounded-3xl border border-orange-100/80 bg-orange-50/35 px-5 py-8">
-          <Text className="text-center font-hell text-base text-gray-600">
-            Sign in to see today&apos;s activity.
-          </Text>
-        </View>
-      ) : (
-        <View
-          className="overflow-hidden rounded-3xl border border-gray-200/90 bg-white"
-          style={shadowStyles.card}
-        >
-          <ImageBackground
-            source={require("../../assets/images/backgrounds/daytime-bg.png")}
-            resizeMode="cover"
-            className="w-full overflow-hidden rounded-t-3xl"
-          >
-            <LinearGradient
-              colors={["rgba(0,0,0,0.22)", "rgba(0,0,0,0.48)"]}
-              start={{ x: 0.5, y: 0 }}
-              end={{ x: 0.5, y: 1 }}
-              style={StyleSheet.absoluteFillObject}
-            />
-            <View className="px-5 pb-3.5 pt-[18px]">
-              <Text className="text-lg font-hell-round-bold text-white" style={heroTextShadow}>
-                Today
-              </Text>
-              <Text className="mt-1 font-hell text-xs leading-4 text-white/90" style={heroTextShadow}>
-                Snapshot from your clip so far today
-              </Text>
-            </View>
-          </ImageBackground>
-          <View className="flex-row flex-wrap gap-3 px-4 pb-5 pt-1">
-            <View className="min-w-[108px] flex-1 rounded-2xl border border-gray-200/70 bg-white px-3.5 py-4 shadow-sm">
-              <View className="mx-auto mb-3.5 h-12 w-12 items-center justify-center rounded-2xl border border-blue-100/90 bg-blue-50">
-                <User size={22} color="#306DEE" strokeWidth={2.2} fill="#306DEE" />
-              </View>
-              <Text className="text-center text-[10px] font-hell-round-bold uppercase tracking-[0.06em] text-gray-400">
-                Events
-              </Text>
-              <Text className="mt-1.5 text-center text-2xl font-hell-round-bold text-gray-900">
-                {activityToday?.total_events ?? 0}
-              </Text>
-            </View>
-            <View className="min-w-[108px] flex-1 rounded-2xl border border-gray-200/70 bg-white px-3.5 py-4 shadow-sm">
-              <View className="mx-auto mb-3.5 h-12 w-12 items-center justify-center rounded-2xl border border-emerald-100/90 bg-emerald-50">
-                <Activity size={22} color="#059669" strokeWidth={2.2} />
-              </View>
-              <Text className="text-center text-[10px] font-hell-round-bold uppercase tracking-[0.06em] text-gray-400">
-                Top activity
-              </Text>
-              <Text
-                className="mt-1.5 min-h-[40px] text-center text-sm font-hell-round-bold leading-5 text-gray-900"
-                numberOfLines={2}
-              >
-                {topClassToday ? formatActivityDisplayName(topClassToday) : "—"}
-              </Text>
-            </View>
-            <View className="min-w-[108px] flex-1 rounded-2xl border border-gray-200/70 bg-white px-3.5 py-4 shadow-sm">
-              <View className="mx-auto mb-3.5 h-12 w-12 items-center justify-center rounded-2xl border border-orange-100/90 bg-orange-50/90">
-                <Zap size={22} color={NornColors.brandOrange} strokeWidth={2.2} />
-              </View>
-              <Text className="text-center text-[10px] font-hell-round-bold uppercase tracking-[0.06em] text-gray-400">
-                Tracked time
-              </Text>
-              <Text className="mt-1.5 text-center text-lg font-hell-round-bold text-gray-900">
-                {activityToday?.by_activity
-                  ? formatMinutesFromSeconds(
-                      Object.values(activityToday.by_activity).reduce(
-                        (s, b) => s + (b.total_seconds ?? 0),
-                        0,
-                      ),
-                    )
-                  : "—"}
-              </Text>
-            </View>
-          </View>
-        </View>
-      )}
+        )}
     </View>
   );
 }
