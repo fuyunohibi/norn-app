@@ -84,16 +84,15 @@ export function TodayTimelineList({
         return (
           <View
             key={`${ev.created_at ?? ""}-${index}`}
-            className="flex-row overflow-hidden rounded-2xl border border-gray-100 bg-white"
+            className="flex-row overflow-hidden rounded-3xl border border-gray-100 bg-white"
             style={shadowStyles.myDaySheet}
           >
-            <View style={{ width: 4, alignSelf: "stretch", borderRadius: 4, backgroundColor: v.accent }} />
             <View className="flex-1 flex-row items-center gap-3 py-3.5 pl-3 pr-4">
               <View
                 className="h-11 w-11 items-center justify-center rounded-xl"
-                style={{ backgroundColor: `${v.accent}18` }}
+                style={{ backgroundColor: `${v.accent}` }}
               >
-                <MaterialIcons name={v.icon} size={22} color={v.accent} />
+                <MaterialIcons name={v.icon} size={22} color="white" />
               </View>
               <View className="flex-1">
                 <Text className="text-base font-hell-round-bold text-gray-900">

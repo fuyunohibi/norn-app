@@ -53,7 +53,7 @@ export function EmergencyQuickActionsModal({
       <View className="flex-1 justify-end bg-black/50 p-7">
         <View className="bg-white rounded-[2.5rem] p-6 max-h-[75%]">
           <View className="flex-row items-center justify-between mb-4">
-            <Text className="text-2xl font-hell-round-bold text-gray-900 ">
+            <Text className="text-2xl font-hell-round-bold text-red-500">
               Fall alert
             </Text>
             <TouchableOpacity
@@ -79,12 +79,15 @@ export function EmergencyQuickActionsModal({
               size="lg"
               onPress={onPrimaryCall}
               disabled={primaryCallDisabled}
+              className="bg-red-500"
             />
             <Button
               title="Manage contacts & wearer info"
               variant="outline"
               size="lg"
               onPress={onManageContacts}
+              className="border-red-500"
+              textStyle={{ color: "#ef4444" }}
             />
           </View>
           {contactsLoading ? (
@@ -119,8 +122,8 @@ export function EmergencyQuickActionsModal({
                         </Text>
                       </View>
                       {contact.is_primary ? (
-                        <View className="bg-primary-accent/10 px-3 py-1 rounded-full">
-                          <Text className="text-primary-accent text-xs font-hell">
+                        <View className="bg-red-500 px-3 py-1 rounded-full">
+                          <Text className="text-white text-xs font-hell-round-bold">
                             Primary backup
                           </Text>
                         </View>

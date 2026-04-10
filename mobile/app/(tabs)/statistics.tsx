@@ -1,22 +1,21 @@
+import { HERO_MIN_HEIGHT, NornColors, heroTextShadow, shadowStyles } from '@/theme';
+import { useQuery } from '@tanstack/react-query';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
 import { ActivityIndicator, ImageBackground, RefreshControl, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Card } from '../../components/ui/card';
+import { buildTodayStatsFromEvents, fetchDailyStatistics, fetchTodayActivityEvents } from '../../actions/statistics.actions';
 import { ActivitySection } from '../../components/statistics/activity-section';
 import { ModeBreakdownSection } from '../../components/statistics/mode-breakdown-section';
 import { OverviewSection } from '../../components/statistics/overview-section';
-import { SectionTabs } from '../../components/statistics/section-tabs';
 import type { TabId } from '../../components/statistics/section-tabs';
-import type { ActivityStatistics } from '../../services/backend-api.service';
+import { SectionTabs } from '../../components/statistics/section-tabs';
+import { Card } from '../../components/ui/card';
 import { useAuth } from '../../contexts/auth-context';
 import { useActivityStatistics } from '../../hooks/useActivityStatistics';
-import { fetchDailyStatistics } from '../../actions/statistics.actions';
-import { fetchTodayActivityEvents, buildTodayStatsFromEvents } from '../../actions/statistics.actions';
+import type { ActivityStatistics } from '../../services/backend-api.service';
 import { backendAPIService } from '../../services/backend-api.service';
 import { bucketActivityEventsByDay, criticalActivityTotals } from '../../utils/imu-activity';
-import { HERO_MIN_HEIGHT, NornColors, heroTextShadow, shadowStyles } from '@/theme';
 
 const StatisticsScreen = () => {
   const { user } = useAuth();

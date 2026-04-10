@@ -125,7 +125,8 @@ const BACKGROUND: Record<
     subtextClass: "text-gray-800",
   },
   f: {
-    colors: ["#6B7780", "#3D454C"],
+    // colors: ["#AB1B1B", "#3D454C"], // red to blue
+     colors: ["#AB1B1B", "#AB1B1B"],
     textClass: "text-white",
     subtextClass: "text-gray-200",
   },

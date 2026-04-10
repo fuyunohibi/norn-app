@@ -22,7 +22,7 @@ export const MOCK_IMU_WEARABLE_BODY = {
   online: true,
   age_seconds: 5,
   /** Falling: API uses `f`; `fall` / `falling` also open the home fall sheet when mocking. */
-  activity_code: "af",
+  activity_code: "f",
   activity_label: "After fall",
   device_id: null,
   reason: "mock",

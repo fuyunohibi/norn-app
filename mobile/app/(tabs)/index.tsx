@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { Audio } from "expo-av";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -9,6 +10,7 @@ import {
   Linking,
   ScrollView,
   Text,
+  Vibration,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -105,6 +107,9 @@ const HomeScreen = () => {
   const lastFallAlertRef = useRef<string | null>(null);
   const [fallQuickActionMessage, setFallQuickActionMessage] = useState<string | null>(null);
   const [showQuickActionsModal, setShowQuickActionsModal] = useState(false);
+  const fallVibrationLoopRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const fallAlarmSoundRef = useRef<Audio.Sound | null>(null);
+  const fallAlarmOpRef = useRef(0);
   /** Mascot when the clip looks Live, scene when offline/loading; fall sheet forces mascot. */
   const bannerShowsMascotUi = useMemo(() => {
     if (showQuickActionsModal) return true;
@@ -204,22 +209,91 @@ const HomeScreen = () => {
     return true;
   }, [contactsLoading, monitoredPersonPhone, primaryBackupContact]);
 
+  const triggerFallVibration = useCallback(() => {
+    // Urgent pattern for critical fall alerts.
+    Vibration.vibrate([0, 250, 120, 250, 120, 450]);
+  }, []);
+
+  const stopFallVibrationLoop = useCallback(() => {
+    if (fallVibrationLoopRef.current) {
+      clearInterval(fallVibrationLoopRef.current);
+      fallVibrationLoopRef.current = null;
+    }
+    Vibration.cancel();
+  }, []);
+
+  const startFallAlarmLoop = useCallback(async () => {
+    try {
+      const opId = ++fallAlarmOpRef.current;
+      await Audio.setAudioModeAsync({
+        playsInSilentModeIOS: true,
+        shouldDuckAndroid: true,
+      });
+
+      let sound = fallAlarmSoundRef.current;
+      if (!sound) {
+        sound = new Audio.Sound();
+        await sound.loadAsync(require("../../assets/sounds/alarm-sound.mp3"), {
+          isLooping: true,
+          volume: 1.0,
+        });
+        fallAlarmSoundRef.current = sound;
+      }
+
+      // A newer stop/start op happened while loading.
+      if (opId !== fallAlarmOpRef.current) return;
+      await sound.playAsync();
+    } catch (err) {
+      console.error("Failed to start fall alarm sound:", err);
+    }
+  }, []);
+
+  const stopFallAlarmLoop = useCallback(async () => {
+    try {
+      fallAlarmOpRef.current += 1;
+      const sound = fallAlarmSoundRef.current;
+      if (!sound) return;
+      const status = await sound.getStatusAsync();
+      if (status.isLoaded && status.isPlaying) {
+        await sound.stopAsync();
+      }
+      await sound.unloadAsync();
+      fallAlarmSoundRef.current = null;
+    } catch (err) {
+      // Safe to ignore race-y stop/unload audio interruptions.
+    }
+  }, []);
+
+  const startFallVibrationLoop = useCallback(() => {
+    if (fallVibrationLoopRef.current) return;
+    triggerFallVibration();
+    // Repeat urgently until caregiver acknowledges or starts calling.
+    fallVibrationLoopRef.current = setInterval(() => {
+      triggerFallVibration();
+    }, 1400);
+  }, [triggerFallVibration]);
+
   const presentFallQuickActions = useCallback((message?: string) => {
+    triggerFallVibration();
     setFallQuickActionMessage(
       message ??
         "A fall or safety event was reported for the person wearing the sensor. Check on them or use the actions below.",
     );
     setShowQuickActionsModal(true);
-  }, []);
+  }, [triggerFallVibration]);
 
   const dismissFallQuickActions = useCallback(() => {
+    stopFallVibrationLoop();
+    void stopFallAlarmLoop();
     setShowQuickActionsModal(false);
-  }, []);
+  }, [stopFallVibrationLoop, stopFallAlarmLoop]);
 
   const handleFallSheetDismiss = useCallback(() => {
+    stopFallVibrationLoop();
+    void stopFallAlarmLoop();
     setFallQuickActionMessage(null);
     setShowQuickActionsModal(false);
-  }, []);
+  }, [stopFallVibrationLoop, stopFallAlarmLoop]);
 
   const callPhoneNumber = useCallback(
     async (phoneNumber: string, label?: string) => {
@@ -282,13 +356,38 @@ const HomeScreen = () => {
   ]);
 
   const handleAcknowledgeFallAlert = useCallback(() => {
+    stopFallVibrationLoop();
+    void stopFallAlarmLoop();
     dismissFallQuickActions();
-  }, [dismissFallQuickActions]);
+  }, [dismissFallQuickActions, stopFallVibrationLoop, stopFallAlarmLoop]);
 
   const handleManageContacts = useCallback(() => {
+    stopFallVibrationLoop();
+    void stopFallAlarmLoop();
     dismissFallQuickActions();
     router.push("/settings");
-  }, [dismissFallQuickActions]);
+  }, [dismissFallQuickActions, stopFallVibrationLoop, stopFallAlarmLoop]);
+
+  useEffect(() => {
+    if (showQuickActionsModal) {
+      startFallVibrationLoop();
+      void startFallAlarmLoop();
+    } else {
+      stopFallVibrationLoop();
+      void stopFallAlarmLoop();
+    }
+
+    return () => {
+      stopFallVibrationLoop();
+      void stopFallAlarmLoop();
+    };
+  }, [
+    showQuickActionsModal,
+    startFallVibrationLoop,
+    stopFallVibrationLoop,
+    startFallAlarmLoop,
+    stopFallAlarmLoop,
+  ]);
 
   /** Short label for the banner status chip (detail copy lives on /sensor). */
   const wearableChipLabel = useMemo(() => {
